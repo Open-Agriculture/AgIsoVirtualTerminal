@@ -1,6 +1,6 @@
 # AgIsoVirtualTerminal
 
-This project is a free, but experimental ISO11783-6 (ISOBUS) virtual terminal server GUI meant for agricultural and forestry equipment.
+This project is a free, but experimental ISO11783-6 (ISOBUS) virtual terminal server GUI meant for agricultural and forestry equipment meant to serve as the reference/example implementation of the AgIsoStack++ VT server interface.
 
 The project is written in C++ and is based on AgIsoStack++ and the JUCE GUI framework.
 
@@ -26,12 +26,13 @@ Supported features:
 - Output ellipse
 - Output polygon
 - Output line
+- Buttons
 - Output linear bar graph (except target line)
-- Output arched bar graph (except tick marks and target line)
+- Output meter (except tick marks and target line)
 - Picture graphics (with and without run-length encoding)
 - Output Strings (partial - font clipping is not compliant)
 - Input lists (partial - drawing the selector needs work)
-- Some CAN messages (Object pool upload state machine and handshake messages, change active mask response, change child location response, change numeric value and response, key/button activation and release messages, change numeric value, select input object)
+- Some CAN messages (Object pool upload state machine and handshake messages, maintenance messages, change active mask response, change child location response, change numeric value and response, key/button activation and release messages, change numeric value, select input object)
 
 Unimplemented features (for now)
 
@@ -43,8 +44,11 @@ Unimplemented features (for now)
 - Most macro functionality
 - Animations
 - Output Lists
+- Output arched bar graph
 - Logging
 - Input Boolean
+- Graphics contexts
+- Pointing events
 - TAN
 - Several messages, such as ESC
 - Probably more things to be honest
@@ -64,10 +68,4 @@ cmake --build build
 
 ### Disclaimers
 
-This project is not associated with the AEF in any way. By acquiring or using this project you agree to the [JUCE License](https://github.com/juce-framework/JUCE/blob/master/LICENSE.md) as well as any applicable licenses provided by dependencies such as AgIsoStack.
-
-It is claimed that compliance with ISO 11783 may involve the use of a patent concerning the controller area network (CAN) protocol referred to throughout this project and the ISO 11783/J1939 standards.
-
-No contributor to this project takes any position concerning the evidence, validity, and scope of said patent.
-
-Some elements of ISO 11783 and J1939 may be subject to patent rights other than the one identified above. No member of this project shall be held responsible for identifying any or all such patent rights.
+This project is not associated with the Agricultural Industry Electronics Foundation (AEF) in any way. By acquiring or using this project you agree to the [JUCE License](https://github.com/juce-framework/JUCE/blob/master/LICENSE.md) as well as any applicable licenses provided by dependencies such as AgIsoStack.
