@@ -1,0 +1,18 @@
+name: Build
+
+on: push
+
+jobs:
+  windows_build:
+    name: Windows Build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Compile
+        run: |
+          mkdir build
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build --config Debug
