@@ -16,6 +16,7 @@ Supported features:
 - Exactly 1 VT client
 - Object pool deserializer (most objects up to version 6 with some exceptions)
 - Data masks
+- Alarm masks
 - Soft key masks
 - Key objects
 - Containers
@@ -36,8 +37,7 @@ Supported features:
 
 Unimplemented features (for now)
 
-- Alarm masks
-- All audio functionality
+- Arbitrary audio control functionality
 - Selecting different working sets
 - Window masks
 - Aux N/O
