@@ -17,7 +17,7 @@ void WorkingSetSelectorComponent::add_working_set_to_draw(std::shared_ptr<isobus
 	{
 		auto childObject = JuceManagedWorkingSetCache::create_component(workingSet, workingSetObject->get_object_by_id(workingSetObject->get_child_id(i)));
 		children.back().childComponents.push_back(childObject);
-		childObject->setTopLeftPosition(8, 8);
+		childObject->setTopLeftPosition(8 + 15, 8 + 7);
 		addAndMakeVisible(*childObject);
 	}
 	repaint();

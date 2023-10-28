@@ -64,12 +64,16 @@ private:
 	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
+	void on_change_numeric_value_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, std::uint32_t value);
+	void repaint_data_and_soft_key_mask();
 
 	const std::string ISO_DATA_PATH = "iso_data";
 
 	WorkingSetSelectorComponent workingSetSelector;
 	DataMaskRenderAreaComponent dataMaskRenderer;
 	SoftKeyMaskRenderAreaComponent softKeyMaskRenderer;
+	SoundPlayer mSoundPlayer;
+	AudioDeviceManager mAudioDeviceManager;
 	std::uint8_t numberOfPoolsToRender = 0;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)

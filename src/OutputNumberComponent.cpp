@@ -50,7 +50,8 @@ void OutputNumberComponent::paint(Graphics &g)
 			}
 			else if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 			{
-				scaledValue = (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() + get_offset()) * get_scale();
+				std::int64_t offsetValue = static_cast<std::int64_t>(std::static_pointer_cast<isobus::NumberVariable>(child)->get_value()) + get_offset();
+				scaledValue = offsetValue * get_scale();
 			}
 		}
 	}

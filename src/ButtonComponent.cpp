@@ -42,6 +42,7 @@ void ButtonComponent::paint(Graphics &g)
 	if (false == get_option(Options::NoBorder))
 	{
 		vtColour = colourTable.get_colour(get_border_colour());
+		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 		g.drawRect(0, 0, get_width(), get_height(), 4);
 	}
 }

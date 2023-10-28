@@ -15,10 +15,10 @@ void OutputLineComponent::paint(Graphics &g)
 
 		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::LineAttributes == child->get_object_type()))
 		{
-			auto line = std::static_pointer_cast<isobus::LineAttributes>(child);
-
 			if ((0 != get_width()) && (0 != get_height()))
 			{
+				auto line = std::static_pointer_cast<isobus::LineAttributes>(child);
+
 				auto vtColour = colourTable.get_colour(line->get_background_color());
 				g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 
