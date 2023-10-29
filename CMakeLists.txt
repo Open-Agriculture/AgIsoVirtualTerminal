@@ -53,6 +53,7 @@ target_sources(
           "src/OutputLineComponent.cpp"
           "src/OutputLinearBarGraphComponent.cpp"
           "src/OutputPolygonComponent.cpp"
+          "src/AlarmMaskAudio.cpp"
           "src/InputListComponent.cpp")
 
 target_include_directories(AgISOUniversalTerminal
@@ -60,7 +61,7 @@ target_include_directories(AgISOUniversalTerminal
 
 target_link_libraries(
   AgISOUniversalTerminal
-  PRIVATE juce::juce_gui_extra isobus::Isobus isobus::HardwareIntegration
+  PRIVATE juce::juce_gui_extra juce::juce_audio_basics juce::juce_audio_utils isobus::Isobus isobus::HardwareIntegration
           isobus::Utility
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
          juce::juce_recommended_warning_flags)

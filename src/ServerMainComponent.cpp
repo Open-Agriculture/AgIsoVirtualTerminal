@@ -14,6 +14,9 @@ ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControl
   softKeyMaskRenderer(*this)
 {
 	VirtualTerminalServer::initialize();
+	languageCommandInterface.set_country_code("us");
+	languageCommandInterface.set_language_code("en");
+	languageCommandInterface.initialize();
 	mAudioDeviceManager.initialise(0, 1, nullptr, true);
 	mAudioDeviceManager.addAudioCallback(&mSoundPlayer);
 	addAndMakeVisible(workingSetSelector);
@@ -89,6 +92,12 @@ isobus::VirtualTerminalBase::SupportedWideCharsErrorCode ServerMainComponent::ge
 std::vector<std::uint8_t> ServerMainComponent::get_versions(isobus::NAME clientNAME)
 {
 	return std::vector<std::uint8_t>();
+}
+
+std::vector<std::uint8_t> ServerMainComponent::get_supported_objects() const
+{
+	// These are defined by ISO 11783-6 Table A.1 "Virtual terminal objects"
+	return {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 37, 39};
 }
 
 std::vector<std::uint8_t> ServerMainComponent::load_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)

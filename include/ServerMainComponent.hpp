@@ -32,6 +32,7 @@ public:
 	                                                     std::vector<std::uint8_t> &wideCharRangeArray) override;
 
 	std::vector<std::uint8_t> get_versions(isobus::NAME clientNAME) override;
+	std::vector<std::uint8_t> get_supported_objects() const override;
 
 	/// @brief This function is called when the client wants the server to load a previously stored object pool.
 	/// If there exists in the VT's non-volatile memory an object pool matching the provided version label,

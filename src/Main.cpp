@@ -87,6 +87,8 @@ public:
 #elif defined(ISOBUS_TOUCAN_AVAILABLE)
 			canDriver = std::make_shared<isobus::TouCANPlugin>(static_cast<std::int16_t>(0), change_me_to_your_serial_number);
 #endif
+
+			jassert(nullptr != canDriver); // You need some kind of CAN interface to run this program!
 			isobus::CANHardwareInterface::set_number_of_can_channels(1);
 			isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
 			isobus::CANHardwareInterface::start();
