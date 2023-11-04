@@ -66,11 +66,11 @@ void OutputStringComponent::paint(Graphics &g)
 
 	if (get_option(Options::AutoWrap)) // TODO need to figure out proper font clipping
 	{
-		g.drawFittedText(value, 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), std::floor((static_cast<float>(get_height()) + 0.1f) / fontHeight), 0.8f);
+		g.drawFittedText(value, 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(get_height()) + 0.1f) / fontHeight)), 0.8f);
 	}
 	else
 	{
-		g.drawFittedText(value, 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), std::floor((static_cast<float>(get_height()) + 0.1f) / fontHeight), 0.8f);
+		g.drawFittedText(value, 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(get_height()) + 0.1f) / fontHeight)), 0.8f);
 	}
 }
 

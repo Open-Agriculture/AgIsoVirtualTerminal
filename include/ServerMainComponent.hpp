@@ -66,6 +66,8 @@ private:
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
 	void on_change_numeric_value_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, std::uint32_t value);
+	void on_change_string_value_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, std::string value);
+	void on_change_child_position_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t parentObjectID, std::uint16_t objectID, std::uint16_t newX, std::uint16_t newY);
 	void repaint_data_and_soft_key_mask();
 
 	const std::string ISO_DATA_PATH = "iso_data";

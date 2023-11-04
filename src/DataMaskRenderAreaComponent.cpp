@@ -133,11 +133,11 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							if (0 != i)
 							{
 								currentModalComponentCache.push_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
-								comboPopup->addCustomItem(i, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, "Object " + std::to_string(clickedList->get_child_id(i)));
+								comboPopup->addCustomItem(i, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i))));
 							}
 						}
 						inputListModal->addButton("OK", 0);
-						auto resultCallback = [this](int result) {
+						auto resultCallback = [this](int /*result*/) {
 							this->inputListModal->exitModalState();
 							inputListModal.reset();
 						};
@@ -193,7 +193,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 								for (std::uint32_t i = 0; i < clickedNumber->get_number_children(); i++)
 								{
-									auto child = clickedNumber->get_object_by_id(clickedNumber->get_child_id(i));
+									auto child = clickedNumber->get_object_by_id(clickedNumber->get_child_id(static_cast<std::uint16_t>(i)));
 
 									if ((nullptr != child) && (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 									{
