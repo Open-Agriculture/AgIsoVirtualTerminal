@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       InputNumberComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "InputNumberComponent.hpp"
 
 #include <iomanip>

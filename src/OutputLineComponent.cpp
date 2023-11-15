@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       OutputLineComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "OutputLineComponent.hpp"
 
 OutputLineComponent::OutputLineComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputLine sourceObject) :

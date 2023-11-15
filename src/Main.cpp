@@ -1,11 +1,8 @@
-/*
-  ==============================================================================
-
-    This file contains the basic startup code for a JUCE application.
-
-  ==============================================================================
-*/
-
+/*******************************************************************************
+** @file       Main.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include <JuceHeader.h>
 #include "ServerMainComponent.hpp"
 #include "isobus/hardware_integration/available_can_drivers.hpp"
@@ -97,7 +94,7 @@ public:
 			serverNAME.set_arbitrary_address_capable(true);
 			serverNAME.set_function_code(static_cast<std::uint8_t>(isobus::NAME::Function::VirtualTerminal));
 			serverNAME.set_industry_group(2);
-			serverNAME.set_manufacturer_code(64);
+			serverNAME.set_manufacturer_code(1407);
 			serverInternalControlFunction = isobus::InternalControlFunction::create(serverNAME, 0x26, 0);
 			setUsingNativeTitleBar(true);
 			setContentOwned(new ServerMainComponent(serverInternalControlFunction), true);
@@ -117,6 +114,7 @@ public:
 			// This is called when the user tries to close this window. Here, we'll just
 			// ask the app to quit when this happens, but you can change this to do
 			// whatever you need.
+			isobus::CANHardwareInterface::stop();
 			JUCEApplication::getInstance()->systemRequestedQuit();
 		}
 

@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       SoftKeyMaskRenderAreaComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"

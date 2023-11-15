@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       AlarmMaskComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "AlarmMaskComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 

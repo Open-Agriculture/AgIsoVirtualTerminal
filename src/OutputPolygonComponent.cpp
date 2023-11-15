@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       OutputPolygonComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "OutputPolygonComponent.hpp"
 
 OutputPolygonComponent::OutputPolygonComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputPolygon sourceObject) :
@@ -62,11 +67,11 @@ void OutputPolygonComponent::paint(Graphics &g)
 
 				auto vtColour = colourTable.get_colour(fill->get_background_color());
 				g.setFillType(FillType(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f)));
+				g.fillPath(polygonPath);
 				break;
 			}
 		}
 
-		g.fillPath(polygonPath);
 		g.resetToDefaultState();
 		g.setColour(lineColour);
 		g.strokePath(polygonPath, PathStrokeType(lineWidth));

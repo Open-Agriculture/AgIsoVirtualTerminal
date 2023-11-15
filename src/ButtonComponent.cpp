@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       ButtonComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "ButtonComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 

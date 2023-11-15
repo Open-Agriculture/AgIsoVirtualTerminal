@@ -22,6 +22,7 @@ Supported features:
 - Containers
 - Object Pointers
 - Input numbers
+- Input Boolean
 - Output numbers
 - Output rectangles
 - Output ellipse
@@ -46,7 +47,6 @@ Unimplemented features (for now)
 - Output Lists
 - Output arched bar graph
 - Logging
-- Input Boolean
 - Graphics contexts
 - Pointing events
 - TAN

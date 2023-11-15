@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       OutputEllipseComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "OutputEllipseComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 

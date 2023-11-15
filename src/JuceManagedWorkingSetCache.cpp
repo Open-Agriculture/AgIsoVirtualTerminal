@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       JuceManagedWorkingSetCache.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "JuceManagedWorkingSetCache.hpp"
 
 #include "AlarmMaskComponent.hpp"
@@ -98,8 +103,13 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 			}
 			break;
 
-			case isobus::VirtualTerminalObjectType::KeyGroup:
 			case isobus::VirtualTerminalObjectType::InputBoolean:
+			{
+				retVal = std::make_shared<InputBooleanComponent>(workingSet, *std::static_pointer_cast<isobus::InputBoolean>(sourceObject));
+			}
+			break;
+
+			case isobus::VirtualTerminalObjectType::KeyGroup:
 			case isobus::VirtualTerminalObjectType::InputString:
 			{
 			}
@@ -216,6 +226,11 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 			}
 			break;
 		}
+	}
+
+	if (nullptr != retVal)
+	{
+		retVal->setInterceptsMouseClicks(false, false);
 	}
 	return retVal;
 }

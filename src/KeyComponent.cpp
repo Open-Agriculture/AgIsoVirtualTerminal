@@ -1,4 +1,10 @@
+/*******************************************************************************
+** @file       KeyComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "KeyComponent.hpp"
+
 #include "JuceManagedWorkingSetCache.hpp"
 
 KeyComponent::KeyComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::Key sourceObject) :

@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       DataMaskComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "DataMaskComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 

@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       ServerMainComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "ServerMainComponent.hpp"
 
 #include "AlarmMaskAudio.h"
@@ -215,6 +220,8 @@ void ServerMainComponent::timerCallback()
 				dataMaskRenderer.on_change_active_mask(ws);
 				softKeyMaskRenderer.on_change_active_mask(ws);
 				activeWorkingSet = ws;
+				ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) {const MessageManagerLock mmLock; this->dataMaskRenderer.on_change_active_mask(activeWorkingSet);
+				                                                                             softKeyMaskRenderer.on_change_active_mask(activeWorkingSet); })); // Todo only repaint if active WS is the one that changed
 				ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
 				ws->save_callback_handle(get_on_change_numeric_value_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, std::uint32_t value) { this->on_change_numeric_value_callback(affectedWorkingSet, objectID, value); }));
 				ws->save_callback_handle(get_on_change_string_value_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, std::string value) { this->on_change_string_value_callback(affectedWorkingSet, objectID, value); }));
@@ -230,12 +237,13 @@ void ServerMainComponent::timerCallback()
 		else if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state()) &&
 		         (isobus::SystemTiming::time_expired_ms(ws->get_working_set_maintenance_message_timestamp_ms(), 3000)))
 		{
-			//workingSetSelector.remove_working_set(std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object()));
+			workingSetSelector.remove_working_set(ws);
 		}
 		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state())
 		{
 			if (dataMaskRenderer.needsRepaint())
 			{
+				repaint_data_and_soft_key_mask();
 				dataMaskRenderer.on_change_active_mask(ws);
 			}
 		}
@@ -261,6 +269,8 @@ void ServerMainComponent::resized()
 std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control_function_for_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) const
 {
 	std::shared_ptr<isobus::ControlFunction> retVal = nullptr;
+
+	uint64_t test = 0;
 
 	for (const auto &ws : managedWorkingSetList)
 	{
@@ -292,37 +302,66 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
 	{
 		const MessageManagerLock mmLock;
+
 		dataMaskRenderer.on_change_active_mask(activeWorkingSet);
 		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
 
 		auto activeMask = affectedWorkingSet->get_object_by_id(newMask);
-
-		if ((nullptr != activeMask) && (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type()))
+		
+		if (activeWorkingSetDataMaskObjectID != newMask)
 		{
-			auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(activeMask);
-
-			switch (alarmMask->get_signal_priority())
+			activeWorkingSetDataMaskObjectID = newMask;
+			
+			if (send_status_message())
 			{
-				case isobus::AlarmMask::AcousticSignal::Highest:
-				{
-					mSoundPlayer.play(AlarmMaskAudio::alarmMaskHigh_mp3, AlarmMaskAudio::alarmMaskHigh_mp3Size);
-				}
-				break;
+				statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+			}
+			else
+			{
+				statusMessageTimestamp_ms = 0;
+			}
+		}
 
-				case isobus::AlarmMask::AcousticSignal::Medium:
-				{
-					mSoundPlayer.play(AlarmMaskAudio::alarmMaskMedium_mp3, AlarmMaskAudio::alarmMaskMedium_mp3Size);
-				}
-				break;
+		if (nullptr != activeMask)
+		{
+			for (std::uint16_t i = 0; i < activeMask->get_number_children(); i++)
+			{
+				auto child = activeMask->get_object_by_id(activeMask->get_child_id(i));
 
-				case isobus::AlarmMask::AcousticSignal::Lowest:
+				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{
-					mSoundPlayer.play(AlarmMaskAudio::alarmMaskLow_mp3, AlarmMaskAudio::alarmMaskLow_mp3Size);
-				}
-				break;
-
-				default:
+					activeWorkingSetSoftkeyMaskObjectID = child->get_id();
 					break;
+				}
+			}
+
+			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
+			{
+				auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(activeMask);
+
+				switch (alarmMask->get_signal_priority())
+				{
+					case isobus::AlarmMask::AcousticSignal::Highest:
+					{
+						mSoundPlayer.play(AlarmMaskAudio::alarmMaskHigh_mp3, AlarmMaskAudio::alarmMaskHigh_mp3Size);
+					}
+					break;
+
+					case isobus::AlarmMask::AcousticSignal::Medium:
+					{
+						mSoundPlayer.play(AlarmMaskAudio::alarmMaskMedium_mp3, AlarmMaskAudio::alarmMaskMedium_mp3Size);
+					}
+					break;
+
+					case isobus::AlarmMask::AcousticSignal::Lowest:
+					{
+						mSoundPlayer.play(AlarmMaskAudio::alarmMaskLow_mp3, AlarmMaskAudio::alarmMaskLow_mp3Size);
+					}
+					break;
+
+					default:
+						break;
+				}
 			}
 		}
 	}
@@ -333,136 +372,17 @@ void ServerMainComponent::on_change_numeric_value_callback(std::shared_ptr<isobu
 	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
 	{
 		const MessageManagerLock mmLock;
-		auto affectedObject = affectedWorkingSet->get_object_by_id(objectID);
-
-		switch (affectedObject->get_object_type())
-		{
-			case isobus::VirtualTerminalObjectType::InputBoolean:
-			{
-				std::static_pointer_cast<isobus::InputBoolean>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::InputNumber:
-			{
-				std::static_pointer_cast<isobus::InputNumber>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::InputList:
-			{
-				std::static_pointer_cast<isobus::InputList>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::OutputNumber:
-			{
-				std::static_pointer_cast<isobus::OutputNumber>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::OutputList:
-			{
-				std::static_pointer_cast<isobus::OutputList>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::OutputMeter:
-			{
-				std::static_pointer_cast<isobus::OutputMeter>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::OutputLinearBarGraph:
-			{
-				std::static_pointer_cast<isobus::OutputLinearBarGraph>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::OutputArchedBarGraph:
-			{
-				std::static_pointer_cast<isobus::OutputArchedBarGraph>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::NumberVariable:
-			{
-				std::static_pointer_cast<isobus::NumberVariable>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::ObjectPointer:
-			{
-				std::static_pointer_cast<isobus::ObjectPointer>(affectedObject)->pop_child();
-				std::static_pointer_cast<isobus::ObjectPointer>(affectedObject)->add_child(value, 0, 0);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::ExternalObjectPointer:
-			{
-				// TODO
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::Animation:
-			{
-				//Todo std::static_pointer_cast<Animation>(lTargetObject)->set_value(value);
-			}
-			break;
-
-			default:
-				break;
-		}
+		repaint_data_and_soft_key_mask();
 	}
 }
 
 void ServerMainComponent::on_change_string_value_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, std::string value)
 {
-	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
-	{
-		const MessageManagerLock mmLock;
-		auto affectedObject = affectedWorkingSet->get_object_by_id(objectID);
-
-		switch (affectedObject->get_object_type())
-		{
-			case isobus::VirtualTerminalObjectType::StringVariable:
-			{
-				std::static_pointer_cast<isobus::StringVariable>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::InputString:
-			{
-				std::static_pointer_cast<isobus::InputString>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			case isobus::VirtualTerminalObjectType::OutputString:
-			{
-				std::static_pointer_cast<isobus::OutputString>(affectedObject)->set_value(value);
-				repaint_data_and_soft_key_mask();
-			}
-			break;
-
-			default:
-				break;
-		}
-	}
+	const MessageManagerLock mmLock;
+	repaint_data_and_soft_key_mask();
 }
 
-void ServerMainComponent::on_change_child_position_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>, std::uint16_t, std::uint16_t, std::uint16_t, std::uint16_t)
+void ServerMainComponent::on_change_child_position_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>, std::uint16_t, std::uint16_t objectID, std::uint16_t, std::uint16_t)
 {
 	const MessageManagerLock mmLock;
 	repaint_data_and_soft_key_mask();
@@ -472,4 +392,5 @@ void ServerMainComponent::repaint_data_and_soft_key_mask()
 {
 	dataMaskRenderer.on_change_active_mask(activeWorkingSet);
 	softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
+	workingSetSelector.redraw();
 }

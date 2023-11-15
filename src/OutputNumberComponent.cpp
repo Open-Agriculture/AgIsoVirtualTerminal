@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       OutputNumberComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "OutputNumberComponent.hpp"
 
 #include <iomanip>

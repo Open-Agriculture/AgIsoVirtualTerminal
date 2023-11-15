@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       OutputMeterComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "OutputMeterComponent.hpp"
 
 #include <cmath>

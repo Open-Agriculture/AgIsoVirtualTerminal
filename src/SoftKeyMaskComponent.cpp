@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       SoftKeyMaskComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "SoftKeyMaskComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 
@@ -24,8 +29,6 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 			{
 				addAndMakeVisible(*childComponents.back());
 				childComponents.back()->setTopLeftPosition(10, 10 + (60 * i) + (10 * i));
-
-				// Add space between the keys
 			}
 		}
 	}

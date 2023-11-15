@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       OutputRectangleComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "OutputRectangleComponent.hpp"
 
 OutputRectangleComponent::OutputRectangleComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputRectangle sourceObject) :
@@ -21,7 +26,44 @@ void OutputRectangleComponent::paint(Graphics &g)
 			auto fill = std::static_pointer_cast<isobus::FillAttributes>(child);
 
 			vtColour = colourTable.get_colour(fill->get_background_color());
-			g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+			switch (std::static_pointer_cast<isobus::FillAttributes>(child)->get_type())
+			{
+				case isobus::FillAttributes::FillType::FillWithPatternGivenByFillPatternAttribute:
+				{
+					// @todo
+				}
+				break;
+
+				case isobus::FillAttributes::FillType::FillWithLineColor:
+				{
+					for (std::uint16_t i = 0; i < get_number_children(); i++)
+					{
+						auto childLineAttributes = get_object_by_id(get_child_id(i));
+
+						if ((nullptr != childLineAttributes) && (isobus::VirtualTerminalObjectType::LineAttributes == childLineAttributes->get_object_type()))
+						{
+							auto line = std::static_pointer_cast<isobus::LineAttributes>(childLineAttributes);
+							vtColour = colourTable.get_colour(line->get_background_color());
+							g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0));
+							g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+							break;
+						}
+					}
+				}
+				break;
+
+				case isobus::FillAttributes::FillType::FillWithSpecifiedColorInFillColorAttribute:
+				{
+					g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+				}
+				break;
+
+				default:
+				{
+					// No fill
+				}
+				break;
+			}
 			isOpaque = true;
 			break;
 		}
@@ -40,7 +82,8 @@ void OutputRectangleComponent::paint(Graphics &g)
 			if (0 != line->get_width())
 			{
 				bool anyLineSuppressed = (0 != get_line_suppression_bitfield());
-				g.setColour(Colour::fromFloatRGBA(0.0f, 0.0f, 0.0f, 1.0));
+				vtColour = colourTable.get_colour(line->get_background_color());
+				g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0));
 
 				if (!anyLineSuppressed)
 				{

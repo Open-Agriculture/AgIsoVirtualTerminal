@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       OutputLinearBarGraphComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "OutputLinearBarGraphComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 

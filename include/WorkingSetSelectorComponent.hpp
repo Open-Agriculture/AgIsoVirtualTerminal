@@ -27,6 +27,8 @@ public:
 	void paint(Graphics &g) override;
 	void resized() override;
 
+	void redraw();
+
 private:
 	struct SELECTOR_CHILD_OBJECTS_STRUCT
 	{

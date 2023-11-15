@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       ContainerComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "ContainerComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 
@@ -44,6 +49,7 @@ void ContainerComponent::paint(Graphics &)
 				child->setVisible(false);
 			}
 		}
+		this->setVisible(false);
 	}
 	else
 	{
@@ -54,5 +60,6 @@ void ContainerComponent::paint(Graphics &)
 				child->setVisible(true);
 			}
 		}
+		this->setVisible(true);
 	}
 }

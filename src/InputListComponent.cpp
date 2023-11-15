@@ -1,11 +1,8 @@
-//================================================================================================
-/// @file InputListComponent.cpp
-///
-/// @brief This is a class for drawing an input list.
-/// @author Adrian Del Grosso
-///
-/// @copyright 2023 Adrian Del Grosso
-//================================================================================================
+/*******************************************************************************
+** @file       InputListComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "InputListComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 
@@ -26,35 +23,32 @@ void InputListComponent::onChanged(bool initial)
 {
 	childComponent.reset();
 
-	if (get_number_children() > 1)
+	std::uint32_t selectedIndex = get_value();
+
+	if (isobus::NULL_OBJECT_ID != get_variable_reference())
 	{
-		std::uint32_t selectedIndex = get_value();
+		auto child = get_object_by_id(get_variable_reference());
 
-		for (std::uint16_t i = 0; i < get_number_children(); i++)
+		if (nullptr != child)
 		{
-			auto child = get_object_by_id(get_child_id(i));
-
-			if (nullptr != child)
+			if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 			{
-				if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
-				{
-					selectedIndex = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
-					break;
-				}
+				selectedIndex = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
 			}
 		}
+	}
 
-		if (selectedIndex < static_cast<std::uint32_t>(get_number_children() - 1))
+	if ((get_number_children() > 0) &&
+	    (selectedIndex < static_cast<std::uint32_t>(get_number_children())))
+	{
+		// The number variable will always be the first one
+		auto listItem = get_object_by_id(get_child_id(static_cast<std::uint16_t>(selectedIndex)));
+		childComponent = JuceManagedWorkingSetCache::create_component(parentWorkingSet, listItem);
+
+		if (nullptr != childComponent)
 		{
-			// The number variable will always be the first one
-			auto listItem = get_object_by_id(get_child_id(static_cast<std::uint16_t>(selectedIndex + 1)));
-			childComponent = JuceManagedWorkingSetCache::create_component(parentWorkingSet, listItem);
-
-			if (nullptr != childComponent)
-			{
-				addAndMakeVisible(*childComponent);
-				childComponent->setTopLeftPosition(0, 0);
-			}
+			addAndMakeVisible(*childComponent);
+			childComponent->setTopLeftPosition(0, 0);
 		}
 	}
 

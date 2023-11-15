@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       PictureGraphicComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "PictureGraphicComponent.hpp"
 
 PictureGraphicComponent::PictureGraphicComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::PictureGraphic sourceObject) :

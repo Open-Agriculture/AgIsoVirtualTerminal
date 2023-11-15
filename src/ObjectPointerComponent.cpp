@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       ObjectPointerComponent.cpp
+** @author     Adrian Del Grosso
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "ObjectPointerComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 
