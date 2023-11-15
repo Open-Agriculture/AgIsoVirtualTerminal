@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DataMaskRenderAreaComponent.hpp"
+#include "LoggerComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
@@ -75,6 +76,8 @@ private:
 	WorkingSetSelectorComponent workingSetSelector;
 	DataMaskRenderAreaComponent dataMaskRenderer;
 	SoftKeyMaskRenderAreaComponent softKeyMaskRenderer;
+	LoggerComponent logger;
+	Viewport loggerViewport;
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::uint8_t numberOfPoolsToRender = 0;

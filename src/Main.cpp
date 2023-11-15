@@ -88,7 +88,6 @@ public:
 			jassert(nullptr != canDriver); // You need some kind of CAN interface to run this program!
 			isobus::CANHardwareInterface::set_number_of_can_channels(1);
 			isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
-			isobus::CANHardwareInterface::start();
 
 			isobus::NAME serverNAME(0);
 			serverNAME.set_arbitrary_address_capable(true);
@@ -98,6 +97,7 @@ public:
 			serverInternalControlFunction = isobus::InternalControlFunction::create(serverNAME, 0x26, 0);
 			setUsingNativeTitleBar(true);
 			setContentOwned(new ServerMainComponent(serverInternalControlFunction), true);
+                 isobus::CANHardwareInterface::start();
 
 #if JUCE_IOS || JUCE_ANDROID
 			setFullScreen(true);

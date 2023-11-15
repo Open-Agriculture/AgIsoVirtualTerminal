@@ -1,0 +1,84 @@
+//================================================================================================
+/// @file LoggerComponent.cpp
+///
+/// @brief Implements a GUI component to draw log output.
+/// @author Adrian Del Grosso
+///
+/// @copyright 2023 Adrian Del Grosso
+//================================================================================================
+#include "LoggerComponent.hpp"
+
+LoggerComponent::LoggerComponent()
+{
+	auto bounds = getLocalBounds();
+	setBounds(10, 10, bounds.getWidth() - 10, bounds.getHeight() - 10);
+}
+
+void LoggerComponent::paint(Graphics &g)
+{
+	g.fillAll(Colours::black);
+	g.setFont(14.0f);
+
+	int numberOfLinesFitted = getHeight() / 14;
+
+	for (std::size_t i = 0; i < loggedMessages.size() && i < numberOfLinesFitted; i++)
+	{
+		const auto &message = loggedMessages.at(i);
+
+		switch (message.logLevel)
+		{
+			case LoggingLevel::Info:
+			{
+				g.setColour(Colours::white);
+			}
+			break;
+
+			case LoggingLevel::Warning:
+			{
+				g.setColour(Colours::yellow);
+			}
+			break;
+
+			case LoggingLevel::Error:
+			case LoggingLevel::Critical:
+			{
+				g.setColour(Colours::red);
+			}
+			break;
+
+			case LoggingLevel::Debug:
+			{
+				g.setColour(Colours::blueviolet);
+			}
+			break;
+
+			default:
+			{
+				g.setColour(Colours::white);
+			}
+			break;
+		}
+		g.drawFittedText(message.logText, 0, i * 14, getWidth(), 14, Justification::centredLeft, 1);
+	}
+}
+
+void LoggerComponent::sink_CAN_stack_log(LoggingLevel level, const std::string &logText)
+{
+	const auto mmLock = MessageManagerLock();
+
+	loggedMessages.push_front({ logText, level });
+
+	if (loggedMessages.size() > MAX_NUMBER_MESSAGES)
+	{
+		loggedMessages.pop_back();
+	}
+
+	int newSize = loggedMessages.size() * 14;
+
+	if (newSize < 200)
+	{
+		newSize = 200;
+	}
+	setSize(getWidth(), newSize);
+	repaint();
+}

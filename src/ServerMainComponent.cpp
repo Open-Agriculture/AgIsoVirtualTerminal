@@ -27,9 +27,18 @@ ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControl
 	addAndMakeVisible(workingSetSelector);
 	addAndMakeVisible(dataMaskRenderer);
 	addAndMakeVisible(softKeyMaskRenderer);
+	addAndMakeVisible(loggerViewport);
 	// Make sure you set the size of the component after
 	// you add any child components.
 	setSize(800, 800);
+
+	logger.setTopLeftPosition(0, 600);
+	logger.setSize(800, 200);
+	loggerViewport.setViewedComponent(&logger, false);
+	logger.setVisible(true);
+
+	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
+	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Debug);
 	// setFramesPerSecond(60); // This sets the frequency of the update calls.
 	startTimer(50);
 }
@@ -264,6 +273,8 @@ void ServerMainComponent::resized()
 	// This is called when the MainContentComponent is resized.
 	// If you add any child components, this is where you should
 	// update their positions.
+	loggerViewport.setSize(getWidth(), getHeight() - 600);
+	loggerViewport.setTopLeftPosition(0, 600);
 }
 
 std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control_function_for_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) const
@@ -307,11 +318,11 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
 
 		auto activeMask = affectedWorkingSet->get_object_by_id(newMask);
-		
+
 		if (activeWorkingSetDataMaskObjectID != newMask)
 		{
 			activeWorkingSetDataMaskObjectID = newMask;
-			
+
 			if (send_status_message())
 			{
 				statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();

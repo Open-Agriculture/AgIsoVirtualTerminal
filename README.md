@@ -34,7 +34,8 @@ Supported features:
 - Picture graphics (with and without run-length encoding)
 - Output Strings (partial - font clipping is not compliant)
 - Input lists (partial - drawing the selector needs work)
-- Some CAN messages (Object pool upload state machine and handshake messages, maintenance messages, change active mask response, change child location response, change numeric value and response, key/button activation and release messages, change numeric value, select input object)
+- Most relevant VT server CAN messages
+- Logging
 
 Unimplemented features (for now)
 
@@ -46,7 +47,6 @@ Unimplemented features (for now)
 - Animations
 - Output Lists
 - Output arched bar graph
-- Logging
 - Graphics contexts
 - Pointing events
 - TAN
