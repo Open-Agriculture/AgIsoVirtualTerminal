@@ -21,6 +21,7 @@ public:
 	InputListComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::InputList sourceObject);
 
 	void paint(Graphics &g) override;
+	void paintOverChildren(Graphics &g) override;
 
 	void onChanged(bool initial);
 

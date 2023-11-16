@@ -273,6 +273,11 @@ void ServerMainComponent::resized()
 	// This is called when the MainContentComponent is resized.
 	// If you add any child components, this is where you should
 	// update their positions.
+	auto lMenuBarHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight();
+
+	workingSetSelector.setBounds(0, lMenuBarHeight + 4, 100, 600);
+	dataMaskRenderer.setBounds(100, lMenuBarHeight + 4, 500, 500);
+	softKeyMaskRenderer.setBounds(580, lMenuBarHeight + 4, 100, 480);
 	loggerViewport.setSize(getWidth(), getHeight() - 600);
 	loggerViewport.setTopLeftPosition(0, 600);
 }

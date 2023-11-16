@@ -17,6 +17,13 @@ void OutputStringComponent::paint(Graphics &g)
 {
 	std::string value = get_value();
 	std::uint8_t fontHeight = 0;
+
+	if (!get_option(Options::Transparent))
+	{
+		auto vtColour = colourTable.get_colour(get_background_color());
+		g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+	}
+
 	g.setColour(getLookAndFeel().findColour(ListBox::textColourId));
 
 	// Get font data

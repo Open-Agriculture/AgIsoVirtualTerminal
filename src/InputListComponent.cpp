@@ -15,8 +15,17 @@ InputListComponent::InputListComponent(std::shared_ptr<isobus::VirtualTerminalSe
 	onChanged(true);
 }
 
-void InputListComponent::paint(Graphics &)
+void InputListComponent::paint(Graphics&)
 {
+
+}
+
+void InputListComponent::paintOverChildren(Graphics &g)
+{
+	if (!get_option(Options::Enabled))
+	{
+		g.fillAll(Colour::fromFloatRGBA(0.5f, 0.5f, 0.5f, 0.5f));
+	}
 }
 
 void InputListComponent::onChanged(bool initial)

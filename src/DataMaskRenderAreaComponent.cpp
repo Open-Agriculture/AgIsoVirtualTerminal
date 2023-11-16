@@ -18,7 +18,6 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 	parentWorkingSet = workingSet;
 
 	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
-	setBounds(100, 0, 500, 500);
 
 	if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 	{

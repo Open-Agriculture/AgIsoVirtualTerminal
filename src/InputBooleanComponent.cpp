@@ -54,4 +54,10 @@ void InputBooleanComponent::paint(Graphics &g)
 		g.drawLine(0, get_height() / 2, get_width() / 2, get_height());
 		g.drawLine(get_width() / 2, get_height(), get_width(), 0);
 	}
+
+	// If disabled, try and show that by drawing some semi-transparent grey
+	if (!get_enabled())
+	{
+		g.fillAll(Colour::fromFloatRGBA(0.5f, 0.5f, 0.5f, 0.5f));
+	}
 }

@@ -10,11 +10,11 @@
 #include "isobus/isobus/can_internal_control_function.hpp"
 
 //==============================================================================
-class AgISOUniversalTerminalApplication : public juce::JUCEApplication
+class AgISOVirtualTerminalApplication : public juce::JUCEApplication
 {
 public:
 	//==============================================================================
-	AgISOUniversalTerminalApplication() {}
+	AgISOVirtualTerminalApplication() {}
 
 	const juce::String getApplicationName() override
 	{
@@ -137,4 +137,4 @@ private:
 
 //==============================================================================
 // This macro generates the main() routine that launches the app.
-START_JUCE_APPLICATION(AgISOUniversalTerminalApplication)
+START_JUCE_APPLICATION(AgISOVirtualTerminalApplication)

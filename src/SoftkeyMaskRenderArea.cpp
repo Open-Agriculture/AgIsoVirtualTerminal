@@ -19,7 +19,6 @@ void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobu
 	parentWorkingSet = workingSet;
 
 	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
-	setBounds(580, 0, 100, 480);
 
 	if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 	{

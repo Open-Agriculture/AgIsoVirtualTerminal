@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(
-  "AgISOUniversalTerminal"
+  "AgISOVirtualTerminal"
   LANGUAGES CXX
   VERSION 0.0.1)
 
@@ -15,18 +15,18 @@ find_package(Threads REQUIRED)
 # add_subdirectory(ISO11783-CAN-Stack)
 
 juce_add_gui_app(
-  AgISOUniversalTerminal
+  AgISOVirtualTerminal
   # ICON_BIG ...                      # ICON_* arguments specify a path to an
   # image file to use as an icon ICON_SMALL ...
   COMPANY_NAME
   "Open-Agriculture"
   PRODUCT_NAME
-  "AgISOUniversalTerminal")
+  "AgISOVirtualTerminal")
 
-juce_generate_juce_header(AgISOUniversalTerminal)
+juce_generate_juce_header(AgISOVirtualTerminal)
 
 target_sources(
-  AgISOUniversalTerminal
+  AgISOVirtualTerminal
   PRIVATE src/Main.cpp
           "src/ServerMainComponent.cpp"
           "src/DataMaskComponent.cpp"
@@ -56,11 +56,11 @@ target_sources(
           "src/AlarmMaskAudio.cpp"
           "src/InputListComponent.cpp")
 
-target_include_directories(AgISOUniversalTerminal
+target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
 
 target_link_libraries(
-  AgISOUniversalTerminal
+  AgISOVirtualTerminal
   PRIVATE juce::juce_gui_extra juce::juce_audio_basics juce::juce_audio_utils isobus::Isobus isobus::HardwareIntegration
           isobus::Utility
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
