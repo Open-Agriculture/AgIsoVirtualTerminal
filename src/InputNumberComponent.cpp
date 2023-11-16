@@ -111,7 +111,7 @@ Justification InputNumberComponent::convert_justification(HorizontalJustificatio
 
 				case VerticalJustification::PositionMiddle:
 				{
-					retVal = Justification::verticallyCentred;
+					retVal = Justification::centred;
 				}
 				break;
 

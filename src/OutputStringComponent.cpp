@@ -132,7 +132,7 @@ Justification OutputStringComponent::convert_justification(HorizontalJustificati
 
 				case VerticalJustification::PositionMiddle:
 				{
-					retVal = Justification::verticallyCentred;
+					retVal = Justification::centred;
 				}
 				break;
 
