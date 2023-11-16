@@ -91,19 +91,19 @@ void OutputRectangleComponent::paint(Graphics &g)
 				}
 				else // Something is suppressed
 				{
-					if (0 != ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressTopLine)) & get_line_suppression_bitfield()))
+					if (0 == ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressTopLine)) & get_line_suppression_bitfield()))
 					{
 						g.drawLine(0, 0, get_width(), 0, line->get_width());
 					}
-					if (0 != ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressLeftSideLine)) & get_line_suppression_bitfield()))
+					if (0 == ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressLeftSideLine)) & get_line_suppression_bitfield()))
 					{
 						g.drawLine(0, 0, 0, get_height(), line->get_width());
 					}
-					if (0 != ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressRightSideLine)) & get_line_suppression_bitfield()))
+					if (0 == ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressRightSideLine)) & get_line_suppression_bitfield()))
 					{
 						g.drawLine(get_width(), 0, get_width(), get_height(), line->get_width());
 					}
-					if (0 != ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressBottomLine)) & get_line_suppression_bitfield()))
+					if (0 == ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressBottomLine)) & get_line_suppression_bitfield()))
 					{
 						g.drawLine(0, get_height(), get_width(), get_height(), line->get_width());
 					}
