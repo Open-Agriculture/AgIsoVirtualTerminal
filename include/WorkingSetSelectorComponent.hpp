@@ -16,16 +16,19 @@
 
 #include <vector>
 
+class ServerMainComponent;
+
 class WorkingSetSelectorComponent : public Component
 {
 public:
-	WorkingSetSelectorComponent();
+	explicit WorkingSetSelectorComponent(ServerMainComponent &server);
 
 	void add_working_set_to_draw(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
 	void paint(Graphics &g) override;
 	void resized() override;
+	void mouseUp(const MouseEvent &event) override;
 
 	void redraw();
 
@@ -36,6 +39,7 @@ private:
 		std::vector<std::shared_ptr<Component>> childComponents;
 	};
 	std::vector<SELECTOR_CHILD_OBJECTS_STRUCT> children;
+	ServerMainComponent &parentServer;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetSelectorComponent);
 };

@@ -11,6 +11,8 @@
 class ServerMainComponent : public juce::Component
   , public isobus::VirtualTerminalServer
   , public Timer
+  , public ApplicationCommandTarget
+  , public MenuBarModel
 {
 public:
 	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction);
@@ -32,7 +34,7 @@ public:
 	                                                     std::uint8_t &numberOfRanges,
 	                                                     std::vector<std::uint8_t> &wideCharRangeArray) override;
 
-	std::vector<std::uint8_t> get_versions(isobus::NAME clientNAME) override;
+	std::vector<std::array<std::uint8_t, 7>> get_versions(isobus::NAME clientNAME) override;
 	std::vector<std::uint8_t> get_supported_objects() const override;
 
 	/// @brief This function is called when the client wants the server to load a previously stored object pool.
@@ -41,7 +43,7 @@ public:
 	/// @param[in] versionLabel The object pool version to load for the given client NAME
 	/// @param[in] clientNAME The client requesting the object pool
 	/// @returns The requested object pool associated with the version label.
-	virtual std::vector<std::uint8_t> load_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME) override;
+	std::vector<std::uint8_t> load_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME) override;
 
 	/// @brief This function is called when the client wants the server to save an object pool
 	/// to the VT's non-volatile memory.
@@ -52,35 +54,83 @@ public:
 	/// @param[in] versionLabel The object pool version to save for the given client NAME
 	/// @param[in] clientNAME The client requesting the object pool
 	/// @returns The requested object pool associated with the version label.
-	virtual bool save_version(const std::vector<std::uint8_t> &objectPool, const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME) override;
+	bool save_version(const std::vector<std::uint8_t> &objectPool, const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME) override;
+
+	/// @brief This function is called when the client wants the server to delete a stored object pool.
+	/// All object pool files matching the specified version label should then be deleted from the VT's
+	/// non-volatile storage.
+	/// @param[in] versionLabel The version label for the object pool(s) to delete
+	/// @param[in] clientNAME The NAME of the client that is requesting deletion
+	/// @returns True if the version was deleted from VT non-volatile storage, otherwise false.
+	bool delete_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME) override;
+
+	/// @brief This function is called when the client wants the server to delete ALL stored object pools associated to it's NAME.
+	/// All object pool files matching the specified client NAME should then be deleted from the VT's
+	/// non-volatile storage.
+	/// @param[in] clientNAME The NAME of the client that is requesting deletion
+	/// @returns True if all relevant object pools were deleted from VT non-volatile storage, otherwise false.
+	bool delete_all_versions(isobus::NAME clientNAME) override;
 
 	void timerCallback() override;
 
 	void paint(juce::Graphics &g) override;
 	void resized() override;
 
+	ApplicationCommandTarget *getNextCommandTarget() override;
+	void getAllCommands(juce::Array<juce::CommandID> &allCommands) override;
+	void getCommandInfo(juce::CommandID commandID, ApplicationCommandInfo &result) override;
+	bool perform(const InvocationInfo &info) override;
+	StringArray getMenuBarNames() override;
+	PopupMenu getMenuForIndex(int, const juce::String &) override;
+	void menuItemSelected(int, int) override;
+
 	std::shared_ptr<isobus::ControlFunction> get_client_control_function_for_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) const;
 
+	void change_selected_working_set(std::uint8_t index);
+
+	void repaint_on_next_update();
+
 private:
-	// Your private member variables go here...
+	enum class CommandIDs : int
+	{
+		NoCommand = 0, /// 0 Is an invalid command ID
+		About,
+		ConfigureLanguageCommand,
+		ConfigureReportedVersion
+	};
+
+	class LanguageCommandConfigClosed
+	{
+	public:
+		void operator()(int result) const noexcept;
+		ServerMainComponent &mParent;
+
+	private:
+	};
+	friend class LanguageCommandConfigClosed;
+
 	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
-	void on_change_numeric_value_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, std::uint32_t value);
-	void on_change_string_value_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, std::string value);
-	void on_change_child_position_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t parentObjectID, std::uint16_t objectID, std::uint16_t newX, std::uint16_t newY);
 	void repaint_data_and_soft_key_mask();
+	void check_load_settings();
+	void save_settings();
 
 	const std::string ISO_DATA_PATH = "iso_data";
 
+	juce::ApplicationCommandManager mCommandManager;
 	WorkingSetSelectorComponent workingSetSelector;
 	DataMaskRenderAreaComponent dataMaskRenderer;
 	SoftKeyMaskRenderAreaComponent softKeyMaskRenderer;
+	MenuBarComponent menuBar;
 	LoggerComponent logger;
 	Viewport loggerViewport;
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
+	std::unique_ptr<AlertWindow> popupMenu;
 	std::uint8_t numberOfPoolsToRender = 0;
+	VTVersion versionToReport = VTVersion::Version5;
+	bool needToRepaint = false;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };

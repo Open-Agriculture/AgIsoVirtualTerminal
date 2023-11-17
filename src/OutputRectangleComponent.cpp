@@ -36,9 +36,9 @@ void OutputRectangleComponent::paint(Graphics &g)
 
 				case isobus::FillAttributes::FillType::FillWithLineColor:
 				{
-					for (std::uint16_t i = 0; i < get_number_children(); i++)
+					for (std::uint16_t j = 0; j < get_number_children(); j++)
 					{
-						auto childLineAttributes = get_object_by_id(get_child_id(i));
+						auto childLineAttributes = get_object_by_id(get_child_id(j));
 
 						if ((nullptr != childLineAttributes) && (isobus::VirtualTerminalObjectType::LineAttributes == childLineAttributes->get_object_type()))
 						{
