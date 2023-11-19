@@ -14,8 +14,7 @@ find_package(JUCE MODULE)
 find_package(CAN_Stack MODULE)
 find_package(Threads REQUIRED)
 
-# set(CAN_DRIVER "TouCAN") Set this to be whatever your CAN driver is
-# add_subdirectory(ISO11783-CAN-Stack)
+# set(CAN_DRIVER "TouCAN") Set this to be whatever your CAN driver is, or pass it in with -DCAN_DRIVER=...
 
 juce_add_gui_app(
   AgISOVirtualTerminal
