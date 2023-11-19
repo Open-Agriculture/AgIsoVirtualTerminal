@@ -3,9 +3,10 @@
 ** @author     Adrian Del Grosso
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
+#include "isobus/hardware_integration/available_can_drivers.hpp"
+
 #include <JuceHeader.h>
 #include "ServerMainComponent.hpp"
-#include "isobus/hardware_integration/available_can_drivers.hpp"
 #include "isobus/hardware_integration/can_hardware_interface.hpp"
 #include "isobus/isobus/can_internal_control_function.hpp"
 

@@ -194,34 +194,13 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 			}
 			break;
 
-			case isobus::VirtualTerminalObjectType::NumberVariable:
-			case isobus::VirtualTerminalObjectType::StringVariable:
-			case isobus::VirtualTerminalObjectType::FontAttributes:
-			case isobus::VirtualTerminalObjectType::LineAttributes:
-			case isobus::VirtualTerminalObjectType::FillAttributes:
-			case isobus::VirtualTerminalObjectType::InputAttributes:
-			case isobus::VirtualTerminalObjectType::ExtendedInputAttributes:
-			case isobus::VirtualTerminalObjectType::ColourMap:
-			case isobus::VirtualTerminalObjectType::ObjectLabelRefrenceList:
-			{
-			}
-			break;
-
 			case isobus::VirtualTerminalObjectType::ObjectPointer:
 			{
 				retVal = std::make_shared<ObjectPointerComponent>(workingSet, *std::static_pointer_cast<isobus::ObjectPointer>(sourceObject));
 			}
 			break;
 
-			case isobus::VirtualTerminalObjectType::ExternalObjectDefinition:
-			case isobus::VirtualTerminalObjectType::ExternalReferenceNAME:
-			case isobus::VirtualTerminalObjectType::ExternalObjectPointer:
-			case isobus::VirtualTerminalObjectType::Macro:
-			case isobus::VirtualTerminalObjectType::AuxiliaryFunctionType1:
-			case isobus::VirtualTerminalObjectType::AuxiliaryInputType1:
-			case isobus::VirtualTerminalObjectType::AuxiliaryFunctionType2:
-			case isobus::VirtualTerminalObjectType::AuxiliaryInputType2:
-			case isobus::VirtualTerminalObjectType::AuxiliaryControlDesignatorType2:
+			default:
 			{
 			}
 			break;
