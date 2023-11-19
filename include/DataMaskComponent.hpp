@@ -28,7 +28,7 @@ private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DataMaskComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DataMaskComponent)
 };
 
 #endif // DATA_MASK_COMPONENT_HPP

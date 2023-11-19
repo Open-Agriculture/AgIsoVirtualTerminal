@@ -41,7 +41,7 @@ private:
 	std::vector<SELECTOR_CHILD_OBJECTS_STRUCT> children;
 	ServerMainComponent &parentServer;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetSelectorComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetSelectorComponent)
 };
 
 #endif // WORKING_SET_SELECTOR_COMPONENT_HPP

@@ -11,6 +11,7 @@
 
 #include <fstream>
 #include <iomanip>
+#include <iterator>
 #include <sstream>
 
 ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction) :
@@ -124,7 +125,7 @@ std::vector<std::array<std::uint8_t, 7>> ServerMainComponent::get_versions(isobu
 	std::ostringstream nameString;
 	std::vector<std::array<std::uint8_t, 7>> retVal;
 	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-	File isoDirectory = (std::filesystem::current_path().string() + "/" + ISO_DATA_PATH + "/" + nameString.str());
+	File isoDirectory(std::filesystem::current_path().string() + "/" + ISO_DATA_PATH + "/" + nameString.str());
 
 	if (isoDirectory.exists() && isoDirectory.isDirectory())
 	{
@@ -242,14 +243,14 @@ bool ServerMainComponent::save_version(const std::vector<std::uint8_t> &objectPo
 
 	if (iopxFile.is_open())
 	{
-		iopxFile.write(reinterpret_cast<const char *>(versionLabel.data()), versionLabel.size());
-		iopxFile.write(reinterpret_cast<const char *>(objectPool.data()), objectPool.size());
+		iopxFile.write(reinterpret_cast<const char *>(versionLabel.data()), static_cast < std::streamsize>(versionLabel.size()));
+		iopxFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast < std::streamsize>(objectPool.size()));
 		iopxFile.close();
 		retVal = true;
 	}
 	if (iopFile.is_open())
 	{
-		iopFile.write(reinterpret_cast<const char *>(objectPool.data()), objectPool.size());
+		iopFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast < std::streamsize>(objectPool.size()));
 		iopFile.close();
 	}
 	return retVal;
@@ -450,6 +451,7 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		}
 		break;
 
+		case CommandIDs::NoCommand:
 		default:
 			break;
 	}
@@ -643,6 +645,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			mParent.languageCommandInterface.set_commanded_temperature_units(temperatureUnits);
 			mParent.languageCommandInterface.set_commanded_time_format(timeFormat);
 			mParent.languageCommandInterface.set_commanded_volume_units(volumeUnits);
+			mParent.languageCommandInterface.send_language_command();
 
 			mParent.save_settings();
 		}
@@ -743,6 +746,7 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 					}
 					break;
 
+					case isobus::AlarmMask::AcousticSignal::None:
 					default:
 						break;
 				}

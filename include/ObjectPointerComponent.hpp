@@ -28,7 +28,7 @@ private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::shared_ptr<Component> childComponent;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ObjectPointerComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ObjectPointerComponent)
 };
 
 #endif // OBJECT_POINTER_COMPONENT_HPP

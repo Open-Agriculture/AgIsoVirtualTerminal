@@ -40,7 +40,7 @@ private:
 	std::vector<std::shared_ptr<Component>> childComponents;
 	ServerMainComponent &ownerServer;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoftKeyMaskRenderAreaComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoftKeyMaskRenderAreaComponent)
 };
 
 #endif // SOFT_KEY_MASK_RENDER_AREA_COMPONENT_HPP

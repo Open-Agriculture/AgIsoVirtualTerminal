@@ -35,7 +35,7 @@ private:
 	static constexpr std::size_t MAX_NUMBER_MESSAGES = 3000;
 	std::deque<LogData> loggedMessages;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LoggerComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LoggerComponent)
 };
 
 #endif // LOGGER_COMPONENT_HPP

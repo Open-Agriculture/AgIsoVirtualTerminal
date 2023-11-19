@@ -114,6 +114,7 @@ Justification OutputStringComponent::convert_justification(HorizontalJustificati
 				}
 				break;
 
+				case VerticalJustification::Reserved:
 				default:
 					break;
 			}
@@ -142,6 +143,7 @@ Justification OutputStringComponent::convert_justification(HorizontalJustificati
 				}
 				break;
 
+				case VerticalJustification::Reserved:
 				default:
 					break;
 			}
@@ -170,6 +172,7 @@ Justification OutputStringComponent::convert_justification(HorizontalJustificati
 				}
 				break;
 
+				case VerticalJustification::Reserved:
 				default:
 					break;
 			}

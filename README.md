@@ -13,7 +13,6 @@ This section will be updated as progress is made on the project.
 Supported features:
 
 - All basic ISO11783 stuff, such as address claiming, TP, ETP, diagnostic protocol, etc.
-- Exactly 1 VT client
 - Object pool deserializer (most objects up to version 6 with some exceptions)
 - Data masks
 - Alarm masks
@@ -36,12 +35,13 @@ Supported features:
 - Input lists (partial - drawing the selector needs work)
 - Most relevant VT server CAN messages
 - Logging
+- Multiple simultaneous VT clients
+- Selecting different working sets
 
 Unimplemented features (for now)
 
 - Arbitrary audio control functionality
-- Selecting different working sets
-- Window masks
+- Window masks (tolerated in the object pool though)
 - Aux N/O
 - Most macro functionality
 - Animations
@@ -56,6 +56,21 @@ Unimplemented features (for now)
 ## Compilation
 
 This project is compiled with CMake and your favorite C++17 compiler.
+
+CMake 3.22 or higher is required.
+
+### Dependencies
+
+Linux:
+```
+sudo apt install git cmake pkg-config libfreetype-dev libfreetype6 libfreetype6-dev libasound2-dev libcurl4-openssl-dev libgtk-3-dev libwebkit2gtk-4.0-dev webkit2gtk-4.0
+```
+
+Windows:
+
+On Windows, you will need to install Visual Studio to get the MSVC compiler and CMake. The easiest way to do that would be to install [Visual Studio Community](https://visualstudio.microsoft.com/vs/community/) and select the "Desktop development with C++" workload.
+
+### Building
 
 Make sure you select your desired CAN driver as supported by AgIso Stack by defining the `CAN_DRIVER` variable.
 

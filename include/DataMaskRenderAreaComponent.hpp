@@ -65,7 +65,7 @@ private:
 	InputNumberListener inputNumberListener;
 	bool needToRepaintActiveArea = false;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DataMaskRenderAreaComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DataMaskRenderAreaComponent)
 };
 
 #endif // DATA_MASK_RENDER_AREA_COMPONENT_HPP

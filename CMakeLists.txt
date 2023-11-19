@@ -7,6 +7,8 @@ project(
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
+set(JUCE_WEB_BROWSER OFF)
+
 find_package(JUCE MODULE)
 find_package(CAN_Stack MODULE)
 find_package(Threads REQUIRED)
@@ -16,12 +18,21 @@ find_package(Threads REQUIRED)
 
 juce_add_gui_app(
   AgISOVirtualTerminal
-  # ICON_BIG ...                      # ICON_* arguments specify a path to an
+  ICON_BIG smallLogo.png
   # image file to use as an icon ICON_SMALL ...
   COMPANY_NAME
   "Open-Agriculture"
   PRODUCT_NAME
+  NEEDS_CURL FALSE
+  NEEDS_WEB_BROWSER FALSE
+  DESCRIPTION "An ISO11783-6 Server"
   "AgISOVirtualTerminal")
+
+set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 17)
+
+target_compile_definitions(AgISOVirtualTerminal PRIVATE
+    JUCE_USE_CURL=0
+    JUCE_WEB_BROWSER=0)
 
 juce_generate_juce_header(AgISOVirtualTerminal)
 
@@ -64,5 +75,4 @@ target_link_libraries(
   AgISOVirtualTerminal
   PRIVATE juce::juce_gui_extra juce::juce_audio_basics juce::juce_audio_utils isobus::Isobus isobus::HardwareIntegration
           isobus::Utility
-  PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
-         juce::juce_recommended_warning_flags)
+  PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags)

@@ -160,8 +160,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							}
 							inputListModal->addButton("OK", 0);
 							auto resultCallback = [this, clickedList](int result) {
-								auto combo = inputListModal->getComboBoxComponent("Input List Combo");
-								result = combo->getSelectedItemIndex();
+								auto inputCombo = inputListModal->getComboBoxComponent("Input List Combo");
+								result = inputCombo->getSelectedItemIndex();
 
 								// Remap the visible index to the actual index
 								std::uint16_t numberOfNonNullsSeen = 0;

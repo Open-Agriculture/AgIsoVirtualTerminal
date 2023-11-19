@@ -29,7 +29,7 @@ private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::shared_ptr<Component> childComponent;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InputListComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InputListComponent)
 };
 
 #endif // INPUT_LIST_COMPONENT_HPP

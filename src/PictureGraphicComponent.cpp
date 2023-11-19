@@ -7,8 +7,8 @@
 
 PictureGraphicComponent::PictureGraphicComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::PictureGraphic sourceObject) :
   isobus::PictureGraphic(sourceObject),
-  reconstructedImage(Image::PixelFormat::ARGB, get_actual_width(), get_actual_height(), true),
-  parentWorkingSet(workingSet)
+  parentWorkingSet(workingSet),
+  reconstructedImage(Image::PixelFormat::ARGB, get_actual_width(), get_actual_height(), true)
 {
 	generate_and_store_image();
 	setSize(PictureGraphic::get_width(), PictureGraphic::get_height());

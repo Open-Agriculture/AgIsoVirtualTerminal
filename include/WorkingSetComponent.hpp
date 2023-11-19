@@ -25,7 +25,7 @@ public:
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetComponent)
 };
 
 #endif // WORKING_SET_COMPONENT_HPP

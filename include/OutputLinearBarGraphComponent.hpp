@@ -25,7 +25,7 @@ public:
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OutputLinearBarGraphComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OutputLinearBarGraphComponent)
 };
 
 #endif // OUTPUT_LINEAR_BAR_GRAPH_COMPONENT_HPP

@@ -58,6 +58,7 @@ void OutputRectangleComponent::paint(Graphics &g)
 				}
 				break;
 
+				case isobus::FillAttributes::FillType::NoFill:
 				default:
 				{
 					// No fill

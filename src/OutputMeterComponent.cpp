@@ -59,8 +59,6 @@ void OutputMeterComponent::paint(Graphics &g)
 	}
 	auto vtColour = colourTable.get_colour(get_needle_colour());
 	Path needlePath;
-	float xCoord = 0.0f;
-	float yCoord = 0.0f;
 	float endVtAngleDeg = get_end_angle() * 2.0f;
 	float startVtAngleDeg = get_start_angle() * 2.0f;
 
@@ -85,9 +83,6 @@ void OutputMeterComponent::paint(Graphics &g)
 
 	float xOffset = (get_width() / 2.0f) * std::cos(needleEndAngle * 3.14159265f / 180.0f);
 	float yOffset = -(get_width() / 2.0f) * std::sin(needleEndAngle * 3.14159265f / 180.0f);
-
-	xCoord = (get_width() / 2.0f) + xOffset;
-	yCoord = (get_width() / 2.0f) + yOffset;
 
 	g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 	g.drawLine((get_width() / 2.0f) + xOffset, (get_width() / 2.0f) + yOffset, get_width() / 2.0f, get_height() / 2.0f, 3.0f);

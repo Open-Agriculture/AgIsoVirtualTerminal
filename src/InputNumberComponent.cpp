@@ -93,6 +93,7 @@ Justification InputNumberComponent::convert_justification(HorizontalJustificatio
 				}
 				break;
 
+				case VerticalJustification::Reserved:
 				default:
 					break;
 			}
@@ -121,6 +122,7 @@ Justification InputNumberComponent::convert_justification(HorizontalJustificatio
 				}
 				break;
 
+				case VerticalJustification::Reserved:
 				default:
 					break;
 			}
@@ -149,6 +151,7 @@ Justification InputNumberComponent::convert_justification(HorizontalJustificatio
 				}
 				break;
 
+				case VerticalJustification::Reserved:
 				default:
 					break;
 			}

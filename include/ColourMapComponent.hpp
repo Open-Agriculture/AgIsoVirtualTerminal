@@ -25,7 +25,7 @@ public:
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ColourMapComponent);
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ColourMapComponent)
 };
 
 #endif // COLOR_MAP_COMPONENT_HPP

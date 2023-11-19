@@ -21,7 +21,7 @@ void LoggerComponent::paint(Graphics &g)
 
 	int numberOfLinesFitted = getHeight() / 14;
 
-	for (std::size_t i = 0; i < loggedMessages.size() && i < numberOfLinesFitted; i++)
+	for (std::size_t i = 0; i < static_cast<int>(loggedMessages.size()) && i < numberOfLinesFitted; i++)
 	{
 		const auto &message = loggedMessages.at(i);
 
