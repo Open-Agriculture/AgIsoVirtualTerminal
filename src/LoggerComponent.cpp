@@ -58,13 +58,14 @@ void LoggerComponent::paint(Graphics &g)
 			}
 			break;
 		}
-		g.drawFittedText(message.logText, 0, i * 14, getWidth(), 14, Justification::centredLeft, 1);
+		g.drawFittedText(message.logText, 0, static_cast<int>(i) * 14, getWidth(), 14, Justification::centredLeft, 1);
 	}
 }
 
 void LoggerComponent::sink_CAN_stack_log(LoggingLevel level, const std::string &logText)
 {
 	const auto mmLock = MessageManagerLock();
+	auto bounds = getLocalBounds();
 
 	loggedMessages.push_front({ logText, level });
 
@@ -73,12 +74,12 @@ void LoggerComponent::sink_CAN_stack_log(LoggingLevel level, const std::string &
 		loggedMessages.pop_back();
 	}
 
-	int newSize = loggedMessages.size() * 14;
+	int newSize = static_cast<int>(loggedMessages.size()) * 14;
 
-	if (newSize < 200)
+	if (newSize < getHeight())
 	{
-		newSize = 200;
+		newSize = getHeight();
 	}
-	setSize(getWidth(), newSize);
+	setSize(bounds.getWidth(), newSize);
 	repaint();
 }

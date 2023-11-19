@@ -54,6 +54,7 @@ target_sources(
           "src/OutputLinearBarGraphComponent.cpp"
           "src/OutputPolygonComponent.cpp"
           "src/AlarmMaskAudio.cpp"
+          "src/AppImages.cpp"
           "src/InputListComponent.cpp")
 
 target_include_directories(AgISOVirtualTerminal

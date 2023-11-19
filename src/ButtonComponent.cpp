@@ -52,6 +52,6 @@ void ButtonComponent::paint(Graphics &g)
 	}
 }
 
-void ButtonComponent::paintButton(Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
+void ButtonComponent::paintButton(Graphics &, bool, bool)
 {
 }

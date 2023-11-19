@@ -338,8 +338,6 @@ bool ServerMainComponent::delete_all_versions(isobus::NAME clientNAME)
 
 void ServerMainComponent::timerCallback()
 {
-	// This function is called at the frequency specified by the setFramesPerSecond() call
-	// in the constructor. You can use it to update counters, animate values, etc.
 	if ((isobus::SystemTiming::time_expired_ms(statusMessageTimestamp_ms, 1000)) &&
 	    (send_status_message()))
 	{
@@ -410,6 +408,12 @@ void ServerMainComponent::resized()
 	loggerViewport.setSize(getWidth(), getHeight() - 600);
 	loggerViewport.setTopLeftPosition(0, 600);
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight));
+	logger.setSize(loggerViewport.getWidth(), logger.getHeight());
+
+	if (logger.getHeight() < loggerViewport.getHeight())
+	{
+		logger.setSize(loggerViewport.getWidth(), loggerViewport.getHeight());
+	}
 }
 
 ApplicationCommandTarget *ServerMainComponent::getNextCommandTarget()
@@ -459,6 +463,13 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 	{
 		case static_cast<int>(CommandIDs::About):
 		{
+			popupMenu = std::make_unique<AlertWindow>("About", "", MessageBoxIconType::InfoIcon);
+			popupMenu->addTextBlock("Version: " + String(ProjectInfo::versionString));
+			popupMenu->addTextBlock("Copyright 2023 Adrian Del Grosso and the Open-Agriculture Developers.");
+			popupMenu->addTextBlock("This software is licensed under the GPL-3.0 because it links to JUCE. You may use or change this software, even commercially, but you may not include it as part of closed-source software. If you want to use code that is part of this project in closed source software, you MUST obtain a valid JUCE license. Refer to JUCE's website for more details on your license obligations. Please retain the original copyright statements found in this software.");
+			popupMenu->addTextBlock("This is an ISO11783-6 virtual terminal server application based on AgIsoStack++ and the JUCE framework. This software is intended to be used for testing ISO11783 applications that consume AgIsoStack libraries, and serves as a reference implementation of our VT server files in AgIsoStack++.");
+			popupMenu->addButton("OK", 0, KeyPress(KeyPress::returnKey, 0, 0));
+			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 			retVal = true;
 		}
 		break;
@@ -503,6 +514,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu->addComboBox("Version", { "Version 2 or Older", "Version 3", "Version 4", "Version 5", "Version 6" });
 			popupMenu->addButton("OK", 2, KeyPress(KeyPress::returnKey, 0, 0));
 			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
+			popupMenu->getComboBoxComponent("Version")->setSelectedItemIndex(static_cast<int>(versionToReport) - 2);
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 			retVal = true;
 		}
@@ -603,8 +615,44 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 	switch (result)
 	{
 		case 1: // Save Language Command
+		{
+			auto languageCode = mParent.popupMenu->getTextEditorContents("Language Code");
+			auto countryCode = mParent.popupMenu->getTextEditorContents("Country Code");
+			auto areaUnits = static_cast<isobus::LanguageCommandInterface::AreaUnits>(mParent.popupMenu->getComboBoxComponent("Area Units")->getSelectedItemIndex());
+			auto dateFormat = static_cast<isobus::LanguageCommandInterface::DateFormats>(mParent.popupMenu->getComboBoxComponent("Date Format")->getSelectedItemIndex());
+			auto decimalSymbol = static_cast<isobus::LanguageCommandInterface::DecimalSymbols>(mParent.popupMenu->getComboBoxComponent("Decimal Symbol")->getSelectedItemIndex());
+			auto distanceUnits = static_cast<isobus::LanguageCommandInterface::DistanceUnits>(mParent.popupMenu->getComboBoxComponent("Distance Units")->getSelectedItemIndex());
+			auto forceUnits = static_cast<isobus::LanguageCommandInterface::ForceUnits>(mParent.popupMenu->getComboBoxComponent("Force Units")->getSelectedItemIndex());
+			auto genericUnits = static_cast<isobus::LanguageCommandInterface::UnitSystem>(mParent.popupMenu->getComboBoxComponent("Generic Units")->getSelectedItemIndex());
+			auto massUnits = static_cast<isobus::LanguageCommandInterface::MassUnits>(mParent.popupMenu->getComboBoxComponent("Mass Units")->getSelectedItemIndex());
+			auto pressureUnits = static_cast<isobus::LanguageCommandInterface::PressureUnits>(mParent.popupMenu->getComboBoxComponent("Pressure Units")->getSelectedItemIndex());
+			auto temperatureUnits = static_cast<isobus::LanguageCommandInterface::TemperatureUnits>(mParent.popupMenu->getComboBoxComponent("Temperature Units")->getSelectedItemIndex());
+			auto timeFormat = static_cast<isobus::LanguageCommandInterface::TimeFormats>(mParent.popupMenu->getComboBoxComponent("Time Format")->getSelectedItemIndex());
+			auto volumeUnits = static_cast<isobus::LanguageCommandInterface::VolumeUnits>(mParent.popupMenu->getComboBoxComponent("Volume Units")->getSelectedItemIndex());
+
+			mParent.languageCommandInterface.set_language_code(languageCode.toStdString());
+			mParent.languageCommandInterface.set_country_code(countryCode.toStdString());
+			mParent.languageCommandInterface.set_commanded_area_units(areaUnits);
+			mParent.languageCommandInterface.set_commanded_date_format(dateFormat);
+			mParent.languageCommandInterface.set_commanded_decimal_symbol(decimalSymbol);
+			mParent.languageCommandInterface.set_commanded_distance_units(distanceUnits);
+			mParent.languageCommandInterface.set_commanded_force_units(forceUnits);
+			mParent.languageCommandInterface.set_commanded_generic_units(genericUnits);
+			mParent.languageCommandInterface.set_commanded_mass_units(massUnits);
+			mParent.languageCommandInterface.set_commanded_pressure_units(pressureUnits);
+			mParent.languageCommandInterface.set_commanded_temperature_units(temperatureUnits);
+			mParent.languageCommandInterface.set_commanded_time_format(timeFormat);
+			mParent.languageCommandInterface.set_commanded_volume_units(volumeUnits);
+
+			mParent.save_settings();
+		}
+		break;
+
 		case 2: // Save Version
 		{
+			auto version = static_cast<VTVersion>(mParent.popupMenu->getComboBoxComponent("Version")->getSelectedItemIndex() + 2);
+			mParent.versionToReport = version;
+
 			mParent.save_settings();
 		}
 		break;

@@ -4,6 +4,7 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "DataMaskRenderAreaComponent.hpp"
+#include "AppImages.h"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 
@@ -32,39 +33,53 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 void DataMaskRenderAreaComponent::paint(Graphics &g)
 {
 	g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
-	g.drawRect(0, 0, 480, 480, 1);
+
+	if (nullptr != parentWorkingSet)
+	{
+		g.drawRect(0, 0, 480, 480, 1);
+	}
+	else
+	{
+		auto logoImage = ImageCache::getFromMemory(AppImages::logo2_png, AppImages::logo2_pngSize);
+		g.drawImage(logoImage, 0, 0, 400, 400, 0, 0, logoImage.getWidth(), logoImage.getHeight());
+		g.setColour(Colours::white);
+		g.drawText("No Working Sets Are Active", 0, 400, 400, 80, Justification::centredTop, true);
+	}
 }
 
 void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 {
-	// Do a top down search to see if they clicked on some interactable object
-	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
-
-	if (nullptr != workingSetObject)
+	if (nullptr != parentWorkingSet)
 	{
-		auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+		// Do a top down search to see if they clicked on some interactable object
+		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
 
-		auto relativeEvent = event.getEventRelativeTo(this);
-		auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
-
-		std::uint8_t keyCode = 1;
-
-		if (nullptr != clickedObject)
+		if (nullptr != workingSetObject)
 		{
-			if (isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
-			{
-				keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
-			}
-			else if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type())
-			{
-				keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
-			}
+			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 
-			ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
-			                                           clickedObject->get_id(),
-			                                           activeMask->get_id(),
-			                                           keyCode,
-			                                           ownerServer.get_active_working_set()->get_control_function());
+			auto relativeEvent = event.getEventRelativeTo(this);
+			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
+
+			std::uint8_t keyCode = 1;
+
+			if (nullptr != clickedObject)
+			{
+				if (isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
+				{
+					keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+				}
+				else if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type())
+				{
+					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
+				}
+
+				ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
+				                                           clickedObject->get_id(),
+				                                           activeMask->get_id(),
+				                                           keyCode,
+				                                           ownerServer.get_active_working_set()->get_control_function());
+			}
 		}
 	}
 }
@@ -72,250 +87,253 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 // Used to calculate button release events
 void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 {
-	// Do a top down search to see if they clicked on some interactable object
-	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
-
-	if (nullptr != workingSetObject)
+	if (nullptr != parentWorkingSet)
 	{
-		auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+		// Do a top down search to see if they clicked on some interactable object
+		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
 
-		auto relativeEvent = event.getEventRelativeTo(this);
-		auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
-
-		std::uint8_t keyCode = 1;
-
-		if (nullptr != clickedObject)
+		if (nullptr != workingSetObject)
 		{
-			switch (clickedObject->get_object_type())
+			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+
+			auto relativeEvent = event.getEventRelativeTo(this);
+			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
+
+			std::uint8_t keyCode = 1;
+
+			if (nullptr != clickedObject)
 			{
-				case isobus::VirtualTerminalObjectType::Button:
+				switch (clickedObject->get_object_type())
 				{
-					if (false == std::static_pointer_cast<isobus::Button>(clickedObject)->get_option(isobus::Button::Options::Disabled))
+					case isobus::VirtualTerminalObjectType::Button:
 					{
-						keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+						if (false == std::static_pointer_cast<isobus::Button>(clickedObject)->get_option(isobus::Button::Options::Disabled))
+						{
+							keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+							ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+							                                           clickedObject->get_id(),
+							                                           activeMask->get_id(),
+							                                           keyCode,
+							                                           ownerServer.get_active_working_set()->get_control_function());
+						}
+					}
+					break;
+
+					case isobus::VirtualTerminalObjectType::Key:
+					{
+						keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
 						ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 						                                           clickedObject->get_id(),
 						                                           activeMask->get_id(),
 						                                           keyCode,
 						                                           ownerServer.get_active_working_set()->get_control_function());
 					}
-				}
-				break;
+					break;
 
-				case isobus::VirtualTerminalObjectType::Key:
-				{
-					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
-					ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
-					                                           clickedObject->get_id(),
-					                                           activeMask->get_id(),
-					                                           keyCode,
-					                                           ownerServer.get_active_working_set()->get_control_function());
-				}
-				break;
-
-				case isobus::VirtualTerminalObjectType::InputList:
-				{
-					auto clickedList = std::static_pointer_cast<isobus::InputList>(clickedObject);
-
-					if ((clickedList->get_option(isobus::InputList::Options::Enabled)) &&
-					    (clickedList->get_number_children() > 0) &&
-					    clickedList->get_option(isobus::InputList::Options::Enabled))
+					case isobus::VirtualTerminalObjectType::InputList:
 					{
-						// Need to display a modal combo selection
-						inputListModal.reset(new AlertWindow("Input List Selection", "Select a List Item, then press OK.", MessageBoxIconType::QuestionIcon));
-						inputListModal->addComboBox("Input List Combo", StringArray());
-						currentModalComponentCache.clear();
-						currentModalComponentCache.reserve(clickedList->get_number_children());
+						auto clickedList = std::static_pointer_cast<isobus::InputList>(clickedObject);
 
-						// In order to handle things that are not strings being allowed in an input list, grab the popup menu itself and shove custom components in there
-						auto combo = inputListModal->getComboBoxComponent("Input List Combo");
-						auto comboPopup = combo->getRootMenu();
-
-						for (std::uint32_t i = 0; i < clickedList->get_number_children(); i++)
+						if ((clickedList->get_option(isobus::InputList::Options::Enabled)) &&
+						    (clickedList->get_number_children() > 0) &&
+						    clickedList->get_option(isobus::InputList::Options::Enabled))
 						{
-							auto child = clickedList->get_object_by_id(clickedList->get_child_id(static_cast<std::uint16_t>(i)));
+							// Need to display a modal combo selection
+							inputListModal.reset(new AlertWindow("Input List Selection", "Select a List Item, then press OK.", MessageBoxIconType::QuestionIcon));
+							inputListModal->addComboBox("Input List Combo", StringArray());
+							currentModalComponentCache.clear();
+							currentModalComponentCache.reserve(clickedList->get_number_children());
 
-							if (nullptr != child)
-							{
-								currentModalComponentCache.push_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
-								comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i))));
-							}
-						}
-						inputListModal->addButton("OK", 0);
-						auto resultCallback = [this, clickedList](int result) {
+							// In order to handle things that are not strings being allowed in an input list, grab the popup menu itself and shove custom components in there
 							auto combo = inputListModal->getComboBoxComponent("Input List Combo");
-							result = combo->getSelectedItemIndex();
+							auto comboPopup = combo->getRootMenu();
 
-							// Remap the visible index to the actual index
-							std::uint16_t numberOfNonNullsSeen = 0;
-							for (std::uint16_t i = 0; i < clickedList->get_number_children(); i++)
+							for (std::uint32_t i = 0; i < clickedList->get_number_children(); i++)
 							{
-								if (isobus::NULL_OBJECT_ID != clickedList->get_child_id(i))
-								{
-									numberOfNonNullsSeen++;
-								}
+								auto child = clickedList->get_object_by_id(clickedList->get_child_id(static_cast<std::uint16_t>(i)));
 
-								if (numberOfNonNullsSeen == result + 1)
+								if (nullptr != child)
 								{
-									result = i;
-									break;
+									currentModalComponentCache.push_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
+									comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i))));
 								}
 							}
+							inputListModal->addButton("OK", 0);
+							auto resultCallback = [this, clickedList](int result) {
+								auto combo = inputListModal->getComboBoxComponent("Input List Combo");
+								result = combo->getSelectedItemIndex();
 
-							if (isobus::NULL_OBJECT_ID != clickedList->get_variable_reference())
+								// Remap the visible index to the actual index
+								std::uint16_t numberOfNonNullsSeen = 0;
+								for (std::uint16_t i = 0; i < clickedList->get_number_children(); i++)
+								{
+									if (isobus::NULL_OBJECT_ID != clickedList->get_child_id(i))
+									{
+										numberOfNonNullsSeen++;
+									}
+
+									if (numberOfNonNullsSeen == result + 1)
+									{
+										result = i;
+										break;
+									}
+								}
+
+								if (isobus::NULL_OBJECT_ID != clickedList->get_variable_reference())
+								{
+									auto child = clickedList->get_object_by_id(clickedList->get_variable_reference());
+
+									if (nullptr != child)
+									{
+										if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
+										{
+											if (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() != static_cast<std::uint32_t>(result))
+											{
+												ownerServer.send_change_numeric_value_message(child->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+											}
+											std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(result);
+										}
+									}
+								}
+								else
+								{
+									if (clickedList->get_value() != result)
+									{
+										ownerServer.send_change_numeric_value_message(clickedList->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+									}
+									clickedList->set_value(static_cast<std::uint8_t>(result));
+								}
+								this->inputListModal->exitModalState();
+								inputListModal.reset();
+								repaint();
+							};
+							inputListModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+						}
+					}
+					break;
+
+					case isobus::VirtualTerminalObjectType::InputNumber:
+					{
+						auto clickedNumber = std::static_pointer_cast<isobus::InputNumber>(clickedObject);
+
+						if (clickedNumber->get_option2(isobus::InputNumber::Options2::Enabled))
+						{
+							inputNumberModal.reset(new AlertWindow("Input Number", "Enter a value for this input number, then press OK.", MessageBoxIconType::QuestionIcon));
+
+							float scaledValue = (clickedNumber->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
+
+							for (std::uint16_t i = 0; i < clickedNumber->get_number_children(); i++)
 							{
-								auto child = clickedList->get_object_by_id(clickedList->get_variable_reference());
+								auto child = clickedNumber->get_object_by_id(clickedNumber->get_child_id(i));
 
 								if (nullptr != child)
 								{
 									if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 									{
-										if (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() != static_cast<std::uint32_t>(result))
-										{
-											ownerServer.send_change_numeric_value_message(child->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										}
-										std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(result);
-									}
-								}
-							}
-							else
-							{
-								if (clickedList->get_value() != result)
-								{
-									ownerServer.send_change_numeric_value_message(clickedList->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-								}
-								clickedList->set_value(static_cast<std::uint8_t>(result));
-							}
-							this->inputListModal->exitModalState();
-							inputListModal.reset();
-							repaint();
-						};
-						inputListModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
-					}
-				}
-				break;
-
-				case isobus::VirtualTerminalObjectType::InputNumber:
-				{
-					auto clickedNumber = std::static_pointer_cast<isobus::InputNumber>(clickedObject);
-
-					if (clickedNumber->get_option2(isobus::InputNumber::Options2::Enabled))
-					{
-						inputNumberModal.reset(new AlertWindow("Input Number", "Enter a value for this input number, then press OK.", MessageBoxIconType::QuestionIcon));
-
-						float scaledValue = (clickedNumber->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
-
-						for (std::uint16_t i = 0; i < clickedNumber->get_number_children(); i++)
-						{
-							auto child = clickedNumber->get_object_by_id(clickedNumber->get_child_id(i));
-
-							if (nullptr != child)
-							{
-								if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
-								{
-									scaledValue = (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
-									break;
-								}
-							}
-						}
-
-						inputNumberSlider.reset(new Slider(Slider::SliderStyle::LinearHorizontal, Slider::TextBoxAbove));
-						inputNumberSlider->setRange((clickedNumber->get_minimum_value() + clickedNumber->get_offset()) * clickedNumber->get_scale(), (clickedNumber->get_maximum_value() + clickedNumber->get_offset()) * clickedNumber->get_scale());
-						inputNumberSlider->setNumDecimalPlacesToDisplay(clickedNumber->get_number_of_decimals());
-						inputNumberSlider->setValue(scaledValue, NotificationType::dontSendNotification);
-						inputNumberSlider->setSize(400, 80);
-
-						inputNumberListener.set_last_value(clickedNumber->get_value());
-						inputNumberListener.set_target(clickedNumber);
-						inputNumberSlider->addListener(&inputNumberListener);
-
-						inputNumberModal->addCustomComponent(inputNumberSlider.get());
-						inputNumberModal->addButton("OK", 0);
-						inputNumberModal->addButton("Cancel", 1); // TODO catch ESC as cancel
-						auto resultCallback = [this, clickedNumber](int result) {
-							this->inputNumberModal->exitModalState();
-
-							std::uint16_t varNumID = 0xFFFF;
-							if (0 == result)
-							{
-								clickedNumber->set_value(inputNumberListener.get_last_value());
-
-								for (std::uint32_t i = 0; i < clickedNumber->get_number_children(); i++)
-								{
-									auto child = clickedNumber->get_object_by_id(clickedNumber->get_child_id(static_cast<std::uint16_t>(i)));
-
-									if ((nullptr != child) && (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
-									{
-										std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(inputNumberListener.get_last_value());
-										varNumID = child->get_id();
+										scaledValue = (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
 										break;
 									}
 								}
-								this->needToRepaintActiveArea = true;
 							}
-							inputNumberListener.set_target(nullptr);
-							inputNumberModal.reset();
-							inputNumberSlider.reset();
-							ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 
-							if (0 == result)
-							{
-								if (0xFFFF != varNumID)
+							inputNumberSlider.reset(new Slider(Slider::SliderStyle::LinearHorizontal, Slider::TextBoxAbove));
+							inputNumberSlider->setRange((clickedNumber->get_minimum_value() + clickedNumber->get_offset()) * clickedNumber->get_scale(), (clickedNumber->get_maximum_value() + clickedNumber->get_offset()) * clickedNumber->get_scale());
+							inputNumberSlider->setNumDecimalPlacesToDisplay(clickedNumber->get_number_of_decimals());
+							inputNumberSlider->setValue(scaledValue, NotificationType::dontSendNotification);
+							inputNumberSlider->setSize(400, 80);
+
+							inputNumberListener.set_last_value(clickedNumber->get_value());
+							inputNumberListener.set_target(clickedNumber);
+							inputNumberSlider->addListener(&inputNumberListener);
+
+							inputNumberModal->addCustomComponent(inputNumberSlider.get());
+							inputNumberModal->addButton("OK", 0);
+							inputNumberModal->addButton("Cancel", 1); // TODO catch ESC as cancel
+							auto resultCallback = [this, clickedNumber](int result) {
+								this->inputNumberModal->exitModalState();
+
+								std::uint16_t varNumID = 0xFFFF;
+								if (0 == result)
 								{
-									ownerServer.send_change_numeric_value_message(varNumID, clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+									clickedNumber->set_value(inputNumberListener.get_last_value());
+
+									for (std::uint32_t i = 0; i < clickedNumber->get_number_children(); i++)
+									{
+										auto child = clickedNumber->get_object_by_id(clickedNumber->get_child_id(static_cast<std::uint16_t>(i)));
+
+										if ((nullptr != child) && (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
+										{
+											std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(inputNumberListener.get_last_value());
+											varNumID = child->get_id();
+											break;
+										}
+									}
+									this->needToRepaintActiveArea = true;
+								}
+								inputNumberListener.set_target(nullptr);
+								inputNumberModal.reset();
+								inputNumberSlider.reset();
+								ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+
+								if (0 == result)
+								{
+									if (0xFFFF != varNumID)
+									{
+										ownerServer.send_change_numeric_value_message(varNumID, clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+									}
+									else
+									{
+										ownerServer.send_change_numeric_value_message(clickedNumber->get_id(), clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+									}
 								}
 								else
 								{
-									ownerServer.send_change_numeric_value_message(clickedNumber->get_id(), clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+									// TODO ESC
 								}
-							}
-							else
-							{
-								// TODO ESC
-							}
-						};
-						inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
-						ownerServer.send_select_input_object_message(clickedNumber->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-					}
-				}
-				break;
-
-				case isobus::VirtualTerminalObjectType::InputBoolean:
-				{
-					auto clickedBool = std::static_pointer_cast<isobus::InputBoolean>(clickedObject);
-
-					if (clickedBool->get_enabled())
-					{
-						bool hasNumberVariable = false;
-
-						for (std::uint16_t i = 0; i < clickedBool->get_number_children(); i++)
-						{
-							auto child = clickedBool->get_object_by_id(clickedBool->get_child_id(i));
-
-							if (nullptr != child)
-							{
-								if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
-								{
-									hasNumberVariable = true;
-									std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(!(0 != std::static_pointer_cast<isobus::NumberVariable>(child)->get_value()));
-									ownerServer.send_change_numeric_value_message(child->get_id(), std::static_pointer_cast<isobus::NumberVariable>(child)->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-									break;
-								}
-							}
+							};
+							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+							ownerServer.send_select_input_object_message(clickedNumber->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 						}
-
-						if (!hasNumberVariable)
-						{
-							clickedBool->set_value(~clickedBool->get_value());
-							ownerServer.send_change_numeric_value_message(clickedBool->get_id(), clickedBool->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-						}
-						repaint();
 					}
-				}
-				break;
-
-				default:
 					break;
+
+					case isobus::VirtualTerminalObjectType::InputBoolean:
+					{
+						auto clickedBool = std::static_pointer_cast<isobus::InputBoolean>(clickedObject);
+
+						if (clickedBool->get_enabled())
+						{
+							bool hasNumberVariable = false;
+
+							for (std::uint16_t i = 0; i < clickedBool->get_number_children(); i++)
+							{
+								auto child = clickedBool->get_object_by_id(clickedBool->get_child_id(i));
+
+								if (nullptr != child)
+								{
+									if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
+									{
+										hasNumberVariable = true;
+										std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(!(0 != std::static_pointer_cast<isobus::NumberVariable>(child)->get_value()));
+										ownerServer.send_change_numeric_value_message(child->get_id(), std::static_pointer_cast<isobus::NumberVariable>(child)->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+										break;
+									}
+								}
+							}
+
+							if (!hasNumberVariable)
+							{
+								clickedBool->set_value(~clickedBool->get_value());
+								ownerServer.send_change_numeric_value_message(clickedBool->get_id(), clickedBool->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+							}
+							repaint();
+						}
+					}
+					break;
+
+					default:
+						break;
+				}
 			}
 		}
 	}
