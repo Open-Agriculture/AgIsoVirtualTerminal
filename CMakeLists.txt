@@ -8,6 +8,7 @@ project(
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 set(JUCE_WEB_BROWSER OFF)
+set(BUILD_TESTING OFF)
 
 find_package(JUCE MODULE)
 find_package(CAN_Stack MODULE)
