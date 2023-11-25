@@ -98,7 +98,7 @@ public:
 			serverInternalControlFunction = isobus::InternalControlFunction::create(serverNAME, 0x26, 0);
 			setUsingNativeTitleBar(true);
 			setContentOwned(new ServerMainComponent(serverInternalControlFunction), true);
-                 isobus::CANHardwareInterface::start();
+			isobus::CANHardwareInterface::start();
 
 #if JUCE_IOS || JUCE_ANDROID
 			setFullScreen(true);

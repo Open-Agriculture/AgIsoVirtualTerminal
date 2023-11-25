@@ -17,13 +17,13 @@ OutputLinearBarGraphComponent::OutputLinearBarGraphComponent(std::shared_ptr<iso
 void OutputLinearBarGraphComponent::paint(Graphics &g)
 {
 	float valueRatioToMax = static_cast<float>(get_value()) / static_cast<float>(get_max_value());
-	auto vtBackgroundColour = colourTable.get_colour(get_colour());
-	auto vtTargetLineColour = colourTable.get_colour(get_target_line_colour());
+	auto vtBackgroundColour = parentWorkingSet->get_colour(get_colour());
+	auto vtTargetLineColour = parentWorkingSet->get_colour(get_target_line_colour());
 	g.setColour(Colour::fromFloatRGBA(vtBackgroundColour.r, vtBackgroundColour.g, vtBackgroundColour.b, 1.0));
 
-	for (std::uint16_t i = 0; i < get_number_children(); i++)
+	if (isobus::NULL_OBJECT_ID != get_variable_reference())
 	{
-		auto child = get_object_by_id(get_child_id(i));
+		auto child = get_object_by_id(get_variable_reference(), parentWorkingSet->get_object_tree());
 
 		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 		{

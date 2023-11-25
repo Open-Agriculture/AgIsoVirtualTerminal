@@ -1,19 +1,19 @@
 /*******************************************************************************
-** @file       OutputStringComponent.cpp
+** @file       InputStringComponent.cpp
 ** @author     Adrian Del Grosso
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
-#include "OutputStringComponent.hpp"
+#include "InputStringComponent.hpp"
 
-OutputStringComponent::OutputStringComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputString sourceObject) :
-  isobus::OutputString(sourceObject),
+InputStringComponent::InputStringComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::InputString sourceObject) :
+  isobus::InputString(sourceObject),
   parentWorkingSet(workingSet)
 {
 	setSize(get_width(), get_height());
 	setOpaque(false);
 }
 
-void OutputStringComponent::paint(Graphics &g)
+void InputStringComponent::paint(Graphics &g)
 {
 	std::string value = get_value();
 	std::uint8_t fontHeight = 0;
@@ -27,42 +27,43 @@ void OutputStringComponent::paint(Graphics &g)
 	g.setColour(getLookAndFeel().findColour(ListBox::textColourId));
 
 	// Get font data
-	auto fontAttrID = get_font_attributes();
-
-	if (isobus::NULL_OBJECT_ID != fontAttrID)
+	if (isobus::NULL_OBJECT_ID != get_font_attributes())
 	{
-		auto child = get_object_by_id(fontAttrID, parentWorkingSet->get_object_tree());
+		auto child = get_object_by_id(get_font_attributes(), parentWorkingSet->get_object_tree());
 
-		if (isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type())
+		if (nullptr != child)
 		{
-			auto font = std::static_pointer_cast<isobus::FontAttributes>(child);
-
-			auto colour = parentWorkingSet->get_colour(font->get_colour());
-			Font juceFont;
-			int fontStyleFlags = Font::FontStyleFlags::plain;
-
-			if (font->get_style(isobus::FontAttributes::FontStyleBits::Bold))
+			if (isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type())
 			{
-				fontStyleFlags |= Font::FontStyleFlags::bold;
+				auto font = std::static_pointer_cast<isobus::FontAttributes>(child);
+
+				auto colour = parentWorkingSet->get_colour(font->get_colour());
+				Font juceFont;
+				int fontStyleFlags = Font::FontStyleFlags::plain;
+
+				if (font->get_style(isobus::FontAttributes::FontStyleBits::Bold))
+				{
+					fontStyleFlags |= Font::FontStyleFlags::bold;
+				}
+
+				if (font->get_style(isobus::FontAttributes::FontStyleBits::Italic))
+				{
+					fontStyleFlags |= Font::FontStyleFlags::italic;
+				}
+
+				if (font->get_style(isobus::FontAttributes::FontStyleBits::Underlined))
+				{
+					fontStyleFlags |= Font::FontStyleFlags::underlined;
+				}
+
+				juceFont = Font(Font::getDefaultMonospacedFontName(), font->get_font_height_pixels(), fontStyleFlags);
+
+				auto fontWidth = juceFont.getStringWidthFloat("a");
+				fontHeight = font->get_font_width_pixels();
+				juceFont.setHorizontalScale(static_cast<float>(font->get_font_width_pixels()) / fontWidth);
+				g.setColour(Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f));
+				g.setFont(juceFont);
 			}
-
-			if (font->get_style(isobus::FontAttributes::FontStyleBits::Italic))
-			{
-				fontStyleFlags |= Font::FontStyleFlags::italic;
-			}
-
-			if (font->get_style(isobus::FontAttributes::FontStyleBits::Underlined))
-			{
-				fontStyleFlags |= Font::FontStyleFlags::underlined;
-			}
-
-			juceFont = Font(Font::getDefaultMonospacedFontName(), font->get_font_height_pixels(), fontStyleFlags);
-
-			auto fontWidth = juceFont.getStringWidthFloat("a");
-			fontHeight = font->get_font_width_pixels();
-			juceFont.setHorizontalScale(static_cast<float>(font->get_font_width_pixels()) / fontWidth);
-			g.setColour(Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f));
-			g.setFont(juceFont);
 		}
 	}
 
@@ -89,9 +90,15 @@ void OutputStringComponent::paint(Graphics &g)
 	{
 		g.drawFittedText(value, 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(get_height()) + 0.1f) / fontHeight)), 0.8f);
 	}
+
+	// If disabled, try and show that by drawing some semi-transparent grey
+	if (!get_enabled())
+	{
+		g.fillAll(Colour::fromFloatRGBA(0.5f, 0.5f, 0.5f, 0.5f));
+	}
 }
 
-Justification OutputStringComponent::convert_justification(HorizontalJustification horizontalJustification, VerticalJustification verticalJustification)
+Justification InputStringComponent::convert_justification(HorizontalJustification horizontalJustification, VerticalJustification verticalJustification)
 {
 	Justification retVal = Justification::topLeft;
 

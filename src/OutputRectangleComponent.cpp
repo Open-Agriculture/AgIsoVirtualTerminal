@@ -14,18 +14,18 @@ OutputRectangleComponent::OutputRectangleComponent(std::shared_ptr<isobus::Virtu
 
 void OutputRectangleComponent::paint(Graphics &g)
 {
-	auto vtColour = colourTable.get_colour(backgroundColor);
+	auto vtColour = parentWorkingSet->get_colour(backgroundColor);
 	bool isOpaque = false;
 
-	for (std::uint16_t i = 0; i < get_number_children(); i++)
+	if (isobus::NULL_OBJECT_ID != get_fill_attributes())
 	{
-		auto child = get_object_by_id(get_child_id(i));
+		auto child = get_object_by_id(get_fill_attributes(), parentWorkingSet->get_object_tree());
 
 		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::FillAttributes == child->get_object_type()))
 		{
 			auto fill = std::static_pointer_cast<isobus::FillAttributes>(child);
 
-			vtColour = colourTable.get_colour(fill->get_background_color());
+			vtColour = parentWorkingSet->get_colour(fill->get_background_color());
 			switch (std::static_pointer_cast<isobus::FillAttributes>(child)->get_type())
 			{
 				case isobus::FillAttributes::FillType::FillWithPatternGivenByFillPatternAttribute:
@@ -38,12 +38,12 @@ void OutputRectangleComponent::paint(Graphics &g)
 				{
 					for (std::uint16_t j = 0; j < get_number_children(); j++)
 					{
-						auto childLineAttributes = get_object_by_id(get_child_id(j));
+						auto childLineAttributes = get_object_by_id(get_child_id(j), parentWorkingSet->get_object_tree());
 
 						if ((nullptr != childLineAttributes) && (isobus::VirtualTerminalObjectType::LineAttributes == childLineAttributes->get_object_type()))
 						{
 							auto line = std::static_pointer_cast<isobus::LineAttributes>(childLineAttributes);
-							vtColour = colourTable.get_colour(line->get_background_color());
+							vtColour = parentWorkingSet->get_colour(line->get_background_color());
 							g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0));
 							g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 							break;
@@ -66,15 +66,14 @@ void OutputRectangleComponent::paint(Graphics &g)
 				break;
 			}
 			isOpaque = true;
-			break;
 		}
 	}
 
 	setOpaque(isOpaque);
 
-	for (std::uint16_t i = 0; i < get_number_children(); i++)
+	if (isobus::NULL_OBJECT_ID != get_line_attributes())
 	{
-		auto child = get_object_by_id(get_child_id(i));
+		auto child = get_object_by_id(get_line_attributes(), parentWorkingSet->get_object_tree());
 
 		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::LineAttributes == child->get_object_type()))
 		{
@@ -83,7 +82,7 @@ void OutputRectangleComponent::paint(Graphics &g)
 			if (0 != line->get_width())
 			{
 				bool anyLineSuppressed = (0 != get_line_suppression_bitfield());
-				vtColour = colourTable.get_colour(line->get_background_color());
+				vtColour = parentWorkingSet->get_colour(line->get_background_color());
 				g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0));
 
 				if (!anyLineSuppressed)
@@ -110,7 +109,6 @@ void OutputRectangleComponent::paint(Graphics &g)
 					}
 				}
 			}
-			break;
 		}
 	}
 }

@@ -19,7 +19,7 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 {
 	for (std::uint16_t i = 0; i < this->get_number_children(); i++)
 	{
-		auto child = get_object_by_id(get_child_id(i));
+		auto child = get_object_by_id(get_child_id(i), parentWorkingSet->get_object_tree());
 
 		if (nullptr != child)
 		{
@@ -41,7 +41,7 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 
 void SoftKeyMaskComponent::paint(Graphics &g)
 {
-	auto vtColour = colourTable.get_colour(backgroundColor);
+	auto vtColour = parentWorkingSet->get_colour(backgroundColor);
 
 	g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 }

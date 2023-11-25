@@ -21,18 +21,17 @@ void OutputPolygonComponent::paint(Graphics &g)
 		float lineWidth = 0.0f;
 		auto lineColour = Colour::fromFloatRGBA(0.0f, 0.0f, 0.0f, 1.0);
 
-		for (std::uint16_t i = 0; i < get_number_children(); i++)
+		if (isobus::NULL_OBJECT_ID != get_line_attributes())
 		{
-			auto child = get_object_by_id(get_child_id(i));
+			auto child = get_object_by_id(get_line_attributes(), parentWorkingSet->get_object_tree());
 
 			if ((nullptr != child) && (isobus::VirtualTerminalObjectType::LineAttributes == child->get_object_type()))
 			{
 				auto line = std::static_pointer_cast<isobus::LineAttributes>(child);
 				lineWidth = line->get_width();
-				auto lineAttributeColour = colourTable.get_colour(line->get_background_color());
+				auto lineAttributeColour = parentWorkingSet->get_colour(line->get_background_color());
 
 				lineColour = Colour::fromFloatRGBA(lineAttributeColour.r, lineAttributeColour.g, lineAttributeColour.b, 1.0);
-				break;
 			}
 		}
 
@@ -57,18 +56,17 @@ void OutputPolygonComponent::paint(Graphics &g)
 			polygonPath.closeSubPath();
 		}
 
-		for (std::uint16_t i = 0; i < get_number_children(); i++)
+		if (isobus::NULL_OBJECT_ID != get_fill_attributes())
 		{
-			auto child = get_object_by_id(get_child_id(i));
+			auto child = get_object_by_id(get_fill_attributes(), parentWorkingSet->get_object_tree());
 
 			if ((nullptr != child) && (isobus::VirtualTerminalObjectType::FillAttributes == child->get_object_type()))
 			{
 				auto fill = std::static_pointer_cast<isobus::FillAttributes>(child);
 
-				auto vtColour = colourTable.get_colour(fill->get_background_color());
+				auto vtColour = parentWorkingSet->get_colour(fill->get_background_color());
 				g.setFillType(FillType(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f)));
 				g.fillPath(polygonPath);
-				break;
 			}
 		}
 

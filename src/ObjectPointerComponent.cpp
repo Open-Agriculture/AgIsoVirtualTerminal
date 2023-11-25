@@ -16,7 +16,7 @@ ObjectPointerComponent::ObjectPointerComponent(std::shared_ptr<isobus::VirtualTe
 void ObjectPointerComponent::on_content_changed(bool initial)
 {
 	childComponent.reset();
-	auto child = get_object_by_id(get_child_id(0));
+	auto child = get_object_by_id(get_value(), parentWorkingSet->get_object_tree());
 
 	if (nullptr != child)
 	{

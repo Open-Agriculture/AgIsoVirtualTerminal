@@ -24,7 +24,7 @@ void PictureGraphicComponent::generate_and_store_image()
 	{
 		for (std::uint_fast16_t j = 0; j < get_actual_width(); j++)
 		{
-			auto vtColour = colourTable.get_colour(rawPictureGraphicData.at(pixelIndex));
+			auto vtColour = parentWorkingSet->get_colour(rawPictureGraphicData.at(pixelIndex));
 			if (transparencyEnabled)
 			{
 				reconstructedImage.setPixelAt(j, i, Colour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, rawPictureGraphicData.at(pixelIndex) == this->get_transparency_colour() ? 0.0f : 1.0f)));

@@ -18,34 +18,32 @@ InputBooleanComponent::InputBooleanComponent(std::shared_ptr<isobus::VirtualTerm
 void InputBooleanComponent::paint(Graphics &g)
 {
 	// Draw background
-	auto vtColour = colourTable.get_colour(get_background_color());
+	auto vtColour = parentWorkingSet->get_colour(get_background_color());
 	g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 	g.drawRect(0, 0, static_cast<int>(get_width()), static_cast<int>(get_height()), 0);
 
 	g.setColour(Colour::fromFloatRGBA(0.0f, 0.0f, 0.0f, 1.0f));
 	// Change colour to foreground colour if present
-	for (std::uint16_t i = 0; i < get_number_children(); i++)
+	if (isobus::NULL_OBJECT_ID != get_foreground_colour_object_id())
 	{
-		auto child = get_object_by_id(get_child_id(i));
+		auto child = get_object_by_id(get_foreground_colour_object_id(), parentWorkingSet->get_object_tree());
 
 		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type()))
 		{
-			vtColour = colourTable.get_colour(std::static_pointer_cast<isobus::FontAttributes>(child)->get_background_color());
+			vtColour = parentWorkingSet->get_colour(std::static_pointer_cast<isobus::FontAttributes>(child)->get_background_color());
 			g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
-			break;
 		}
 	}
 
 	bool isChecked = (0 != get_value());
 	// Change use number variable if one was provided
-	for (std::uint16_t i = 0; i < get_number_children(); i++)
+	if (isobus::NULL_OBJECT_ID != get_variable_reference())
 	{
-		auto child = get_object_by_id(get_child_id(i));
+		auto child = get_object_by_id(get_variable_reference(), parentWorkingSet->get_object_tree());
 
 		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 		{
 			isChecked = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
-			break;
 		}
 	}
 

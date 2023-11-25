@@ -22,7 +22,7 @@ void WorkingSetSelectorComponent::add_working_set_to_draw(std::shared_ptr<isobus
 
 	for (std::uint16_t i = 0; i < workingSetObject->get_number_children(); i++)
 	{
-		auto childObject = JuceManagedWorkingSetCache::create_component(workingSet, workingSetObject->get_object_by_id(workingSetObject->get_child_id(i)));
+		auto childObject = JuceManagedWorkingSetCache::create_component(workingSet, workingSetObject->get_object_by_id(workingSetObject->get_child_id(i), workingSet->get_object_tree()));
 		children.back().childComponents.push_back(childObject);
 		childObject->setTopLeftPosition(4 + 15 + workingSetObject->get_child_x(i), (static_cast<int>(children.size()) - 1) * 80 + 10 + 7 + workingSetObject->get_child_y(i));
 		addAndMakeVisible(*childObject);
@@ -74,7 +74,7 @@ void WorkingSetSelectorComponent::redraw()
 
 		for (std::uint16_t i = 0; i < workingSetObject->get_number_children(); i++)
 		{
-			auto childObject = JuceManagedWorkingSetCache::create_component(workingSet.workingSet, workingSetObject->get_object_by_id(workingSetObject->get_child_id(i)));
+			auto childObject = JuceManagedWorkingSetCache::create_component(workingSet.workingSet, workingSetObject->get_object_by_id(workingSetObject->get_child_id(i), workingSet.workingSet->get_object_tree()));
 			workingSet.childComponents.push_back(childObject);
 			childObject->setTopLeftPosition(4 + 15 + workingSetObject->get_child_x(i), workingSetIndex * 80 + 10 + 7 + workingSetObject->get_child_y(i));
 			addAndMakeVisible(*childObject);

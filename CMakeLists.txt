@@ -64,6 +64,7 @@ target_sources(
           "src/OutputLineComponent.cpp"
           "src/OutputLinearBarGraphComponent.cpp"
           "src/OutputPolygonComponent.cpp"
+          "src/InputStringComponent.cpp"
           "src/AlarmMaskAudio.cpp"
           "src/AppImages.cpp"
           "src/InputListComponent.cpp")

@@ -19,7 +19,7 @@ void OutputMeterComponent::paint(Graphics &g)
 {
 	if (get_option(Options::DrawBorder))
 	{
-		auto vtColour = colourTable.get_colour(get_border_colour());
+		auto vtColour = parentWorkingSet->get_colour(get_border_colour());
 		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 		g.drawRect(0, 0, static_cast<int>(get_width()), static_cast<int>(get_height()), 1);
 	}
@@ -48,16 +48,16 @@ void OutputMeterComponent::paint(Graphics &g)
 	}
 
 	std::uint32_t needleValue = get_value();
-	if ((this->get_number_children() > 0) && (0xFFFF != this->get_child_id(0)))
+	if (isobus::NULL_OBJECT_ID != get_variable_reference())
 	{
-		auto varNum = this->get_object_by_id(this->get_child_id(0));
+		auto varNum = get_object_by_id(get_variable_reference(), parentWorkingSet->get_object_tree());
 
 		if ((nullptr != varNum) && (isobus::VirtualTerminalObjectType::NumberVariable == varNum->get_object_type()))
 		{
 			needleValue = std::static_pointer_cast<isobus::NumberVariable>(varNum)->get_value();
 		}
 	}
-	auto vtColour = colourTable.get_colour(get_needle_colour());
+	auto vtColour = parentWorkingSet->get_colour(get_needle_colour());
 	Path needlePath;
 	float endVtAngleDeg = get_end_angle() * 2.0f;
 	float startVtAngleDeg = get_start_angle() * 2.0f;

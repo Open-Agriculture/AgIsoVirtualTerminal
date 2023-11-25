@@ -243,14 +243,14 @@ bool ServerMainComponent::save_version(const std::vector<std::uint8_t> &objectPo
 
 	if (iopxFile.is_open())
 	{
-		iopxFile.write(reinterpret_cast<const char *>(versionLabel.data()), static_cast < std::streamsize>(versionLabel.size()));
-		iopxFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast < std::streamsize>(objectPool.size()));
+		iopxFile.write(reinterpret_cast<const char *>(versionLabel.data()), static_cast<std::streamsize>(versionLabel.size()));
+		iopxFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast<std::streamsize>(objectPool.size()));
 		iopxFile.close();
 		retVal = true;
 	}
 	if (iopFile.is_open())
 	{
-		iopFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast < std::streamsize>(objectPool.size()));
+		iopFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast<std::streamsize>(objectPool.size()));
 		iopFile.close();
 	}
 	return retVal;
@@ -350,7 +350,15 @@ void ServerMainComponent::timerCallback()
 		if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Success == ws->get_object_pool_processing_state())
 		{
 			ws->join_parsing_thread();
-			send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, isobus::NULL_OBJECT_ID, 0, ws->get_control_function());
+
+			if (ws->get_was_object_pool_loaded_from_non_volatile_memory())
+			{
+				send_load_version_response(0, ws->get_control_function());
+			}
+			else
+			{
+				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, isobus::NULL_OBJECT_ID, 0, ws->get_control_function());
+			}
 			workingSetSelector.add_working_set_to_draw(ws);
 			if (isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress)
 			{
@@ -361,8 +369,16 @@ void ServerMainComponent::timerCallback()
 		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Fail == ws->get_object_pool_processing_state())
 		{
 			ws->join_parsing_thread();
-			///  @todo Get the parent object ID of the faulting object
-			send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, ws->get_object_pool_faulting_object_id(), 0, ws->get_control_function());
+
+			if (ws->get_was_object_pool_loaded_from_non_volatile_memory())
+			{
+				send_load_version_response(1, ws->get_control_function());
+			}
+			else
+			{
+				///  @todo Get the parent object ID of the faulting object
+				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, ws->get_object_pool_faulting_object_id(), 0, ws->get_control_function());
+			}
 		}
 		else if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state()) &&
 		         (isobus::SystemTiming::time_expired_ms(ws->get_working_set_maintenance_message_timestamp_ms(), 3000)))
@@ -374,7 +390,6 @@ void ServerMainComponent::timerCallback()
 			if (dataMaskRenderer.needsRepaint())
 			{
 				repaint_data_and_soft_key_mask();
-				dataMaskRenderer.on_change_active_mask(ws);
 				needToRepaint = false;
 			}
 			else if (needToRepaint)
@@ -588,6 +603,8 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		}
 		auto &ws = managedWorkingSetList.at(index);
 		activeWorkingSetMasterAddress = ws->get_control_function()->get_address();
+
+		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
 		activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask();
 
 		dataMaskRenderer.on_change_active_mask(ws);
@@ -713,7 +730,7 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 		{
 			for (std::uint16_t i = 0; i < activeMask->get_number_children(); i++)
 			{
-				auto child = activeMask->get_object_by_id(activeMask->get_child_id(i));
+				auto child = activeMask->get_object_by_id(activeMask->get_child_id(i), affectedWorkingSet->get_object_tree());
 
 				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{

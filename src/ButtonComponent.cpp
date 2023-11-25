@@ -16,7 +16,7 @@ ButtonComponent::ButtonComponent(std::shared_ptr<isobus::VirtualTerminalServerMa
 
 	for (std::uint16_t i = 0; i < this->get_number_children(); i++)
 	{
-		auto child = get_object_by_id(get_child_id(i));
+		auto child = get_object_by_id(get_child_id(i), parentWorkingSet->get_object_tree());
 
 		if (nullptr != child)
 		{
@@ -33,7 +33,7 @@ ButtonComponent::ButtonComponent(std::shared_ptr<isobus::VirtualTerminalServerMa
 
 void ButtonComponent::paint(Graphics &g)
 {
-	auto vtColour = colourTable.get_colour(backgroundColor);
+	auto vtColour = parentWorkingSet->get_colour(backgroundColor);
 
 	if (true == get_option(Options::TransparentBackground))
 	{
@@ -46,7 +46,7 @@ void ButtonComponent::paint(Graphics &g)
 
 	if (false == get_option(Options::NoBorder))
 	{
-		vtColour = colourTable.get_colour(get_border_colour());
+		vtColour = parentWorkingSet->get_colour(get_border_colour());
 		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 		g.drawRect(0, 0, get_width(), get_height(), 4);
 	}

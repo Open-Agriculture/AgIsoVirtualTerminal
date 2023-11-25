@@ -15,9 +15,8 @@ InputListComponent::InputListComponent(std::shared_ptr<isobus::VirtualTerminalSe
 	onChanged(true);
 }
 
-void InputListComponent::paint(Graphics&)
+void InputListComponent::paint(Graphics &)
 {
-
 }
 
 void InputListComponent::paintOverChildren(Graphics &g)
@@ -36,7 +35,7 @@ void InputListComponent::onChanged(bool initial)
 
 	if (isobus::NULL_OBJECT_ID != get_variable_reference())
 	{
-		auto child = get_object_by_id(get_variable_reference());
+		auto child = get_object_by_id(get_variable_reference(), parentWorkingSet->get_object_tree());
 
 		if (nullptr != child)
 		{
@@ -51,7 +50,7 @@ void InputListComponent::onChanged(bool initial)
 	    (selectedIndex < static_cast<std::uint32_t>(get_number_children())))
 	{
 		// The number variable will always be the first one
-		auto listItem = get_object_by_id(get_child_id(static_cast<std::uint16_t>(selectedIndex)));
+		auto listItem = get_object_by_id(get_child_id(static_cast<std::uint16_t>(selectedIndex)), parentWorkingSet->get_object_tree());
 		childComponent = JuceManagedWorkingSetCache::create_component(parentWorkingSet, listItem);
 
 		if (nullptr != childComponent)

@@ -15,7 +15,7 @@ ContainerComponent::ContainerComponent(std::shared_ptr<isobus::VirtualTerminalSe
 
 	for (std::uint16_t i = 0; i < this->get_number_children(); i++)
 	{
-		auto child = get_object_by_id(get_child_id(i));
+		auto child = get_object_by_id(get_child_id(i), parentWorkingSet->get_object_tree());
 
 		if (nullptr != child)
 		{

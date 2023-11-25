@@ -58,6 +58,7 @@ private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::unique_ptr<AlertWindow> inputListModal;
 	std::unique_ptr<AlertWindow> inputNumberModal;
+	std::unique_ptr<AlertWindow> inputStringModal;
 	std::unique_ptr<Slider> inputNumberSlider;
 	std::vector<std::shared_ptr<Component>> childComponents;
 	std::vector<std::shared_ptr<Component>> currentModalComponentCache;
