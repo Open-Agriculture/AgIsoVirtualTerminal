@@ -67,6 +67,11 @@ sudo apt update
 sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype6-dev libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libwebkit2gtk-4.0-dev libglu1-mesa-dev mesa-common-dev git cmake pkg-config
 ```
 
+Fedora:
+```
+sudo dnf install cmake ninja-build libX11-devel alsa-lib-devel jack-audio-connection-kit-devel freetype-devel mesa-libGL-devel libcurl-devel webkit2gtk4-devel
+```
+
 Windows:
 
 On Windows, you will need to install Visual Studio to get the MSVC compiler and CMake. The easiest way to do that would be to install [Visual Studio Community](https://visualstudio.microsoft.com/vs/community/) and select the "Desktop development with C++" workload.
