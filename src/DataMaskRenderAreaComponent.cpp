@@ -30,6 +30,16 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 	needToRepaintActiveArea = false;
 }
 
+void DataMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	if ((nullptr != workingSet) && (parentWorkingSet == workingSet))
+	{
+		childComponents.clear();
+		parentWorkingSet.reset();
+		repaint();
+	}
+}
+
 void DataMaskRenderAreaComponent::paint(Graphics &g)
 {
 	g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));

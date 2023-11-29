@@ -384,6 +384,37 @@ void ServerMainComponent::timerCallback()
 		         (isobus::SystemTiming::time_expired_ms(ws->get_working_set_maintenance_message_timestamp_ms(), 3000)))
 		{
 			workingSetSelector.remove_working_set(ws);
+			dataMaskRenderer.on_working_set_disconnect(ws);
+			softKeyMaskRenderer.on_working_set_disconnect(ws);
+
+			if (managedWorkingSetList.empty())
+			{
+				activeWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
+				activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
+			}
+			else if (ws->get_control_function()->get_address() == activeWorkingSetMasterAddress)
+			{
+				bool newWorkingSetFound = false;
+
+				for (auto &nextWorkingSet : managedWorkingSetList)
+				{
+					if (nextWorkingSet->get_control_function()->get_address() != activeWorkingSetMasterAddress)
+					{
+						activeWorkingSetMasterAddress = nextWorkingSet->get_control_function()->get_address();
+						activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSet->get_working_set_object())->get_active_mask();
+						newWorkingSetFound = true;
+						break;
+					}
+				}
+
+				if (!newWorkingSetFound)
+				{
+					activeWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
+					activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
+				}
+			}
+			remove_working_set(ws);
+			break;
 		}
 		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state())
 		{
@@ -876,6 +907,18 @@ void ServerMainComponent::save_settings()
 		if (nullptr != xml)
 		{
 			xml->writeTo(settingsFile);
+		}
+	}
+}
+
+void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
+{
+	for (auto it = managedWorkingSetList.begin(); it != managedWorkingSetList.end(); it++)
+	{
+		if (workingSetToRemove == *it)
+		{
+			managedWorkingSetList.erase(it);
+			break;
 		}
 	}
 }

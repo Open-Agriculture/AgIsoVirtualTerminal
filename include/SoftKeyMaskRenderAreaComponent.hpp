@@ -23,6 +23,8 @@ public:
 
 	void on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
+	void on_working_set_disconnect(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
+
 	void paint(Graphics &g) override;
 
 	// Used to calculate button press events

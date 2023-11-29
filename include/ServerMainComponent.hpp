@@ -115,6 +115,7 @@ private:
 	void repaint_data_and_soft_key_mask();
 	void check_load_settings();
 	void save_settings();
+	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 
 	const std::string ISO_DATA_PATH = "iso_data";
 

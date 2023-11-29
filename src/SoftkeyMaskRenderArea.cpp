@@ -51,6 +51,16 @@ void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobu
 	repaint();
 }
 
+void SoftKeyMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	if ((nullptr != workingSet) && (workingSet == parentWorkingSet))
+	{
+		parentWorkingSet = nullptr;
+		childComponents.clear();
+		repaint();
+	}
+}
+
 void SoftKeyMaskRenderAreaComponent::paint(Graphics &g)
 {
 	g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
