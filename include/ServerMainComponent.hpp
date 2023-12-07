@@ -109,6 +109,8 @@ private:
 	};
 	friend class LanguageCommandConfigClosed;
 
+	static VTVersion get_version_from_setting(std::uint8_t aVersion);
+
 	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);

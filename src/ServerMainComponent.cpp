@@ -718,6 +718,42 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 	mParent.popupMenu.reset();
 }
 
+ServerMainComponent::VTVersion ServerMainComponent::get_version_from_setting(std::uint8_t aVersion)
+{
+	VTVersion retVal = VTVersion::Version2OrOlder;
+
+	switch (aVersion)
+	{
+		case 3:
+		{
+			retVal = VTVersion::Version3;
+		}
+		break;
+
+		case 4:
+		{
+			retVal = VTVersion::Version4;
+		}
+		break;
+
+		case 5:
+		{
+			retVal = VTVersion::Version5;
+		}
+		break;
+
+		case 6:
+		{
+			retVal = VTVersion::Version6;
+		}
+		break;
+
+		default:
+			break;
+	}
+	return retVal;
+}
+
 std::size_t ServerMainComponent::number_of_iop_files_in_directory(std::filesystem::path path)
 {
 	std::size_t retVal = 0;
@@ -855,7 +891,7 @@ void ServerMainComponent::check_load_settings()
 				languageCommandInterface.set_commanded_volume_units(static_cast<isobus::LanguageCommandInterface::VolumeUnits>(int(firstChild.getProperty("VolumeUnits"))));
 				languageCommandInterface.set_country_code(String(firstChild.getProperty("CountryCode").toString()).toStdString());
 				languageCommandInterface.set_language_code(String(firstChild.getProperty("LanguageCode").toString()).toStdString());
-				versionToReport = static_cast<VTVersion>(int(secondChild.getProperty("Version")));
+				versionToReport = get_version_from_setting(static_cast<std::uint8_t>(static_cast<int>(secondChild.getProperty("Version"))));
 			}
 		}
 	}
