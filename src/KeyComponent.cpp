@@ -7,11 +7,11 @@
 
 #include "JuceManagedWorkingSetCache.hpp"
 
-KeyComponent::KeyComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::Key sourceObject) :
+KeyComponent::KeyComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::Key sourceObject, int keyWidth, int keyHeight) :
   isobus::Key(sourceObject),
   parentWorkingSet(workingSet)
 {
-	setSize(60, 60);
+	setSize(keyWidth, keyHeight);
 	setOpaque(true);
 
 	for (std::uint16_t i = 0; i < this->get_number_children(); i++)

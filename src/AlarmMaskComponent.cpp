@@ -6,12 +6,12 @@
 #include "AlarmMaskComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 
-AlarmMaskComponent::AlarmMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::AlarmMask sourceObject) :
+AlarmMaskComponent::AlarmMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::AlarmMask sourceObject, int dataMaskSize) :
   isobus::AlarmMask(sourceObject),
   parentWorkingSet(workingSet)
 {
 	setOpaque(true);
-	setBounds(0, 0, 480, 480);
+	setBounds(0, 0, dataMaskSize, dataMaskSize);
 	on_content_changed(true);
 }
 

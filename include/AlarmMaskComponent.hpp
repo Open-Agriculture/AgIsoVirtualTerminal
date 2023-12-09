@@ -18,7 +18,7 @@ class AlarmMaskComponent : public isobus::AlarmMask
   , public Component
 {
 public:
-	AlarmMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::AlarmMask sourceObject);
+	AlarmMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::AlarmMask sourceObject, int dataMaskSize);
 
 	void on_content_changed(bool initial = false);
 

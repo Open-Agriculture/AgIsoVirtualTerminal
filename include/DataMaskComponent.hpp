@@ -18,7 +18,7 @@ class DataMaskComponent : public isobus::DataMask
   , public Component
 {
 public:
-	DataMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::DataMask sourceObject);
+	DataMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::DataMask sourceObject, int dataMaskSize);
 
 	void on_content_changed(bool initial = false);
 

@@ -81,30 +81,77 @@ std::uint8_t ServerMainComponent::get_number_of_navigation_soft_keys() const
 
 std::uint8_t ServerMainComponent::get_soft_key_descriptor_x_pixel_width() const
 {
-	return 60;
+	std::uint8_t retVal = 32;
+
+	if (versionToReport == VTVersion::Version6)
+	{
+		retVal = 60; // 60x60 is the minimum size for VT Version 6+
+	}
+	if (softKeyDesignatorWidth > retVal)
+	{
+		retVal = softKeyDesignatorWidth;
+	}
+	return retVal;
 }
 
 std::uint8_t ServerMainComponent::get_soft_key_descriptor_y_pixel_width() const
 {
-	return 60;
+	// Min: 60 pixels wide
+	std::uint8_t retVal = 60;
+
+	if (softKeyDesignatorHeight > retVal)
+	{
+		retVal = softKeyDesignatorHeight;
+	}
+	return retVal;
 }
 std::uint8_t ServerMainComponent::get_number_of_possible_virtual_soft_keys_in_soft_key_mask() const
 {
-	return 64;
+	constexpr std::uint8_t MAX_VIRTUAL_SOFT_KEYS = 64;
+	std::uint8_t retVal = numberVirtualSoftKeys;
+
+	// VT Version 3 and prior shall support a maximum of 64 virtual Soft Keys per Soft Key Mask and shall
+	// support as a minimum the number of reported physical Soft Keys
+	if (versionToReport < VTVersion::Version3)
+	{
+		if (retVal > MAX_VIRTUAL_SOFT_KEYS)
+		{
+			retVal = MAX_VIRTUAL_SOFT_KEYS;
+		}
+		else if (retVal < get_number_of_physical_soft_keys())
+		{
+			retVal = get_number_of_physical_soft_keys();
+		}
+	}
+	else
+	{
+		retVal = MAX_VIRTUAL_SOFT_KEYS; // VT Version 4 and later shall support exactly 64 virtual Soft Keys per Soft Key Mask
+	}
+	return retVal;
 }
 std::uint8_t ServerMainComponent::get_number_of_physical_soft_keys() const
 {
-	return 0;
+	constexpr std::uint8_t MIN_PHYSICAL_SOFT_KEYS = 6;
+
+	if (versionToReport >= isobus::VirtualTerminalBase::VTVersion::Version4)
+	{
+		// VT Version 4 and later VTs shall provide at least 6 physical Soft Keys.
+		return numberPhysicalSoftKeys < MIN_PHYSICAL_SOFT_KEYS ? MIN_PHYSICAL_SOFT_KEYS : numberPhysicalSoftKeys;
+	}
+	else
+	{
+		return numberPhysicalSoftKeys;
+	}
 }
 
 std::uint16_t ServerMainComponent::get_data_mask_area_size_x_pixels() const
 {
-	return 480;
+	return dataMaskRenderer.getWidth() != 0 ? dataMaskRenderer.getWidth() : 480;
 }
 
 std::uint16_t ServerMainComponent::get_data_mask_area_size_y_pixels() const
 {
-	return 480;
+	return dataMaskRenderer.getHeight() != 0 ? dataMaskRenderer.getHeight() : 480;
 }
 
 void ServerMainComponent::suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> /*workingSetWithError*/)
@@ -450,10 +497,10 @@ void ServerMainComponent::resized()
 	auto lBounds = getLocalBounds();
 
 	workingSetSelector.setBounds(0, lMenuBarHeight + 4, 100, 600);
-	dataMaskRenderer.setBounds(100, lMenuBarHeight + 4, 500, 500);
-	softKeyMaskRenderer.setBounds(580, lMenuBarHeight + 4, 100, 480);
-	loggerViewport.setSize(getWidth(), getHeight() - 600);
-	loggerViewport.setTopLeftPosition(0, 600);
+	dataMaskRenderer.setBounds(100, lMenuBarHeight + 4, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
+	softKeyMaskRenderer.setBounds(100 + get_data_mask_area_size_x_pixels(), lMenuBarHeight + 4, 100, get_data_mask_area_size_y_pixels());
+	loggerViewport.setSize(getWidth(), getHeight() * .2f);
+	loggerViewport.setTopLeftPosition(0, getHeight() * .8f);
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight));
 	logger.setSize(loggerViewport.getWidth(), logger.getHeight());
 
@@ -473,6 +520,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::About));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureLanguageCommand));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureReportedVersion));
+	allCommands.add(static_cast<int>(CommandIDs::ConfigureReportedHardware));
 }
 
 void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationCommandInfo &result)
@@ -494,6 +542,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::ConfigureReportedVersion:
 		{
 			result.setInfo("Version", "Change the VT server's reported version", "Configure", 0);
+		}
+		break;
+
+		case CommandIDs::ConfigureReportedHardware:
+		{
+			result.setInfo("Reported Hardware Capabilities", "Change info reported to clients in the get hardware message", "Configure", 0);
 		}
 		break;
 
@@ -568,6 +622,26 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::ConfigureReportedHardware):
+		{
+			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Capabilities", "You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients.", MessageBoxIconType::NoIcon);
+			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), "Data Mask Size (height and width)");
+			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_width()), "Soft Key Designator Height (min 60)");
+			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), "Soft Key Designator Width (min 60)");
+			popupMenu->addTextEditor("Number of Physical Soft Keys", String(get_number_of_physical_soft_keys()), "Number of Physical Soft Keys (min 6)");
+
+			popupMenu->getTextEditor("Data Mask Size (height and width)")->setInputRestrictions(4, "1234567890");
+			popupMenu->getTextEditor("Soft Key Designator Height")->setInputRestrictions(4, "1234567890");
+			popupMenu->getTextEditor("Soft Key Designator Width")->setInputRestrictions(4, "1234567890");
+			popupMenu->getTextEditor("Number of Physical Soft Keys")->setInputRestrictions(2, "1234567890");
+
+			popupMenu->addButton("OK", 3, KeyPress(KeyPress::returnKey, 0, 0));
+			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
+			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -589,6 +663,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureLanguageCommand));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedVersion));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedHardware));
 		}
 		break;
 
@@ -705,6 +780,28 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			mParent.versionToReport = version;
 
 			mParent.save_settings();
+		}
+		break;
+
+		case 3: // Save Reported Hardware
+		{
+			auto dataMaskSize = mParent.popupMenu->getTextEditorContents("Data Mask Size (height and width)");
+			auto softKeyDesignatorHeight = mParent.popupMenu->getTextEditorContents("Soft Key Designator Height");
+			auto softKeyDesignatorWidth = mParent.popupMenu->getTextEditorContents("Soft Key Designator Width");
+			auto numberOfPhysicalSoftKeys = mParent.popupMenu->getTextEditorContents("Number of Physical Soft Keys");
+
+			mParent.dataMaskRenderer.setSize(dataMaskSize.getIntValue(), dataMaskSize.getIntValue());
+			mParent.softKeyMaskRenderer.setSize(100, dataMaskSize.getIntValue());
+			mParent.softKeyMaskRenderer.setTopLeftPosition(100 + dataMaskSize.getIntValue(), 4 + juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
+			JuceManagedWorkingSetCache::set_data_alarm_mask_size(dataMaskSize.getIntValue());
+			JuceManagedWorkingSetCache::set_soft_key_height(softKeyDesignatorHeight.getIntValue());
+			JuceManagedWorkingSetCache::set_soft_key_width(softKeyDesignatorWidth.getIntValue());
+			mParent.softKeyDesignatorWidth = softKeyDesignatorWidth.getIntValue();
+			mParent.softKeyDesignatorHeight = softKeyDesignatorHeight.getIntValue();
+			mParent.numberPhysicalSoftKeys = numberOfPhysicalSoftKeys.getIntValue();
+
+			mParent.save_settings();
+			mParent.repaint_data_and_soft_key_mask();
 		}
 		break;
 
@@ -878,6 +975,7 @@ void ServerMainComponent::check_load_settings()
 
 				auto firstChild = settings.getChild(0);
 				auto secondChild = settings.getChild(1);
+				auto thirdChild = settings.getChild(2);
 				languageCommandInterface.set_commanded_area_units(static_cast<isobus::LanguageCommandInterface::AreaUnits>(int(firstChild.getProperty("AreaUnits"))));
 				languageCommandInterface.set_commanded_date_format(static_cast<isobus::LanguageCommandInterface::DateFormats>(int(firstChild.getProperty("DateFormat"))));
 				languageCommandInterface.set_commanded_decimal_symbol(static_cast<isobus::LanguageCommandInterface::DecimalSymbols>(int(firstChild.getProperty("DecimalSymbol"))));
@@ -892,6 +990,11 @@ void ServerMainComponent::check_load_settings()
 				languageCommandInterface.set_country_code(String(firstChild.getProperty("CountryCode").toString()).toStdString());
 				languageCommandInterface.set_language_code(String(firstChild.getProperty("LanguageCode").toString()).toStdString());
 				versionToReport = get_version_from_setting(static_cast<std::uint8_t>(static_cast<int>(secondChild.getProperty("Version"))));
+
+				if (thirdChild.isValid())
+				{
+
+				}
 			}
 		}
 	}
@@ -921,6 +1024,7 @@ void ServerMainComponent::save_settings()
 		ValueTree settings("Settings");
 		ValueTree languageCommandSettings("LanguageCommand");
 		ValueTree compatibilitySettings("Compatibility");
+		ValueTree hardwareSettings("Hardware");
 
 		languageCommandSettings.setProperty("AreaUnits", static_cast<int>(languageCommandInterface.get_commanded_area_units()), nullptr);
 		languageCommandSettings.setProperty("DateFormat", static_cast<int>(languageCommandInterface.get_commanded_date_format()), nullptr);
@@ -936,8 +1040,13 @@ void ServerMainComponent::save_settings()
 		languageCommandSettings.setProperty("CountryCode", String(languageCommandInterface.get_country_code()), nullptr);
 		languageCommandSettings.setProperty("LanguageCode", String(languageCommandInterface.get_language_code()), nullptr);
 		compatibilitySettings.setProperty("Version", get_vt_version_byte(versionToReport), nullptr);
+		hardwareSettings.setProperty("DataMaskRenderAreaSize", dataMaskRenderer.getWidth(), nullptr);
+		hardwareSettings.setProperty("SoftKeyDesignatorWidth", get_soft_key_descriptor_x_pixel_width(), nullptr);
+		hardwareSettings.setProperty("SoftKeyDesignatorHeight", get_soft_key_descriptor_y_pixel_width(), nullptr);
+		hardwareSettings.setProperty("PhysicalSoftkeys", get_number_of_physical_soft_keys(), nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
+		settings.appendChild(hardwareSettings, nullptr);
 		std::unique_ptr<XmlElement> xml(settings.createXml());
 
 		if (nullptr != xml)

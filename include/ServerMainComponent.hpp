@@ -96,7 +96,8 @@ private:
 		NoCommand = 0, /// 0 Is an invalid command ID
 		About,
 		ConfigureLanguageCommand,
-		ConfigureReportedVersion
+		ConfigureReportedVersion,
+		ConfigureReportedHardware
 	};
 
 	class LanguageCommandConfigClosed
@@ -132,6 +133,10 @@ private:
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::uint8_t numberOfPoolsToRender = 0;
+	std::uint8_t numberPhysicalSoftKeys = 6;
+	std::uint8_t numberVirtualSoftKeys = 64;
+	std::uint8_t softKeyDesignatorWidth = 60;
+	std::uint8_t softKeyDesignatorHeight = 60;
 	VTVersion versionToReport = VTVersion::Version5;
 	bool needToRepaint = false;
 

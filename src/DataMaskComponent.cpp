@@ -6,12 +6,12 @@
 #include "DataMaskComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 
-DataMaskComponent::DataMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::DataMask sourceObject) :
+DataMaskComponent::DataMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::DataMask sourceObject, int dataMaskSize) :
   isobus::DataMask(sourceObject),
   parentWorkingSet(workingSet)
 {
 	setOpaque(true);
-	setBounds(0, 0, 480, 480);
+	setBounds(0, 0, dataMaskSize, dataMaskSize);
 	on_content_changed(true);
 }
 

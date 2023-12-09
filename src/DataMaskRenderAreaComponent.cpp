@@ -46,7 +46,7 @@ void DataMaskRenderAreaComponent::paint(Graphics &g)
 
 	if (nullptr != parentWorkingSet)
 	{
-		g.drawRect(0, 0, 480, 480, 1);
+		g.drawRect(0, 0, getWidth(), getHeight(), 1);
 	}
 	else
 	{

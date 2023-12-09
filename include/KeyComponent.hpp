@@ -18,7 +18,7 @@ class KeyComponent : public isobus::Key
   , public Component
 {
 public:
-	KeyComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::Key sourceObject);
+	KeyComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::Key sourceObject, int keyWidth, int keyHeight);
 
 	void paint(Graphics &g) override;
 

@@ -38,6 +38,9 @@
 #include "WorkingSetComponent.hpp"
 
 std::vector<JuceManagedWorkingSetCache::ComponentCacheClass> JuceManagedWorkingSetCache::workingSetComponentCache;
+int JuceManagedWorkingSetCache::dataAndAlarmMaskSize = 480;
+int JuceManagedWorkingSetCache::keyWidth = 60;
+int JuceManagedWorkingSetCache::keyHeight = 60;
 
 std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::shared_ptr<isobus::VTObject> sourceObject)
 {
@@ -64,13 +67,13 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 		{
 			case isobus::VirtualTerminalObjectType::AlarmMask:
 			{
-				retVal = std::make_shared<AlarmMaskComponent>(workingSet, *std::static_pointer_cast<isobus::AlarmMask>(sourceObject));
+				retVal = std::make_shared<AlarmMaskComponent>(workingSet, *std::static_pointer_cast<isobus::AlarmMask>(sourceObject), dataAndAlarmMaskSize);
 			}
 			break;
 
 			case isobus::VirtualTerminalObjectType::DataMask:
 			{
-				retVal = std::make_shared<DataMaskComponent>(workingSet, *std::static_pointer_cast<isobus::DataMask>(sourceObject));
+				retVal = std::make_shared<DataMaskComponent>(workingSet, *std::static_pointer_cast<isobus::DataMask>(sourceObject), dataAndAlarmMaskSize);
 			}
 			break;
 
@@ -93,7 +96,7 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 
 			case isobus::VirtualTerminalObjectType::Key:
 			{
-				retVal = std::make_shared<KeyComponent>(workingSet, *std::static_pointer_cast<isobus::Key>(sourceObject));
+				retVal = std::make_shared<KeyComponent>(workingSet, *std::static_pointer_cast<isobus::Key>(sourceObject), keyWidth, keyHeight);
 			}
 			break;
 
@@ -217,4 +220,19 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 		retVal->setInterceptsMouseClicks(false, false);
 	}
 	return retVal;
+}
+
+void JuceManagedWorkingSetCache::set_data_alarm_mask_size(int size)
+{
+	dataAndAlarmMaskSize = size;
+}
+
+void JuceManagedWorkingSetCache::set_soft_key_width(int size)
+{
+	keyWidth = size;
+}
+
+void JuceManagedWorkingSetCache::set_soft_key_height(int size)
+{
+	keyHeight = size;
 }

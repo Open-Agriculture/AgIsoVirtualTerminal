@@ -67,7 +67,7 @@ void SoftKeyMaskRenderAreaComponent::paint(Graphics &g)
 
 	if (nullptr != parentWorkingSet)
 	{
-		g.drawRect(0, 0, 100, 480, 1);
+		g.drawRect(0, 0, getWidth(), getHeight(), 1);
 	}
 }
 
