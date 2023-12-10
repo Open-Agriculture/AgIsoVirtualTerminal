@@ -48,14 +48,15 @@ void WorkingSetSelectorComponent::paint(Graphics &g)
 	g.setColour(getLookAndFeel().findColour(ResizableWindow::backgroundColourId));
 	g.fillAll();
 
-	int numberOfSquares = 0;
+	// Not sure if this is helpful...
+	/*int numberOfSquares = 0;
 
 	for (auto ws = children.begin(); ws != children.end(); ws++)
 	{
 		g.setColour(getLookAndFeel().findColour(ResizableWindow::backgroundColourId).brighter());
 		g.drawRoundedRectangle(8.0f, 8.0f + (numberOfSquares * 80), 80, 80, 6, 1);
 		numberOfSquares++;
-	}
+	}*/
 }
 
 void WorkingSetSelectorComponent::resized()

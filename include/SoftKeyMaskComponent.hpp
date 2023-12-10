@@ -18,7 +18,7 @@ class SoftKeyMaskComponent : public isobus::SoftKeyMask
   , public Component
 {
 public:
-	SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject);
+	SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject, int dataAndAlarmMaskSize, int keyHeight, int keyWidth);
 
 	void on_content_changed(bool initial = false);
 
@@ -27,6 +27,8 @@ public:
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
+	int softKeyHeight = 60;
+	int softKeyWidth = 60;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoftKeyMaskComponent)
 };

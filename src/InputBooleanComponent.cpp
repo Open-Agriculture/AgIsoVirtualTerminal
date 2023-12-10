@@ -20,7 +20,7 @@ void InputBooleanComponent::paint(Graphics &g)
 	// Draw background
 	auto vtColour = parentWorkingSet->get_colour(get_background_color());
 	g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
-	g.drawRect(0, 0, static_cast<int>(get_width()), static_cast<int>(get_height()), 0);
+	g.fillRect(0, 0, static_cast<int>(get_width()), static_cast<int>(get_height()));
 
 	g.setColour(Colour::fromFloatRGBA(0.0f, 0.0f, 0.0f, 1.0f));
 	// Change colour to foreground colour if present

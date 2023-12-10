@@ -20,6 +20,9 @@ ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControl
   dataMaskRenderer(*this),
   softKeyMaskRenderer(*this)
 {
+	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
+	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
+
 	VirtualTerminalServer::initialize();
 	check_load_settings();
 
@@ -53,8 +56,6 @@ ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControl
 	loggerViewport.setViewedComponent(&logger, false);
 	logger.setVisible(true);
 
-	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
-	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
 	setApplicationCommandManagerToWatch(&mCommandManager);
 	mCommandManager.registerAllCommandsForTarget(this);
 	startTimer(50);
@@ -521,6 +522,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureLanguageCommand));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureReportedVersion));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureReportedHardware));
+	allCommands.add(static_cast<int>(CommandIDs::ConfigureLogging));
 }
 
 void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationCommandInfo &result)
@@ -548,6 +550,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::ConfigureReportedHardware:
 		{
 			result.setInfo("Reported Hardware Capabilities", "Change info reported to clients in the get hardware message", "Configure", 0);
+		}
+		break;
+
+		case CommandIDs::ConfigureLogging:
+		{
+			result.setInfo("Logging", "Change the logging level", "Configure", 0);
 		}
 		break;
 
@@ -642,6 +650,18 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::ConfigureLogging):
+		{
+			popupMenu = std::make_unique<AlertWindow>("Configure Logging", "You can use this to change the logging level, which affects what's shown in the logging area. Setting logging to \"debug\" may impact performance, but will provide very verbose output.", MessageBoxIconType::NoIcon);
+			popupMenu->addComboBox("Logging Level", { "Debug", "Info", "Warning", "Error", "Critical" });
+			popupMenu->getComboBoxComponent("Logging Level")->setSelectedItemIndex(static_cast<int>(isobus::CANStackLogger::get_log_level()));
+			popupMenu->addButton("OK", 4, KeyPress(KeyPress::returnKey, 0, 0));
+			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
+			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -664,6 +684,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureLanguageCommand));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedVersion));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedHardware));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureLogging));
 		}
 		break;
 
@@ -703,19 +724,35 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 {
 	if (index < managedWorkingSetList.size())
 	{
+		bool lProcessActivateDeactivateMacros = false;
+
 		for (auto &ws : managedWorkingSetList)
 		{
 			ws->clear_callback_handles();
 		}
 		auto &ws = managedWorkingSetList.at(index);
+
+		if (activeWorkingSetMasterAddress != ws->get_control_function()->get_address())
+		{
+			lProcessActivateDeactivateMacros = true;
+
+			if (nullptr != activeWorkingSet)
+			{
+				processMacro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnDeactivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
+				processMacro(ws->get_object_by_id(std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask()), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+			}
+		}
+
 		activeWorkingSetMasterAddress = ws->get_control_function()->get_address();
 
 		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
+		std::uint16_t previousActiveMask = activeWorkingSetDataMaskObjectID;
 		activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask();
 
 		dataMaskRenderer.on_change_active_mask(ws);
 		softKeyMaskRenderer.on_change_active_mask(ws);
 		activeWorkingSet = ws;
+		processMacro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
 		ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); }));
 		ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
 
@@ -726,6 +763,14 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		else
 		{
 			statusMessageTimestamp_ms = 0;
+		}
+
+		if (previousActiveMask != activeWorkingSetDataMaskObjectID)
+		{
+			processMacro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+			processMacro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+			processMacro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+			processMacro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
 		}
 	}
 }
@@ -776,8 +821,8 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 
 		case 2: // Save Version
 		{
-			auto version = static_cast<VTVersion>(mParent.popupMenu->getComboBoxComponent("Version")->getSelectedItemIndex() + 2);
-			mParent.versionToReport = version;
+			auto version = mParent.popupMenu->getComboBoxComponent("Version")->getSelectedItemIndex() + 2;
+			mParent.versionToReport = get_version_from_setting(version);
 
 			mParent.save_settings();
 		}
@@ -802,6 +847,13 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 
 			mParent.save_settings();
 			mParent.repaint_data_and_soft_key_mask();
+		}
+		break;
+
+		case 4: // Log level
+		{
+			isobus::CANStackLogger::set_log_level(static_cast<isobus::CANStackLogger::LoggingLevel>(mParent.popupMenu->getComboBoxComponent("Logging Level")->getSelectedItemIndex()));
+			mParent.save_settings();
 		}
 		break;
 
@@ -973,27 +1025,106 @@ void ServerMainComponent::check_load_settings()
 			{
 				settings.copyPropertiesAndChildrenFrom(ValueTree::fromXml(*xml), nullptr);
 
-				auto firstChild = settings.getChild(0);
-				auto secondChild = settings.getChild(1);
-				auto thirdChild = settings.getChild(2);
-				languageCommandInterface.set_commanded_area_units(static_cast<isobus::LanguageCommandInterface::AreaUnits>(int(firstChild.getProperty("AreaUnits"))));
-				languageCommandInterface.set_commanded_date_format(static_cast<isobus::LanguageCommandInterface::DateFormats>(int(firstChild.getProperty("DateFormat"))));
-				languageCommandInterface.set_commanded_decimal_symbol(static_cast<isobus::LanguageCommandInterface::DecimalSymbols>(int(firstChild.getProperty("DecimalSymbol"))));
-				languageCommandInterface.set_commanded_distance_units(static_cast<isobus::LanguageCommandInterface::DistanceUnits>(int(firstChild.getProperty("DistanceUnits"))));
-				languageCommandInterface.set_commanded_force_units(static_cast<isobus::LanguageCommandInterface::ForceUnits>(int(firstChild.getProperty("ForceUnits"))));
-				languageCommandInterface.set_commanded_generic_units(static_cast<isobus::LanguageCommandInterface::UnitSystem>(int(firstChild.getProperty("UnitSystem"))));
-				languageCommandInterface.set_commanded_mass_units(static_cast<isobus::LanguageCommandInterface::MassUnits>(int(firstChild.getProperty("MassUnits"))));
-				languageCommandInterface.set_commanded_pressure_units(static_cast<isobus::LanguageCommandInterface::PressureUnits>(int(firstChild.getProperty("PressureUnits"))));
-				languageCommandInterface.set_commanded_temperature_units(static_cast<isobus::LanguageCommandInterface::TemperatureUnits>(int(firstChild.getProperty("TemperatureUnits"))));
-				languageCommandInterface.set_commanded_time_format(static_cast<isobus::LanguageCommandInterface::TimeFormats>(int(firstChild.getProperty("TimeFormat"))));
-				languageCommandInterface.set_commanded_volume_units(static_cast<isobus::LanguageCommandInterface::VolumeUnits>(int(firstChild.getProperty("VolumeUnits"))));
-				languageCommandInterface.set_country_code(String(firstChild.getProperty("CountryCode").toString()).toStdString());
-				languageCommandInterface.set_language_code(String(firstChild.getProperty("LanguageCode").toString()).toStdString());
-				versionToReport = get_version_from_setting(static_cast<std::uint8_t>(static_cast<int>(secondChild.getProperty("Version"))));
+				int index = 0;
+				auto child = settings.getChild(index);
 
-				if (thirdChild.isValid())
+				while (child.isValid())
 				{
-
+					if (Identifier("LanguageCommand") == child.getType())
+					{
+						if (!child.getProperty("AreaUnits").isVoid())
+						{
+							languageCommandInterface.set_commanded_area_units(static_cast<isobus::LanguageCommandInterface::AreaUnits>(int(child.getProperty("AreaUnits"))));
+						}
+						if (!child.getProperty("DateFormat").isVoid())
+						{
+							languageCommandInterface.set_commanded_date_format(static_cast<isobus::LanguageCommandInterface::DateFormats>(int(child.getProperty("DateFormat"))));
+						}
+						if (!child.getProperty("DecimalSymbol").isVoid())
+						{
+							languageCommandInterface.set_commanded_decimal_symbol(static_cast<isobus::LanguageCommandInterface::DecimalSymbols>(int(child.getProperty("DecimalSymbol"))));
+						}
+						if (!child.getProperty("DistanceUnits").isVoid())
+						{
+							languageCommandInterface.set_commanded_distance_units(static_cast<isobus::LanguageCommandInterface::DistanceUnits>(int(child.getProperty("DistanceUnits"))));
+						}
+						if (!child.getProperty("ForceUnits").isVoid())
+						{
+							languageCommandInterface.set_commanded_force_units(static_cast<isobus::LanguageCommandInterface::ForceUnits>(int(child.getProperty("ForceUnits"))));
+						}
+						if (!child.getProperty("UnitSystem").isVoid())
+						{
+							languageCommandInterface.set_commanded_generic_units(static_cast<isobus::LanguageCommandInterface::UnitSystem>(int(child.getProperty("UnitSystem"))));
+						}
+						if (!child.getProperty("MassUnits").isVoid())
+						{
+							languageCommandInterface.set_commanded_mass_units(static_cast<isobus::LanguageCommandInterface::MassUnits>(int(child.getProperty("MassUnits"))));
+						}
+						if (!child.getProperty("PressureUnits").isVoid())
+						{
+							languageCommandInterface.set_commanded_pressure_units(static_cast<isobus::LanguageCommandInterface::PressureUnits>(int(child.getProperty("PressureUnits"))));
+						}
+						if (!child.getProperty("TemperatureUnits").isVoid())
+						{
+							languageCommandInterface.set_commanded_temperature_units(static_cast<isobus::LanguageCommandInterface::TemperatureUnits>(int(child.getProperty("TemperatureUnits"))));
+						}
+						if (!child.getProperty("TimeFormat").isVoid())
+						{
+							languageCommandInterface.set_commanded_time_format(static_cast<isobus::LanguageCommandInterface::TimeFormats>(int(child.getProperty("TimeFormat"))));
+						}
+						if (!child.getProperty("VolumeUnits").isVoid())
+						{
+							languageCommandInterface.set_commanded_volume_units(static_cast<isobus::LanguageCommandInterface::VolumeUnits>(int(child.getProperty("VolumeUnits"))));
+						}
+						if (!child.getProperty("CountryCode").isVoid())
+						{
+							languageCommandInterface.set_country_code(String(child.getProperty("CountryCode").toString()).toStdString());
+						}
+						if (!child.getProperty("LanguageCode").isVoid())
+						{
+							languageCommandInterface.set_language_code(String(child.getProperty("LanguageCode").toString()).toStdString());
+						}
+					}
+					else if (Identifier("Compatibility") == child.getType())
+					{
+						if (!child.getProperty("Version").isVoid())
+						{
+							versionToReport = get_version_from_setting(static_cast<std::uint8_t>(static_cast<int>(child.getProperty("Version"))));
+						}
+					}
+					else if (Identifier("Hardware") == child.getType())
+					{
+						if (!child.getProperty("SoftKeyDesignatorWidth").isVoid())
+						{
+							softKeyDesignatorWidth = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorWidth")));
+						}
+						if (!child.getProperty("SoftKeyDesignatorHeight").isVoid())
+						{
+							softKeyDesignatorHeight = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorHeight")));
+						}
+						if (!child.getProperty("PhysicalSoftkeys").isVoid())
+						{
+							numberPhysicalSoftKeys = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("PhysicalSoftkeys")));
+						}
+						if (!child.getProperty("DataMaskRenderAreaSize").isVoid())
+						{
+							dataMaskRenderer.setSize(static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))), static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))));
+							softKeyMaskRenderer.setSize(100, static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
+						}
+						softKeyMaskRenderer.setTopLeftPosition(100 + dataMaskRenderer.getWidth(), 4 + juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
+						JuceManagedWorkingSetCache::set_data_alarm_mask_size(dataMaskRenderer.getWidth());
+						JuceManagedWorkingSetCache::set_soft_key_height(softKeyDesignatorHeight);
+						JuceManagedWorkingSetCache::set_soft_key_width(softKeyDesignatorWidth);
+					}
+					else if (Identifier("Logging") == child.getType())
+					{
+						if ((!child.getProperty("Level").isVoid()) && (static_cast<int>(child.getProperty("Level")) <= static_cast<int>(isobus::CANStackLogger::LoggingLevel::Critical)))
+						{
+							isobus::CANStackLogger::set_log_level(static_cast<isobus::CANStackLogger::LoggingLevel>(static_cast<int>(child.getProperty("Level"))));
+						}
+					}
+					index++;
+					child = settings.getChild(index);
 				}
 			}
 		}
@@ -1025,6 +1156,7 @@ void ServerMainComponent::save_settings()
 		ValueTree languageCommandSettings("LanguageCommand");
 		ValueTree compatibilitySettings("Compatibility");
 		ValueTree hardwareSettings("Hardware");
+		ValueTree loggingSettings("Logging");
 
 		languageCommandSettings.setProperty("AreaUnits", static_cast<int>(languageCommandInterface.get_commanded_area_units()), nullptr);
 		languageCommandSettings.setProperty("DateFormat", static_cast<int>(languageCommandInterface.get_commanded_date_format()), nullptr);
@@ -1044,9 +1176,11 @@ void ServerMainComponent::save_settings()
 		hardwareSettings.setProperty("SoftKeyDesignatorWidth", get_soft_key_descriptor_x_pixel_width(), nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorHeight", get_soft_key_descriptor_y_pixel_width(), nullptr);
 		hardwareSettings.setProperty("PhysicalSoftkeys", get_number_of_physical_soft_keys(), nullptr);
+		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
+		settings.appendChild(loggingSettings, nullptr);
 		std::unique_ptr<XmlElement> xml(settings.createXml());
 
 		if (nullptr != xml)

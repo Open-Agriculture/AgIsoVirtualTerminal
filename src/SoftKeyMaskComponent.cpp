@@ -6,12 +6,14 @@
 #include "SoftKeyMaskComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 
-SoftKeyMaskComponent::SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject) :
+SoftKeyMaskComponent::SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject, int dataAndAlarmMaskSize, int keyHeight, int keyWidth) :
   isobus::SoftKeyMask(sourceObject),
-  parentWorkingSet(workingSet)
+  parentWorkingSet(workingSet),
+	softKeyHeight(keyHeight),
+	softKeyWidth(keyWidth)
 {
 	setOpaque(true);
-	setBounds(0, 0, 100, 480);
+	setBounds(0, 0, softKeyWidth > 80 ? softKeyWidth + 20 : 100, dataAndAlarmMaskSize);
 	on_content_changed(true);
 }
 
@@ -28,7 +30,7 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 			if (nullptr != childComponents.back())
 			{
 				addAndMakeVisible(*childComponents.back());
-				childComponents.back()->setTopLeftPosition(10, 10 + (60 * i) + (10 * i));
+				childComponents.back()->setTopLeftPosition(10, 10 + (softKeyHeight * i) + (10 * i));
 			}
 		}
 	}

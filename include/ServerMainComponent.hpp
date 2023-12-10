@@ -97,7 +97,8 @@ private:
 		About,
 		ConfigureLanguageCommand,
 		ConfigureReportedVersion,
-		ConfigureReportedHardware
+		ConfigureReportedHardware,
+		ConfigureLogging
 	};
 
 	class LanguageCommandConfigClosed

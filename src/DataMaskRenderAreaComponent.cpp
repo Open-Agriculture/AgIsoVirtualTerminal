@@ -78,10 +78,12 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 				if (isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
 				{
 					keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+					ownerServer.processMacro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
 				}
 				else if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type())
 				{
 					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
+					ownerServer.processMacro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 				}
 
 				ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
@@ -125,6 +127,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							                                           activeMask->get_id(),
 							                                           keyCode,
 							                                           ownerServer.get_active_working_set()->get_control_function());
+							ownerServer.processMacro(clickedObject, isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
 						}
 					}
 					break;
@@ -137,6 +140,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						                                           activeMask->get_id(),
 						                                           keyCode,
 						                                           ownerServer.get_active_working_set()->get_control_function());
+						ownerServer.processMacro(clickedObject, isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 					}
 					break;
 
@@ -199,25 +203,33 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										{
 											if (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() != static_cast<std::uint32_t>(result))
 											{
+												std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(result);
 												ownerServer.send_change_numeric_value_message(child->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+												ownerServer.processMacro(child, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, parentWorkingSet);
 											}
-											std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(result);
 										}
 									}
 								}
 								else
 								{
+									ownerServer.processMacro(clickedList, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
 									if (clickedList->get_value() != result)
 									{
+										ownerServer.processMacro(clickedList, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
+										clickedList->set_value(static_cast<std::uint8_t>(result));
 										ownerServer.send_change_numeric_value_message(clickedList->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+										ownerServer.processMacro(clickedList, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
 									}
-									clickedList->set_value(static_cast<std::uint8_t>(result));
 								}
 								this->inputListModal->exitModalState();
+								parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								ownerServer.processMacro(clickedList, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
 								inputListModal.reset();
 								repaint();
 							};
 							inputListModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+							parentWorkingSet->set_object_focus(clickedObject->get_id());
+							ownerServer.processMacro(clickedObject, isobus::EventID::OnInputFieldSelection, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
 						}
 					}
 					break;
@@ -264,7 +276,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								std::uint16_t varNumID = 0xFFFF;
 								if (0 == result)
 								{
-									clickedNumber->set_value(inputNumberListener.get_last_value());
+									ownerServer.processMacro(clickedNumber, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
 
 									if (isobus::NULL_OBJECT_ID != clickedNumber->get_variable_reference())
 									{
@@ -272,10 +284,28 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 										if ((nullptr != child) && (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 										{
-											std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(inputNumberListener.get_last_value());
 											varNumID = child->get_id();
 										}
 									}
+
+									if (isobus::NULL_OBJECT_ID != varNumID)
+									{
+										if (std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()))->get_value() != inputNumberListener.get_last_value())
+										{
+											ownerServer.processMacro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+										}
+										std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()))->set_value(inputNumberListener.get_last_value());
+									}
+									else
+									{
+										if (clickedNumber->get_value() != inputNumberListener.get_last_value())
+										{
+											ownerServer.processMacro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+											clickedNumber->set_value(inputNumberListener.get_last_value());
+											ownerServer.processMacro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+										}
+									}
+
 									this->needToRepaintActiveArea = true;
 								}
 								inputNumberListener.set_target(nullptr);
@@ -288,19 +318,26 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									if (0xFFFF != varNumID)
 									{
 										ownerServer.send_change_numeric_value_message(varNumID, clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+										ownerServer.processMacro(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()), isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, parentWorkingSet);
 									}
 									else
 									{
 										ownerServer.send_change_numeric_value_message(clickedNumber->get_id(), clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+										ownerServer.processMacro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
 									}
 								}
 								else
 								{
 									// TODO ESC
 								}
+
+								parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								ownerServer.processMacro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
 							};
 							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
 							ownerServer.send_select_input_object_message(clickedNumber->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+							parentWorkingSet->set_object_focus(clickedObject->get_id());
+							ownerServer.processMacro(clickedObject, isobus::EventID::OnInputFieldSelection, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
 						}
 					}
 					break;
@@ -312,6 +349,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						if (clickedBool->get_enabled())
 						{
 							bool hasNumberVariable = false;
+							ownerServer.processMacro(clickedBool, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputBoolean, parentWorkingSet);
+							ownerServer.processMacro(clickedBool, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputBoolean, parentWorkingSet);
 
 							if (isobus::NULL_OBJECT_ID != clickedBool->get_variable_reference())
 							{
@@ -324,6 +363,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										hasNumberVariable = true;
 										std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(!(0 != std::static_pointer_cast<isobus::NumberVariable>(child)->get_value()));
 										ownerServer.send_change_numeric_value_message(child->get_id(), std::static_pointer_cast<isobus::NumberVariable>(child)->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+										ownerServer.processMacro(child, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, parentWorkingSet);
 									}
 								}
 							}
@@ -332,6 +372,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							{
 								clickedBool->set_value(~clickedBool->get_value());
 								ownerServer.send_change_numeric_value_message(clickedBool->get_id(), clickedBool->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+								ownerServer.processMacro(clickedBool, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputBoolean, parentWorkingSet);
 							}
 							repaint();
 						}
@@ -372,6 +413,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								if (0 == result) //OK
 								{
 									String newContent = this->inputStringModal->getTextEditor("Input String")->getText();
+									ownerServer.processMacro(clickedString, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
 
 									if (nullptr != stringVariable)
 									{
@@ -382,6 +424,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										}
 										stringVariable->set_value(newContent.toStdString());
 										ownerServer.send_change_string_value_message(stringVariable->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+										ownerServer.processMacro(stringVariable, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::StringVariable, parentWorkingSet);
 									}
 									else
 									{
@@ -390,16 +433,25 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										{
 											newContent.append(" ", 1);
 										}
+										if (clickedString->get_value() != newContent)
+										{
+											ownerServer.processMacro(clickedString, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
+										}
 										clickedString->set_value(newContent.toStdString());
 										ownerServer.send_change_string_value_message(clickedString->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+										ownerServer.processMacro(clickedString, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
 									}
 									needToRepaintActiveArea = true;
 								}
 								inputStringModal->exitModalState();
 								inputStringModal.reset();
+								parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								ownerServer.processMacro(clickedString, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
 							};
 							inputStringModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
 							ownerServer.send_select_input_object_message(clickedString->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+							parentWorkingSet->set_object_focus(clickedObject->get_id());
+							ownerServer.processMacro(clickedObject, isobus::EventID::OnInputFieldSelection, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
 						}
 					}
 					break;
