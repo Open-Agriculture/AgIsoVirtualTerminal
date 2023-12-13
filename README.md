@@ -37,13 +37,13 @@ Supported features:
 - Logging
 - Multiple simultaneous VT clients
 - Selecting different working sets
+- Most common macro and extended macro functionality
 
 Unimplemented features (for now)
 
 - Arbitrary audio control functionality
 - Window masks (tolerated in the object pool though)
 - Aux N/O
-- Most macro functionality
 - Animations
 - Output Lists
 - Output arched bar graph

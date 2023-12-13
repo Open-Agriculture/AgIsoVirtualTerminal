@@ -408,7 +408,11 @@ void ServerMainComponent::timerCallback()
 				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, isobus::NULL_OBJECT_ID, 0, ws->get_control_function());
 			}
 			workingSetSelector.add_working_set_to_draw(ws);
-			if (isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress)
+
+			auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
+			if ((isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress) &&
+			    (nullptr != workingSetObject) &&
+			    (workingSetObject->get_selectable()))
 			{
 				ws->set_working_set_maintenance_message_timestamp_ms(isobus::SystemTiming::get_timestamp_ms());
 				change_selected_working_set(0);
@@ -722,7 +726,8 @@ std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control
 
 void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 {
-	if (index < managedWorkingSetList.size())
+	if ((index < managedWorkingSetList.size()) &&
+	    (std::static_pointer_cast<isobus::WorkingSet>(managedWorkingSetList.at(index)->get_working_set_object())->get_selectable()))
 	{
 		bool lProcessActivateDeactivateMacros = false;
 
