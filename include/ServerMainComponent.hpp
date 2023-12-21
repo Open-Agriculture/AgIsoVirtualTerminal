@@ -98,7 +98,8 @@ private:
 		ConfigureLanguageCommand,
 		ConfigureReportedVersion,
 		ConfigureReportedHardware,
-		ConfigureLogging
+		ConfigureLogging,
+		GenerateLogPackage
 	};
 
 	class LanguageCommandConfigClosed
@@ -133,6 +134,8 @@ private:
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<AlertWindow> popupMenu;
+	std::unique_ptr<FileChooser> diagnosticFileChooser;
+	std::unique_ptr<ZipFile::Builder> diagnosticFileBuilder;
 	std::uint8_t numberOfPoolsToRender = 0;
 	std::uint8_t numberPhysicalSoftKeys = 6;
 	std::uint8_t numberVirtualSoftKeys = 64;

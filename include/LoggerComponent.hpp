@@ -17,6 +17,7 @@
 
 /// @brief Defines a GUI component that will draw log info sunk from the stack
 class LoggerComponent : public Component
+  , public FileLogger
   , public isobus::CANStackLogger
 {
 public:
