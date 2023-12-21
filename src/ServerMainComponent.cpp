@@ -527,6 +527,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureReportedVersion));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureReportedHardware));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureLogging));
+	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackage));
 }
 
 void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationCommandInfo &result)
@@ -560,6 +561,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::ConfigureLogging:
 		{
 			result.setInfo("Logging", "Change the logging level", "Configure", 0);
+		}
+		break;
+
+		case CommandIDs::GenerateLogPackage:
+		{
+			result.setInfo("Generate Diagnostic Package", "Creates a zip file of diagnostic information", "Troubleshooting", 0);
 		}
 		break;
 
@@ -666,6 +673,57 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::GenerateLogPackage):
+		{
+			diagnosticFileBuilder = std::make_unique<ZipFile::Builder>();
+			bool anyFilesAdded = false;
+
+			if (File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "AgISOVirtualTerminalLog.txt").existsAsFile())
+			{
+				diagnosticFileBuilder->addFile(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "AgISOVirtualTerminalLog.txt", 9);
+				anyFilesAdded = true;
+			}
+			if (File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "vt_settings.xml").existsAsFile())
+			{
+				diagnosticFileBuilder->addFile(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "vt_settings.xml", 9);
+				anyFilesAdded = true;
+			}
+
+			auto executablesFolder = File(File::getSpecialLocation(File::hostApplicationPath).getParentDirectory().getFullPathName() + File::getSeparatorString() + "iso_data");
+			auto childDirectories = executablesFolder.findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
+
+			for (auto &directory : childDirectories)
+			{
+				auto childFiles = directory.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iop");
+				for (auto &file : childFiles)
+				{
+					diagnosticFileBuilder->addFile(file, 9);
+					anyFilesAdded = true;
+				}
+			}
+
+			if (anyFilesAdded)
+			{
+				auto currentTime = Time::getCurrentTime().toString(true, true, true, false);
+				currentTime = currentTime.replaceCharacter(' ', '_');
+				currentTime = currentTime.replaceCharacter(':', '_');
+				const String fileName = File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "AgISOVirtualTerminalLogs_" + currentTime + ".zip";
+				auto output = File(fileName).createOutputStream();
+				diagnosticFileBuilder->writeToStream(*output.get(), nullptr);
+				File(fileName).revealToUser();
+			}
+			else
+			{
+				AlertWindow::showAsync(MessageBoxOptions()
+				                         .withIconType(MessageBoxIconType::WarningIcon)
+				                         .withTitle("Export Failed")
+				                         .withButton("OK"),
+				                       nullptr);
+			}
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -674,7 +732,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 StringArray ServerMainComponent::getMenuBarNames()
 {
-	return juce::StringArray("Configure", "About");
+	return juce::StringArray("Configure", "Troubleshooting", "About");
 }
 
 PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
@@ -693,6 +751,12 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 		break;
 
 		case 1:
+		{
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackage));
+		}
+		break;
+
+		case 2:
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::About));
 		}
