@@ -9,16 +9,23 @@
 #include "JuceManagedWorkingSetCache.hpp"
 #include "isobus/utility/system_timing.hpp"
 
+#ifdef JUCE_WINDOWS
+#include "isobus/hardware_integration/toucan_vscp_canal.hpp"
+#elif JUCE_LINUX
+#include "isobus/hardware_integration/socket_can_interface.hpp"
+#endif
+
 #include <fstream>
 #include <iomanip>
 #include <iterator>
 #include <sstream>
 
-ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction) :
+ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction, std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers) :
   VirtualTerminalServer(serverControlFunction),
   workingSetSelector(*this),
   dataMaskRenderer(*this),
-  softKeyMaskRenderer(*this)
+  softKeyMaskRenderer(*this),
+  parentCANDrivers(canDrivers)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
@@ -529,6 +536,13 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureLogging));
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackage));
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
+	allCommands.add(static_cast<int>(CommandIDs::StartStop));
+	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
+#ifdef JUCE_WINDOWS
+	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
+#elif JUCE_LINUX
+	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
+#endif
 }
 
 void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationCommandInfo &result)
@@ -574,6 +588,24 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::ClearISOData:
 		{
 			result.setInfo("Clear ISO Data", "Clears all saved ISO data", "Troubleshooting", 0);
+		}
+		break;
+
+		case CommandIDs::ConfigureCANHardware:
+		{
+			result.setInfo("Configure CAN Hardware", "Selects which CAN hardware to connect to", "Configure", hasStartBeenCalled ? ApplicationCommandInfo::CommandFlags::isDisabled : 0);
+		}
+		break;
+
+		case CommandIDs::StartStop:
+		{
+			result.setInfo("Start/Stop", "Starts or stops the CAN interface", "Control", hasStartBeenCalled ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::AutoStart:
+		{
+			result.setInfo("Auto-Start VT on launch", "Controls whether or not the VT automatically starts when the program is launched", "Control", autostart ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -670,7 +702,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 		case static_cast<int>(CommandIDs::ConfigureLogging):
 		{
-			popupMenu = std::make_unique<AlertWindow>("Configure Logging", "You can use this to change the logging level, which affects what's shown in the logging area. Setting logging to \"debug\" may impact performance, but will provide very verbose output.", MessageBoxIconType::NoIcon);
+			popupMenu = std::make_unique<AlertWindow>("Configure Logging", "You can use this to change the logging level, which affects what's shown in the logging area, and what is written to the log file. Setting logging to \"debug\" may impact performance, but will provide very verbose output.", MessageBoxIconType::NoIcon);
 			popupMenu->addComboBox("Logging Level", { "Debug", "Info", "Warning", "Error", "Critical" });
 			popupMenu->getComboBoxComponent("Logging Level")->setSelectedItemIndex(static_cast<int>(isobus::CANStackLogger::get_log_level()));
 			popupMenu->addButton("OK", 4, KeyPress(KeyPress::returnKey, 0, 0));
@@ -731,6 +763,58 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		case static_cast<int>(CommandIDs::ClearISOData):
 		{
 			clear_iso_data();
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::ConfigureCANHardware):
+		{
+			configureHardwareWindow = std::make_unique<ConfigureHardwareWindow>(*this, parentCANDrivers);
+			configureHardwareWindow->addToDesktop();
+			Rectangle<int> area(0, 0, 400, 280);
+			RectanglePlacement placement(RectanglePlacement::centred |
+			                             RectanglePlacement::doNotResize);
+			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
+			configureHardwareWindow->setBounds(result);
+
+			configureHardwareWindow->setVisible(true);
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::StartStop):
+		{
+			if (hasStartBeenCalled)
+			{
+				isobus::CANStackLogger::info("Stopping CAN interface");
+				isobus::CANHardwareInterface::stop();
+				dataMaskRenderer.set_has_started(false);
+				hasStartBeenCalled = false;
+			}
+			else if (nullptr == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
+			{
+				AlertWindow::showAsync(MessageBoxOptions()
+				                         .withIconType(MessageBoxIconType::InfoIcon)
+				                         .withTitle("No CAN hardware has been configured yet! Before you start the VT for the first time, select which CAN driver to use in the \"configure\" menu.")
+				                         .withButton("OK"),
+				                       nullptr);
+			}
+			else
+			{
+				isobus::CANStackLogger::info("Starting CAN interface");
+				isobus::CANHardwareInterface::start();
+				dataMaskRenderer.set_has_started(true);
+				hasStartBeenCalled = true;
+			}
+			mCommandManager.commandStatusChanged();
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::AutoStart):
+		{
+			autostart = !autostart;
+			mCommandManager.commandStatusChanged();
+			save_settings();
 			retVal = true;
 		}
 		break;
@@ -743,7 +827,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 StringArray ServerMainComponent::getMenuBarNames()
 {
-	return juce::StringArray("Configure", "Troubleshooting", "About");
+	return juce::StringArray("Control", "Configure", "Troubleshooting", "About");
 }
 
 PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
@@ -754,21 +838,34 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 	{
 		case 0:
 		{
-			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureLanguageCommand));
-			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedVersion));
-			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedHardware));
-			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureLogging));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::StartStop));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoStart));
 		}
 		break;
 
 		case 1:
+		{
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureLanguageCommand));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedVersion));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedHardware));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureLogging));
+
+#ifdef JUCE_WINDOWS
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureCANHardware));
+#elif JUCE_LINUX
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureCANHardware));
+#endif
+		}
+		break;
+
+		case 2:
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackage));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ClearISOData));
 		}
 		break;
 
-		case 2:
+		case 3:
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::About));
 		}
@@ -819,8 +916,8 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 
 			if (nullptr != activeWorkingSet)
 			{
-				processMacro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnDeactivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
-				processMacro(ws->get_object_by_id(std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask()), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+				process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnDeactivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
+				process_macro(ws->get_object_by_id(std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask()), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
 			}
 		}
 
@@ -833,7 +930,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		dataMaskRenderer.on_change_active_mask(ws);
 		softKeyMaskRenderer.on_change_active_mask(ws);
 		activeWorkingSet = ws;
-		processMacro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
+		process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
 		ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); }));
 		ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
 
@@ -848,10 +945,10 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 
 		if (previousActiveMask != activeWorkingSetDataMaskObjectID)
 		{
-			processMacro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
-			processMacro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
-			processMacro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
-			processMacro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+			process_macro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+			process_macro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
 		}
 	}
 }
@@ -1192,6 +1289,34 @@ void ServerMainComponent::check_load_settings()
 							dataMaskRenderer.setSize(static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))), static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))));
 							softKeyMaskRenderer.setSize(100, static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
 						}
+#ifdef JUCE_WINDOWS
+						if (!child.getProperty("TouCANSerial").isVoid())
+						{
+							std::static_pointer_cast<isobus::TouCANPlugin>(parentCANDrivers.at(2))->reconfigure(0, static_cast<std::uint32_t>(static_cast<int>(child.getProperty("TouCANSerial"))));
+						}
+
+						if (!child.getProperty("CANDriver").isVoid())
+						{
+							auto index = static_cast<std::uint32_t>(static_cast<int>(child.getProperty("CANDriver")));
+
+							if (index < parentCANDrivers.size())
+							{
+								isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, parentCANDrivers.at(index));
+								isobus::CANStackLogger::debug("CAN Driver selection loaded from config file.");
+							}
+						}
+#elif JUCE_LINUX
+						if (!child.getProperty("SocketCANInterface").isVoid())
+						{
+							std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->set_name(static_cast<String>(child.getProperty("SocketCANInterface")).toStdString());
+							isobus::CANStackLogger::info("Using Socket CAN interface name of: " + std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->get_device_name());
+						}
+						else
+						{
+							std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->set_name("can0");
+							isobus::CANStackLogger::warn("Socket CAN interface name not yet configured. Using default of \"can0\"");
+						}
+#endif
 						softKeyMaskRenderer.setTopLeftPosition(100 + dataMaskRenderer.getWidth(), 4 + juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
 						JuceManagedWorkingSetCache::set_data_alarm_mask_size(dataMaskRenderer.getWidth());
 						JuceManagedWorkingSetCache::set_soft_key_height(softKeyDesignatorHeight);
@@ -1204,11 +1329,39 @@ void ServerMainComponent::check_load_settings()
 							isobus::CANStackLogger::set_log_level(static_cast<isobus::CANStackLogger::LoggingLevel>(static_cast<int>(child.getProperty("Level"))));
 						}
 					}
+					else if (Identifier("Control") == child.getType())
+					{
+						if (!child.getProperty("AutoStart").isVoid())
+						{
+							autostart = static_cast<bool>(static_cast<int>(child.getProperty("AutoStart")));
+
+							if (autostart)
+							{
+								isobus::CANHardwareInterface::start();
+								dataMaskRenderer.set_has_started(true);
+								hasStartBeenCalled = true;
+								isobus::CANStackLogger::info("AutoStart enabled. Starting CAN hardware interface.");
+							}
+						}
+					}
 					index++;
 					child = settings.getChild(index);
 				}
 			}
 		}
+		else
+		{
+			isobus::CANStackLogger::info("Config file not found, using defaults.");
+#ifdef JUCE_LINUX
+			std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->set_name("can0");
+			isobus::CANStackLogger::warn("Socket CAN interface name not yet configured. Using default of \"can0\"");
+#endif
+		}
+	}
+
+	if (!autostart)
+	{
+		isobus::CANStackLogger::info("AutoStart is disabled. Waiting for user to start the CAN hardware interface.");
 	}
 }
 
@@ -1238,6 +1391,18 @@ void ServerMainComponent::save_settings()
 		ValueTree compatibilitySettings("Compatibility");
 		ValueTree hardwareSettings("Hardware");
 		ValueTree loggingSettings("Logging");
+		ValueTree controlSettings("Control");
+
+		std::uint32_t hardwareDriverIndex = 0xFFFFFFFF;
+
+		for (std::uint32_t i = 0; i < parentCANDrivers.size(); i++)
+		{
+			if (parentCANDrivers.at(i) == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
+			{
+				hardwareDriverIndex = i;
+				break;
+			}
+		}
 
 		languageCommandSettings.setProperty("AreaUnits", static_cast<int>(languageCommandInterface.get_commanded_area_units()), nullptr);
 		languageCommandSettings.setProperty("DateFormat", static_cast<int>(languageCommandInterface.get_commanded_date_format()), nullptr);
@@ -1257,11 +1422,24 @@ void ServerMainComponent::save_settings()
 		hardwareSettings.setProperty("SoftKeyDesignatorWidth", get_soft_key_descriptor_x_pixel_width(), nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorHeight", get_soft_key_descriptor_y_pixel_width(), nullptr);
 		hardwareSettings.setProperty("PhysicalSoftkeys", get_number_of_physical_soft_keys(), nullptr);
+
+#ifdef JUCE_WINDOWS
+		hardwareSettings.setProperty("TouCANSerial", static_cast<int>(std::static_pointer_cast<isobus::TouCANPlugin>(parentCANDrivers.at(2))->get_serial_number()), nullptr);
+#elif JUCE_LINUX
+		hardwareSettings.setProperty("SocketCANInterface", String(std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->get_device_name()), nullptr);
+#endif
+
+		if (0xFFFFFFFF != hardwareDriverIndex)
+		{
+			hardwareSettings.setProperty("CANDriver", static_cast<int>(hardwareDriverIndex), nullptr);
+		}
 		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
+		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
 		settings.appendChild(loggingSettings, nullptr);
+		settings.appendChild(controlSettings, nullptr);
 		std::unique_ptr<XmlElement> xml(settings.createXml());
 
 		if (nullptr != xml)

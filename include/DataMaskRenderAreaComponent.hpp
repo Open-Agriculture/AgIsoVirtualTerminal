@@ -35,6 +35,8 @@ public:
 
 	bool needsRepaint() const;
 
+	void set_has_started(bool started);
+
 private:
 	class InputNumberListener : public Slider::Listener
 	{
@@ -67,6 +69,7 @@ private:
 	ServerMainComponent &ownerServer;
 	InputNumberListener inputNumberListener;
 	bool needToRepaintActiveArea = false;
+	bool hasStarted = false;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DataMaskRenderAreaComponent)
 };

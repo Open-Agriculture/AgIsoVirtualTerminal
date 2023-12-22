@@ -1,0 +1,36 @@
+AgISOVirtualTerminal is free and open source software, but is copyrighted and protected under multiple licenses.
+
+Because AgISOVirtualTerminal links to the JUCE library, it is subject to the JUCE license and EULA. Please see the JUCE license for more information at https://juce.com/juce-7-license/.
+
+BY CLICKING ON THE "I AGREE" BUTTON LINKING TO THESE TERMS, OR BY DOWNLOADING, INSTALLING OR USING THE JUCE FRAMEWORK, YOU AGREE TO THE TERMS OF THE JUCE EULA AND TO THE AgIsoStack-plus-plus LICENSE.
+
+AgIsoStack-plus-plus is licensed under the MIT license. Please see the AgIsoStack-plus-plus license for more information at https://github.com/Open-Agriculture/AgIsoStack-plus-plus/blob/main/LICENSE.
+
+Additionally, use of the AgIsoStack-plus-plus CAN drivers may subject you to the terms of additional licenses, such as the PEAK or Sys-Tec licenses.
+
+Copyright notices in this software and this notice shall be included in all copies or substantial portions of the Software.
+
+Disclaimers:
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+This project is not associated with the Agricultural Industry Electronics Foundation (AEF) in any way.
+
+This project is not associated with the International Organization for Standardization (ISO) in any way.
+
+Don't ask us to share the ISO standards with you. We can't. You have to buy them from ISO. We don't have the right to share them with you.
+
+Some people claim that compliance with ISO 11783 may involve the use of a patent concerning the controller area network
+(CAN) protocol. Open-Agriculture's members take no position concerning the evidence, validity, and scope of this patent.
+
+Information about this patent may be obtained from:
+Robert Bosch GmbH
+Wernerstrasse 51
+Postfach 30 02 20
+D-70442 Stuttgart-Feuerbach
+Germany
+
+Some of the elements of complying with ISO 11783 may be the subject of
+patent rights other than those identified above. Open-Agriculture (and its developers) shall not be held responsible for identifying 
+any or all such patent rights.
