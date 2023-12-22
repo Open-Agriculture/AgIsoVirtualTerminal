@@ -9,8 +9,8 @@
 SoftKeyMaskComponent::SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject, int dataAndAlarmMaskSize, int keyHeight, int keyWidth) :
   isobus::SoftKeyMask(sourceObject),
   parentWorkingSet(workingSet),
-	softKeyHeight(keyHeight),
-	softKeyWidth(keyWidth)
+  softKeyHeight(keyHeight),
+  softKeyWidth(keyWidth)
 {
 	setOpaque(true);
 	setBounds(0, 0, softKeyWidth > 80 ? softKeyWidth + 20 : 100, dataAndAlarmMaskSize);
@@ -26,6 +26,11 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 		if (nullptr != child)
 		{
 			childComponents.push_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
+
+			if (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type())
+			{
+				childComponents.back()->setSize(softKeyWidth, softKeyHeight);
+			}
 
 			if (nullptr != childComponents.back())
 			{
