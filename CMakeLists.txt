@@ -67,6 +67,7 @@ target_sources(
           "src/InputStringComponent.cpp"
           "src/AlarmMaskAudio.cpp"
           "src/AppImages.cpp"
+          "src/ASCIILogFile.cpp"
           "src/InputListComponent.cpp")
 
 target_include_directories(AgISOVirtualTerminal

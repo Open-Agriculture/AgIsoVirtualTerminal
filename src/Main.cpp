@@ -9,6 +9,7 @@
 #include "ServerMainComponent.hpp"
 #include "isobus/hardware_integration/can_hardware_interface.hpp"
 #include "isobus/isobus/can_internal_control_function.hpp"
+#include "ASCIILogFile.hpp"
 
 //==============================================================================
 class AgISOVirtualTerminalApplication : public juce::JUCEApplication
@@ -134,6 +135,7 @@ public:
 
 private:
 	std::unique_ptr<MainWindow> mainWindow;
+	ASCIILogFile logFile;
 };
 
 //==============================================================================

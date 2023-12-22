@@ -675,17 +675,14 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 		case static_cast<int>(CommandIDs::GenerateLogPackage):
 		{
-			diagnosticFileBuilder = std::make_unique<ZipFile::Builder>();
+			auto diagnosticFileBuilder = std::make_unique<ZipFile::Builder>();
 			bool anyFilesAdded = false;
 
-			if (File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "AgISOVirtualTerminalLog.txt").existsAsFile())
+			auto userDataFolder = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString());
+			auto userDataFiles = userDataFolder.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*");
+			for (auto &file : userDataFiles)
 			{
-				diagnosticFileBuilder->addFile(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "AgISOVirtualTerminalLog.txt", 9);
-				anyFilesAdded = true;
-			}
-			if (File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "vt_settings.xml").existsAsFile())
-			{
-				diagnosticFileBuilder->addFile(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "vt_settings.xml", 9);
+				diagnosticFileBuilder->addFile(file, 9);
 				anyFilesAdded = true;
 			}
 
