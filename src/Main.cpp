@@ -73,23 +73,24 @@ public:
 		  DocumentWindow(name,
 		                 juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId),
 		                 DocumentWindow::allButtons)
-		{
-			std::shared_ptr<isobus::CANHardwarePlugin> canDriver = nullptr;
-#if defined(ISOBUS_SOCKETCAN_AVAILABLE)
-			canDriver = std::make_shared<isobus::SocketCANInterface>("can0");
-#elif defined(ISOBUS_WINDOWSPCANBASIC_AVAILABLE)
-			canDriver = std::make_shared<isobus::PCANBasicWindowsPlugin>(static_cast<WORD>(PCAN_USBBUS1));
-#elif defined(ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE)
-			canDriver = std::make_shared<isobus::InnoMakerUSB2CANWindowsPlugin>(0); // CAN0
-#elif defined(ISOBUS_MACCANPCAN_AVAILABLE)
-			canDriver = std::make_shared<isobus::MacCANPCANPlugin>(PCAN_USBBUS1);
-#elif defined(ISOBUS_TOUCAN_AVAILABLE)
-			canDriver = std::make_shared<isobus::TouCANPlugin>(static_cast<std::int16_t>(0), change_me_to_your_serial_number);
+		{				
+#ifdef JUCE_WINDOWS
+			canDrivers.push_back(std::make_shared<isobus::PCANBasicWindowsPlugin>(static_cast<WORD>(PCAN_USBBUS1)));
+			canDrivers.push_back(std::make_shared<isobus::InnoMakerUSB2CANWindowsPlugin>(0));
+			canDrivers.push_back(std::make_shared<isobus::TouCANPlugin>(static_cast<std::int16_t>(0), 0));
+			canDrivers.push_back(std::make_shared<isobus::SysTecWindowsPlugin>());
+#elif defined(JUCE_MAC)
+			canDrivers.push_back(std::make_shared<isobus::MacCANPCANPlugin>(PCAN_USBBUS1));
+#else
+			canDrivers.push_back(std::make_shared<isobus::SocketCANInterface>("can0"));
 #endif
 
-			jassert(nullptr != canDriver); // You need some kind of CAN interface to run this program!
+			jassert(!canDrivers.empty()); // You need some kind of CAN interface to run this program!
 			isobus::CANHardwareInterface::set_number_of_can_channels(1);
-			isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
+
+#ifndef JUCE_WINDOWS
+			isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDrivers.at(0));
+#endif
 
 			isobus::NAME serverNAME(0);
 			serverNAME.set_arbitrary_address_capable(true);
@@ -98,8 +99,7 @@ public:
 			serverNAME.set_manufacturer_code(1407);
 			serverInternalControlFunction = isobus::InternalControlFunction::create(serverNAME, 0x26, 0);
 			setUsingNativeTitleBar(true);
-			setContentOwned(new ServerMainComponent(serverInternalControlFunction), true);
-			isobus::CANHardwareInterface::start();
+			setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers), true);
 
 #if JUCE_IOS || JUCE_ANDROID
 			setFullScreen(true);
@@ -129,6 +129,7 @@ public:
 
 	private:
 		std::shared_ptr<isobus::InternalControlFunction> serverInternalControlFunction;
+		std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> canDrivers;
 
 		JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainWindow)
 	};
