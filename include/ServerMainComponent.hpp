@@ -99,7 +99,8 @@ private:
 		ConfigureReportedVersion,
 		ConfigureReportedHardware,
 		ConfigureLogging,
-		GenerateLogPackage
+		GenerateLogPackage,
+		ClearISOData
 	};
 
 	class LanguageCommandConfigClosed
@@ -121,6 +122,7 @@ private:
 	void check_load_settings();
 	void save_settings();
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
+	void clear_iso_data();
 
 	const std::string ISO_DATA_PATH = "iso_data";
 

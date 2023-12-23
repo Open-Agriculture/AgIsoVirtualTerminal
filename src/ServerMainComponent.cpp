@@ -173,7 +173,7 @@ std::vector<std::array<std::uint8_t, 7>> ServerMainComponent::get_versions(isobu
 	std::ostringstream nameString;
 	std::vector<std::array<std::uint8_t, 7>> retVal;
 	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-	File isoDirectory(std::filesystem::current_path().string() + "/" + ISO_DATA_PATH + "/" + nameString.str());
+	File isoDirectory(std::filesystem::current_path().string() + File::getSeparatorString() + ISO_DATA_PATH + File::getSeparatorString() + nameString.str());
 
 	if (isoDirectory.exists() && isoDirectory.isDirectory())
 	{
@@ -528,6 +528,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureReportedHardware));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureLogging));
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackage));
+	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
 }
 
 void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationCommandInfo &result)
@@ -567,6 +568,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::GenerateLogPackage:
 		{
 			result.setInfo("Generate Diagnostic Package", "Creates a zip file of diagnostic information", "Troubleshooting", 0);
+		}
+		break;
+
+		case CommandIDs::ClearISOData:
+		{
+			result.setInfo("Clear ISO Data", "Clears all saved ISO data", "Troubleshooting", 0);
 		}
 		break;
 
@@ -721,6 +728,13 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::ClearISOData):
+		{
+			clear_iso_data();
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -750,6 +764,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 		case 1:
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackage));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ClearISOData));
 		}
 		break;
 
@@ -1265,5 +1280,16 @@ void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerm
 			managedWorkingSetList.erase(it);
 			break;
 		}
+	}
+}
+
+void ServerMainComponent::clear_iso_data()
+{
+	File isoDirectory(std::filesystem::current_path().string() + File::getSeparatorString() + ISO_DATA_PATH + File::getSeparatorString());
+
+	if (isoDirectory.exists() && isoDirectory.isDirectory())
+	{
+		isoDirectory.deleteRecursively();
+		isobus::CANStackLogger::info("ISO Data cleared");
 	}
 }
