@@ -414,7 +414,7 @@ void ServerMainComponent::timerCallback()
 			{
 				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, isobus::NULL_OBJECT_ID, 0, ws->get_control_function());
 			}
-			workingSetSelector.add_working_set_to_draw(ws);
+			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
 
 			auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
 			if ((isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress) &&
@@ -442,7 +442,7 @@ void ServerMainComponent::timerCallback()
 		else if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state()) &&
 		         (isobus::SystemTiming::time_expired_ms(ws->get_working_set_maintenance_message_timestamp_ms(), 3000)))
 		{
-			workingSetSelector.remove_working_set(ws);
+			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
 			dataMaskRenderer.on_working_set_disconnect(ws);
 			softKeyMaskRenderer.on_working_set_disconnect(ws);
 
@@ -763,6 +763,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		case static_cast<int>(CommandIDs::ClearISOData):
 		{
 			clear_iso_data();
+			retVal = true;
 		}
 		break;
 
@@ -900,6 +901,7 @@ std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control
 void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 {
 	if ((index < managedWorkingSetList.size()) &&
+	    (nullptr != managedWorkingSetList.at(index)->get_working_set_object()) &&
 	    (std::static_pointer_cast<isobus::WorkingSet>(managedWorkingSetList.at(index)->get_working_set_object())->get_selectable()))
 	{
 		bool lProcessActivateDeactivateMacros = false;

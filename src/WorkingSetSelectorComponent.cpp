@@ -14,32 +14,31 @@ WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &se
 	setBounds(0, 0, 100, 600);
 }
 
-void WorkingSetSelectorComponent::add_working_set_to_draw(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> &managedWorkingSetList)
 {
-	children.push_back({ workingSet });
+	children.clear();
 
-	auto workingSetObject = workingSet->get_working_set_object();
-
-	for (std::uint16_t i = 0; i < workingSetObject->get_number_children(); i++)
+	for (std::size_t i = 0; i < managedWorkingSetList.size(); i++)
 	{
-		auto childObject = JuceManagedWorkingSetCache::create_component(workingSet, workingSetObject->get_object_by_id(workingSetObject->get_child_id(i), workingSet->get_object_tree()));
-		children.back().childComponents.push_back(childObject);
-		childObject->setTopLeftPosition(4 + 15 + workingSetObject->get_child_x(i), (static_cast<int>(children.size()) - 1) * 80 + 10 + 7 + workingSetObject->get_child_y(i));
-		addAndMakeVisible(*childObject);
-	}
-	repaint();
-}
+		children.push_back({ managedWorkingSetList.at(i) });
 
-void WorkingSetSelectorComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
-{
-	for (auto child = children.begin(); child != children.end(); child++)
-	{
-		if (workingSet == child->workingSet)
+		if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state())
 		{
-			children.erase(child);
-			break;
+			auto workingSetObject = managedWorkingSetList.at(i)->get_working_set_object();
+
+			if (nullptr != workingSetObject)
+			{
+				for (std::uint16_t j = 0; j < workingSetObject->get_number_children(); j++)
+				{
+					auto childObject = JuceManagedWorkingSetCache::create_component(managedWorkingSetList.at(i), workingSetObject->get_object_by_id(workingSetObject->get_child_id(j), managedWorkingSetList.at(i)->get_object_tree()));
+					children.back().childComponents.push_back(childObject);
+					childObject->setTopLeftPosition(4 + 15 + workingSetObject->get_child_x(j), (static_cast<int>(i)) * 80 + 10 + 7 + workingSetObject->get_child_y(j));
+					addAndMakeVisible(*childObject);
+				}
+			}
 		}
 	}
+
 	repaint();
 }
 
@@ -73,12 +72,15 @@ void WorkingSetSelectorComponent::redraw()
 		workingSet.childComponents.clear();
 		auto workingSetObject = workingSet.workingSet->get_working_set_object();
 
-		for (std::uint16_t i = 0; i < workingSetObject->get_number_children(); i++)
+		if (nullptr != workingSetObject)
 		{
-			auto childObject = JuceManagedWorkingSetCache::create_component(workingSet.workingSet, workingSetObject->get_object_by_id(workingSetObject->get_child_id(i), workingSet.workingSet->get_object_tree()));
-			workingSet.childComponents.push_back(childObject);
-			childObject->setTopLeftPosition(4 + 15 + workingSetObject->get_child_x(i), workingSetIndex * 80 + 10 + 7 + workingSetObject->get_child_y(i));
-			addAndMakeVisible(*childObject);
+			for (std::uint16_t i = 0; i < workingSetObject->get_number_children(); i++)
+			{
+				auto childObject = JuceManagedWorkingSetCache::create_component(workingSet.workingSet, workingSetObject->get_object_by_id(workingSetObject->get_child_id(i), workingSet.workingSet->get_object_tree()));
+				workingSet.childComponents.push_back(childObject);
+				childObject->setTopLeftPosition(4 + 15 + workingSetObject->get_child_x(i), workingSetIndex * 80 + 10 + 7 + workingSetObject->get_child_y(i));
+				addAndMakeVisible(*childObject);
+			}
 		}
 		workingSetIndex++;
 	}
