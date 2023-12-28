@@ -23,8 +23,7 @@ class WorkingSetSelectorComponent : public Component
 public:
 	explicit WorkingSetSelectorComponent(ServerMainComponent &server);
 
-	void add_working_set_to_draw(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
-	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
+	void update_drawn_working_sets(std::vector<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> &managedWorkingSetList);
 
 	void paint(Graphics &g) override;
 	void resized() override;
