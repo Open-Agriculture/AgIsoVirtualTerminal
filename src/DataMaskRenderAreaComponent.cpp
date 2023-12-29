@@ -57,7 +57,7 @@ void DataMaskRenderAreaComponent::paint(Graphics &g)
 
 		if (!hasStarted)
 		{
-			g.drawFittedText("To start the VT server, select \"start\" from the file menu in the top left.", 0, 440, 400, 40, Justification::centredTop, 2);
+			g.drawFittedText("To start the VT server, select \"Start/Stop\" from the control menu in the top left.", 0, 440, 400, 40, Justification::centredTop, 2);
 		}
 	}
 }

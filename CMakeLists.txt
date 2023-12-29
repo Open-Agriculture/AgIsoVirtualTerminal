@@ -117,6 +117,7 @@ if(MSVC)
     )
 endif()
 
+if(APPLE)
 install(
   TARGETS AgISOVirtualTerminal
   RUNTIME
@@ -124,6 +125,14 @@ install(
   BUNDLE DESTINATION .
   COMPONENT applications 
   )
+else()
+install(
+  TARGETS AgISOVirtualTerminal
+  RUNTIME
+  DESTINATION bin
+  COMPONENT applications 
+  )
+endif()
 
 if(MSVC)
     install(FILES ${CMAKE_CURRENT_LIST_DIR}/lib/Usbcan64.dll DESTINATION bin COMPONENT applications)

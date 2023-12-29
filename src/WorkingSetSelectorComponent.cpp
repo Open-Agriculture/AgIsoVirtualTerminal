@@ -6,6 +6,7 @@
 #include "WorkingSetSelectorComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
+#include "isobus/utility/system_timing.hpp"
 
 WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &server) :
   parentServer(server)
@@ -22,7 +23,8 @@ void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::sha
 	{
 		children.push_back({ managedWorkingSetList.at(i) });
 
-		if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state())
+		if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) &&
+		    (!isobus::SystemTiming::time_expired_ms(managedWorkingSetList.at(i)->get_working_set_maintenance_message_timestamp_ms(), 3000)))
 		{
 			auto workingSetObject = managedWorkingSetList.at(i)->get_working_set_object();
 
