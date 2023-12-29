@@ -406,14 +406,6 @@ void ServerMainComponent::timerCallback()
 		{
 			ws->join_parsing_thread();
 
-			if (ws->get_was_object_pool_loaded_from_non_volatile_memory())
-			{
-				send_load_version_response(0, ws->get_control_function());
-			}
-			else
-			{
-				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, isobus::NULL_OBJECT_ID, 0, ws->get_control_function());
-			}
 			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
 
 			auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
@@ -423,6 +415,15 @@ void ServerMainComponent::timerCallback()
 			{
 				ws->set_working_set_maintenance_message_timestamp_ms(isobus::SystemTiming::get_timestamp_ms());
 				change_selected_working_set(0);
+			}
+
+			if (ws->get_was_object_pool_loaded_from_non_volatile_memory())
+			{
+				send_load_version_response(0, ws->get_control_function());
+			}
+			else
+			{
+				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, isobus::NULL_OBJECT_ID, 0, ws->get_control_function());
 			}
 		}
 		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Fail == ws->get_object_pool_processing_state())
@@ -787,7 +788,29 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			if (hasStartBeenCalled)
 			{
 				isobus::CANStackLogger::info("Stopping CAN interface");
+
+				// Save the frame handlers so we can re-add them after stopping the interface
+#ifdef JUCE_WINDOWS
+				auto canDriver0 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+				auto canDriver1 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(1);
+				auto canDriver2 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(2);
+				auto canDriver3 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(3);
+#else
+				auto canDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+#endif
+
 				isobus::CANHardwareInterface::stop();
+
+				// Since "Stop" clears all frame handlers, we need to re-add the ones we saved
+#ifdef JUCE_WINDOWS
+				isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver0);
+				isobus::CANHardwareInterface::assign_can_channel_frame_handler(1, canDriver1);
+				isobus::CANHardwareInterface::assign_can_channel_frame_handler(2, canDriver2);
+				isobus::CANHardwareInterface::assign_can_channel_frame_handler(3, canDriver3);
+#else
+				isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
+#endif
+
 				dataMaskRenderer.set_has_started(false);
 				hasStartBeenCalled = false;
 			}
