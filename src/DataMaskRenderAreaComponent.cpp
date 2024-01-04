@@ -322,7 +322,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								{
 									if (0xFFFF != varNumID)
 									{
-										ownerServer.send_change_numeric_value_message(varNumID, clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+										ownerServer.send_change_numeric_value_message(varNumID, std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()))->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 										ownerServer.process_macro(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()), isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, parentWorkingSet);
 									}
 									else
@@ -484,7 +484,8 @@ void DataMaskRenderAreaComponent::InputNumberListener::sliderValueChanged(Slider
 {
 	if ((nullptr != slider) && (nullptr != targetObject) && (0 != targetObject->get_scale()))
 	{
-		lastValue = static_cast<std::uint32_t>((slider->getValue() / targetObject->get_scale()) - targetObject->get_offset());
+		float scaledValue = (slider->getValue() / targetObject->get_scale()) - targetObject->get_offset();
+		lastValue = static_cast<std::uint32_t>(scaledValue);
 	}
 }
 
