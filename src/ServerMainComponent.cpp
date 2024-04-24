@@ -180,7 +180,13 @@ std::vector<std::array<std::uint8_t, 7>> ServerMainComponent::get_versions(isobu
 	std::ostringstream nameString;
 	std::vector<std::array<std::uint8_t, 7>> retVal;
 	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-	File isoDirectory(std::filesystem::current_path().string() + File::getSeparatorString() + ISO_DATA_PATH + File::getSeparatorString() + nameString.str());
+	File isoDirectory(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName().toStdString() +
+	                  File::getSeparatorString() +
+	                  "Open-Agriculture" +
+	                  File::getSeparatorString() +
+	                  ISO_DATA_PATH +
+	                  File::getSeparatorString() +
+	                  nameString.str());
 
 	if (isoDirectory.exists() && isoDirectory.isDirectory())
 	{
@@ -232,13 +238,20 @@ std::vector<std::uint8_t> ServerMainComponent::load_version(const std::vector<st
 	std::ostringstream nameString;
 	std::vector<std::uint8_t> loadedIOPData;
 	std::vector<std::uint8_t> loadedVersionLabel(7);
+	std::string path = (File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() +
+	                    File::getSeparatorString() +
+	                    "Open-Agriculture" +
+	                    File::getSeparatorString() +
+	                    ISO_DATA_PATH +
+	                    File::getSeparatorString())
+	                     .toStdString();
 	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
 
-	if ((std::filesystem::is_directory(ISO_DATA_PATH + "/" + nameString.str()) ||
-	     std::filesystem::exists(ISO_DATA_PATH + "/" + nameString.str())) &&
+	if ((std::filesystem::is_directory(path + nameString.str()) ||
+	     std::filesystem::exists(path + nameString.str())) &&
 	    (7 == versionLabel.size()))
 	{
-		for (const auto &entry : std::filesystem::directory_iterator(ISO_DATA_PATH + "/" + nameString.str()))
+		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
 		{
 			if (entry.path().has_extension() && entry.path().extension() == ".iopx")
 			{
@@ -277,24 +290,31 @@ std::vector<std::uint8_t> ServerMainComponent::load_version(const std::vector<st
 bool ServerMainComponent::save_version(const std::vector<std::uint8_t> &objectPool, const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
 	bool retVal = false;
+	auto userAppData = File::getSpecialLocation(File::userApplicationDataDirectory);
+	std::string path = (userAppData.getFullPathName() +
+	                    File::getSeparatorString() +
+	                    "Open-Agriculture" +
+	                    File::getSeparatorString() +
+	                    String(ISO_DATA_PATH))
+	                     .toStdString();
 
 	// Main saved data folder
-	if (!std::filesystem::is_directory(ISO_DATA_PATH) || !std::filesystem::exists(ISO_DATA_PATH))
-	{ // Check if src folder exists
-		std::filesystem::create_directory(ISO_DATA_PATH); // create src folder
+	if (!std::filesystem::is_directory(path) || !std::filesystem::exists(path))
+	{
+		std::filesystem::create_directory(path);
 	}
 
 	// NAME specific folder
 	std::ostringstream nameString;
 	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
 
-	if (!std::filesystem::is_directory(ISO_DATA_PATH + "/" + nameString.str()) || !std::filesystem::exists(ISO_DATA_PATH + "/" + nameString.str()))
+	if (!std::filesystem::is_directory(path + "/" + nameString.str()) || !std::filesystem::exists(path + "/" + nameString.str()))
 	{ // Check if src folder exists
-		std::filesystem::create_directory(ISO_DATA_PATH + "/" + nameString.str()); // create src folder
+		std::filesystem::create_directory(path + "/" + nameString.str()); // create src folder
 	}
 
-	std::ofstream iopxFile(ISO_DATA_PATH + "/" + nameString.str() + "/object_pool_with_label_" + std::to_string(number_of_iop_files_in_directory(ISO_DATA_PATH + "/" + nameString.str())) + ".iopx", std::ios::trunc | std::ios::binary);
-	std::ofstream iopFile(ISO_DATA_PATH + "/" + nameString.str() + "/object_pool_" + std::to_string(number_of_iop_files_in_directory(ISO_DATA_PATH + "/" + nameString.str())) + ".iop", std::ios::trunc | std::ios::binary);
+	std::ofstream iopxFile(path + "/" + nameString.str() + "/object_pool_with_label_" + std::to_string(number_of_iop_files_in_directory(path + "/" + nameString.str())) + ".iopx", std::ios::trunc | std::ios::binary);
+	std::ofstream iopFile(path + "/" + nameString.str() + "/object_pool_" + std::to_string(number_of_iop_files_in_directory(path + "/" + nameString.str())) + ".iop", std::ios::trunc | std::ios::binary);
 
 	if (iopxFile.is_open())
 	{
@@ -317,13 +337,20 @@ bool ServerMainComponent::delete_version(const std::vector<std::uint8_t> &versio
 	std::ostringstream nameString;
 	std::vector<std::uint8_t> loadedVersionLabel(7);
 	std::vector<std::filesystem::directory_entry> filesToRemove;
+	std::string path = (File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() +
+	                    File::getSeparatorString() +
+	                    "Open-Agriculture" +
+	                    File::getSeparatorString() +
+	                    ISO_DATA_PATH +
+	                    File::getSeparatorString())
+	                     .toStdString();
 	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
 
-	if ((std::filesystem::is_directory(ISO_DATA_PATH + "/" + nameString.str()) ||
-	     std::filesystem::exists(ISO_DATA_PATH + "/" + nameString.str())) &&
+	if ((std::filesystem::is_directory(path + nameString.str()) ||
+	     std::filesystem::exists(path + nameString.str())) &&
 	    (7 == versionLabel.size()))
 	{
-		for (const auto &entry : std::filesystem::directory_iterator(ISO_DATA_PATH + "/" + nameString.str()))
+		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
 		{
 			if (entry.path().has_extension() && entry.path().extension() == ".iopx")
 			{
@@ -371,12 +398,19 @@ bool ServerMainComponent::delete_all_versions(isobus::NAME clientNAME)
 	std::ostringstream nameString;
 	std::vector<std::uint8_t> loadedVersionLabel(7);
 	std::vector<std::filesystem::directory_entry> filesToRemove;
+	auto path = (File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName().toStdString() +
+	             File::getSeparatorString() +
+	             "Open-Agriculture" +
+	             File::getSeparatorString() +
+	             ISO_DATA_PATH +
+	             File::getSeparatorString())
+	              .toStdString();
 	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
 
-	if ((std::filesystem::is_directory(ISO_DATA_PATH + "/" + nameString.str()) ||
-	     std::filesystem::exists(ISO_DATA_PATH + "/" + nameString.str())))
+	if ((std::filesystem::is_directory(path + nameString.str()) ||
+	     std::filesystem::exists(path + nameString.str())))
 	{
-		for (const auto &entry : std::filesystem::directory_iterator(ISO_DATA_PATH + "/" + nameString.str()))
+		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
 		{
 			if (entry.path().has_extension() && entry.path().extension() == ".iopx")
 			{
@@ -722,12 +756,15 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			auto userDataFiles = userDataFolder.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*");
 			for (auto &file : userDataFiles)
 			{
-				diagnosticFileBuilder->addFile(file, 9);
-				anyFilesAdded = true;
+				auto fileExtension = file.getFileExtension();
+				if (fileExtension != ".zip")
+				{
+					diagnosticFileBuilder->addFile(file, 9);
+					anyFilesAdded = true;
+				}
 			}
 
-			auto executablesFolder = File(File::getSpecialLocation(File::hostApplicationPath).getParentDirectory().getFullPathName() + File::getSeparatorString() + "iso_data");
-			auto childDirectories = executablesFolder.findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
+			auto childDirectories = userDataFolder.findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
 
 			for (auto &directory : childDirectories)
 			{
@@ -744,7 +781,13 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 				auto currentTime = Time::getCurrentTime().toString(true, true, true, false);
 				currentTime = currentTime.replaceCharacter(' ', '_');
 				currentTime = currentTime.replaceCharacter(':', '_');
-				const String fileName = File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "AgISOVirtualTerminalLogs_" + currentTime + ".zip";
+				const String fileName = File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() +
+				  File::getSeparatorString() +
+				  "Open-Agriculture" +
+				  File::getSeparatorString() +
+				  "AgISOVirtualTerminalLogs_" +
+				  currentTime +
+				  ".zip";
 				auto output = File(fileName).createOutputStream();
 				diagnosticFileBuilder->writeToStream(*output.get(), nullptr);
 				File(fileName).revealToUser();
@@ -1488,7 +1531,12 @@ void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerm
 
 void ServerMainComponent::clear_iso_data()
 {
-	File isoDirectory(std::filesystem::current_path().string() + File::getSeparatorString() + ISO_DATA_PATH + File::getSeparatorString());
+	File isoDirectory(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName().toStdString() +
+	                  File::getSeparatorString() +
+	                  "Open-Agriculture" +
+	                  File::getSeparatorString() +
+	                  ISO_DATA_PATH +
+	                  File::getSeparatorString());
 
 	if (isoDirectory.exists() && isoDirectory.isDirectory())
 	{

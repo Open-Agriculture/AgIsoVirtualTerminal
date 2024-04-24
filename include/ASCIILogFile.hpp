@@ -23,8 +23,8 @@ public:
 
 private:
 	File logFile;
-	std::shared_ptr<void> canFrameReceivedListener;
-	std::shared_ptr<void> canFrameSentListener;
+	isobus::EventCallbackHandle canFrameReceivedListener;
+	isobus::EventCallbackHandle canFrameSentListener;
 	Time initialTimestamp;
 };
 
