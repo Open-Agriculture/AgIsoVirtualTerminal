@@ -18,12 +18,13 @@ class WorkingSetComponent : public isobus::WorkingSet
   , public Component
 {
 public:
-	WorkingSetComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::WorkingSet sourceObject);
+	WorkingSetComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::WorkingSet sourceObject, int keyHeight, int keyWidth);
 
 	void paint(Graphics &g) override;
 
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
+	std::vector<std::shared_ptr<Component>> childComponents;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetComponent)
 };
