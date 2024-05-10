@@ -31,6 +31,7 @@ void OutputRectangleComponent::paint(Graphics &g)
 				case isobus::FillAttributes::FillType::FillWithPatternGivenByFillPatternAttribute:
 				{
 					// @todo
+					isOpaque = true;
 				}
 				break;
 
@@ -49,12 +50,14 @@ void OutputRectangleComponent::paint(Graphics &g)
 							break;
 						}
 					}
+					isOpaque = true;
 				}
 				break;
 
 				case isobus::FillAttributes::FillType::FillWithSpecifiedColorInFillColorAttribute:
 				{
 					g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+					isOpaque = true;
 				}
 				break;
 
@@ -62,10 +65,10 @@ void OutputRectangleComponent::paint(Graphics &g)
 				default:
 				{
 					// No fill
+					isOpaque = false;
 				}
 				break;
 			}
-			isOpaque = true;
 		}
 	}
 
