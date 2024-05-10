@@ -30,13 +30,10 @@ void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::sha
 
 			if (nullptr != workingSetObject)
 			{
-				for (std::uint16_t j = 0; j < workingSetObject->get_number_children(); j++)
-				{
-					auto childObject = JuceManagedWorkingSetCache::create_component(managedWorkingSetList.at(i), workingSetObject->get_object_by_id(workingSetObject->get_child_id(j), managedWorkingSetList.at(i)->get_object_tree()));
-					children.back().childComponents.push_back(childObject);
-					childObject->setTopLeftPosition(4 + 15 + workingSetObject->get_child_x(j), (static_cast<int>(i)) * 80 + 10 + 7 + workingSetObject->get_child_y(j));
-					addAndMakeVisible(*childObject);
-				}
+				auto workingSetComponent = JuceManagedWorkingSetCache::create_component(managedWorkingSetList.at(i), workingSetObject);
+				children.back().childComponents.push_back(workingSetComponent);
+				workingSetComponent->setTopLeftPosition(4 + 15, (static_cast<int>(i)) * 80 + 10 + 7);
+				addAndMakeVisible(*workingSetComponent);
 			}
 		}
 	}
@@ -76,13 +73,10 @@ void WorkingSetSelectorComponent::redraw()
 
 		if (nullptr != workingSetObject)
 		{
-			for (std::uint16_t i = 0; i < workingSetObject->get_number_children(); i++)
-			{
-				auto childObject = JuceManagedWorkingSetCache::create_component(workingSet.workingSet, workingSetObject->get_object_by_id(workingSetObject->get_child_id(i), workingSet.workingSet->get_object_tree()));
-				workingSet.childComponents.push_back(childObject);
-				childObject->setTopLeftPosition(4 + 15 + workingSetObject->get_child_x(i), workingSetIndex * 80 + 10 + 7 + workingSetObject->get_child_y(i));
-				addAndMakeVisible(*childObject);
-			}
+			auto workingSetComponent = JuceManagedWorkingSetCache::create_component(workingSet.workingSet, workingSetObject);
+			children.back().childComponents.push_back(workingSetComponent);
+			workingSetComponent->setTopLeftPosition(4 + 15, (static_cast<int>(workingSetIndex)) * 80 + 10 + 7);
+			addAndMakeVisible(*workingSetComponent);
 		}
 		workingSetIndex++;
 	}

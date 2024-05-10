@@ -208,6 +208,12 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 			}
 			break;
 
+			case isobus::VirtualTerminalObjectType::WorkingSet:
+			{
+				retVal = std::make_shared<WorkingSetComponent>(workingSet, *std::static_pointer_cast<isobus::WorkingSet>(sourceObject), keyHeight, keyWidth);
+			}
+			break;
+
 			default:
 			{
 			}
