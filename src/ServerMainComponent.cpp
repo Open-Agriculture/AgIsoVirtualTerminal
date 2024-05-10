@@ -426,6 +426,22 @@ bool ServerMainComponent::delete_all_versions(isobus::NAME clientNAME)
 	return retVal;
 }
 
+bool ServerMainComponent::delete_object_pool(isobus::NAME clientNAME)
+{
+	bool retVal = false;
+
+	for (auto &ws : managedWorkingSetList)
+	{
+		if (ws->get_control_function()->get_NAME() == clientNAME)
+		{
+			ws->request_deletion(); // We'll delete it on our next update on our normal thread.
+			retVal = true;
+			break;
+		}
+	}
+	return retVal;
+}
+
 void ServerMainComponent::timerCallback()
 {
 	if ((isobus::SystemTiming::time_expired_ms(statusMessageTimestamp_ms, 1000)) &&
@@ -475,7 +491,8 @@ void ServerMainComponent::timerCallback()
 			}
 		}
 		else if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state()) &&
-		         (isobus::SystemTiming::time_expired_ms(ws->get_working_set_maintenance_message_timestamp_ms(), 3000)))
+		         ((isobus::SystemTiming::time_expired_ms(ws->get_working_set_maintenance_message_timestamp_ms(), 3000)) ||
+		          (ws->is_deletion_requested())))
 		{
 			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
 			dataMaskRenderer.on_working_set_disconnect(ws);

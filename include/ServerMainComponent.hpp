@@ -72,6 +72,16 @@ public:
 	/// @returns True if all relevant object pools were deleted from VT non-volatile storage, otherwise false.
 	bool delete_all_versions(isobus::NAME clientNAME) override;
 
+	/// @brief This function is called when the client wants the server to deactivate its object pool.
+	/// You should treat this as a disconnection by the client, as it may be moving to another VT.
+	/// @attention This does not mean to delete the pool from non-volatile memory!!! This only deactivates the active pool.
+	/// @details This command is used to delete the entire object pool of this Working Set from volatile storage.
+	/// This command can be used by an implement when it wants to move its object pool to another VT,
+	/// or when it is shutting down or during the development of object pools.
+	/// @param[in] clientNAME The NAME of the client that is requesting deletion
+	/// @returns True if the client's active object pool was deactivated and removed from volatile storage, otherwise false.
+	bool delete_object_pool(isobus::NAME clientNAME) override;
+
 	void timerCallback() override;
 
 	void paint(juce::Graphics &g) override;

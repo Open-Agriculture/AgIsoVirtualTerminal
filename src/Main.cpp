@@ -6,10 +6,10 @@
 #include "isobus/hardware_integration/available_can_drivers.hpp"
 
 #include <JuceHeader.h>
+#include "ASCIILogFile.hpp"
 #include "ServerMainComponent.hpp"
 #include "isobus/hardware_integration/can_hardware_interface.hpp"
 #include "isobus/isobus/can_internal_control_function.hpp"
-#include "ASCIILogFile.hpp"
 
 //==============================================================================
 class AgISOVirtualTerminalApplication : public juce::JUCEApplication
@@ -73,7 +73,7 @@ public:
 		  DocumentWindow(name,
 		                 juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId),
 		                 DocumentWindow::allButtons)
-		{				
+		{
 #ifdef JUCE_WINDOWS
 			canDrivers.push_back(std::make_shared<isobus::PCANBasicWindowsPlugin>(static_cast<WORD>(PCAN_USBBUS1)));
 			canDrivers.push_back(std::make_shared<isobus::InnoMakerUSB2CANWindowsPlugin>(0));
