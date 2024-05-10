@@ -1207,20 +1207,10 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 
 		if (nullptr != activeMask)
 		{
-			for (std::uint16_t i = 0; i < activeMask->get_number_children(); i++)
-			{
-				auto child = activeMask->get_object_by_id(activeMask->get_child_id(i), affectedWorkingSet->get_object_tree());
-
-				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
-				{
-					activeWorkingSetSoftkeyMaskObjectID = child->get_id();
-					break;
-				}
-			}
-
 			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
 			{
 				auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(activeMask);
+				activeWorkingSetSoftkeyMaskObjectID = alarmMask->get_soft_key_mask();
 
 				switch (alarmMask->get_signal_priority())
 				{
@@ -1246,6 +1236,11 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 					default:
 						break;
 				}
+			}
+			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
+			{
+				auto dataMask = std::static_pointer_cast<isobus::DataMask>(activeMask);
+				activeWorkingSetSoftkeyMaskObjectID = dataMask->get_soft_key_mask();
 			}
 		}
 	}
