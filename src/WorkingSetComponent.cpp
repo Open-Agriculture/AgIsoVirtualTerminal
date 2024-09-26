@@ -33,7 +33,7 @@ WorkingSetComponent::WorkingSetComponent(std::shared_ptr<isobus::VirtualTerminal
 void WorkingSetComponent::paint(Graphics &g)
 {
 	auto vtColour = parentWorkingSet->get_colour(get_background_color());
-	auto background = Colour(vtColour.r, vtColour.g, vtColour.b, 1.0f);
+	auto background = Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
 	g.setColour(background);
 	g.fillAll();
 }
