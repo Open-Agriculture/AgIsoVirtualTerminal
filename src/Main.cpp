@@ -10,6 +10,7 @@
 #include "ServerMainComponent.hpp"
 #include "isobus/hardware_integration/can_hardware_interface.hpp"
 #include "isobus/isobus/can_internal_control_function.hpp"
+#include "isobus/isobus/can_network_manager.hpp"
 
 //==============================================================================
 class AgISOVirtualTerminalApplication : public juce::JUCEApplication
@@ -97,7 +98,7 @@ public:
 			serverNAME.set_function_code(static_cast<std::uint8_t>(isobus::NAME::Function::VirtualTerminal));
 			serverNAME.set_industry_group(2);
 			serverNAME.set_manufacturer_code(1407);
-			serverInternalControlFunction = isobus::InternalControlFunction::create(serverNAME, 0x26, 0);
+			serverInternalControlFunction = isobus::CANNetworkManager::CANNetwork.create_internal_control_function(serverNAME, 0, 0x26);
 			setUsingNativeTitleBar(true);
 			setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers), true);
 

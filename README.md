@@ -179,12 +179,16 @@ If you open an issue, we need the object pool of the working set you were using,
 
 ### Disclaimers
 
+Because this software is licensed under the GPL v3.0, you may not include this software in any closed source software, nor link to it in any way from closed source software.
+
+If you wish to sponsor development of this software, please contact us in the discord or telegram channels.
+
 This project is not associated with the Agricultural Industry Electronics Foundation (AEF) in any way. 
 
 This project is not associated with the International Organization for Standardization (ISO) in any way.
 
 Don't ask us to share the ISO standards with you. We can't. You have to buy them from ISO. We don't have the right to share them with you.
 
-By acquiring or using this project you agree to the [JUCE License](https://github.com/juce-framework/JUCE/blob/master/LICENSE.md) as well as any applicable licenses provided by dependencies such as AgIsoStack.
+By acquiring or using this project you agree to the [JUCE License](https://github.com/juce-framework/JUCE/blob/master/LICENSE.md), [this project's license](https://github.com/Open-Agriculture/AgIsoVirtualTerminal/blob/main/LICENSE), and any applicable licenses provided by dependencies such as AgIsoStack.
 
 This software was not created to compete with any commercial or open-source software. It was created to help hobbyists and professionals alike learn about and experiment with ISOBUS.
