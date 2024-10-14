@@ -96,6 +96,11 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 				                                           activeMask->get_id(),
 				                                           keyCode,
 				                                           ownerServer.get_active_working_set()->get_control_function());
+				ownerServer.set_button_held(ownerServer.get_active_working_set(),
+				                            clickedObject->get_id(),
+				                            activeMask->get_id(),
+				                            keyCode,
+				                            (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()));
 			}
 		}
 	}
@@ -133,6 +138,11 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							                                           keyCode,
 							                                           ownerServer.get_active_working_set()->get_control_function());
 							ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
+							ownerServer.set_button_released(ownerServer.get_active_working_set(),
+							                                clickedObject->get_id(),
+							                                activeMask->get_id(),
+							                                keyCode,
+							                                true);
 						}
 					}
 					break;
@@ -146,6 +156,11 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						                                           keyCode,
 						                                           ownerServer.get_active_working_set()->get_control_function());
 						ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
+						ownerServer.set_button_released(ownerServer.get_active_working_set(),
+						                                clickedObject->get_id(),
+						                                activeMask->get_id(),
+						                                keyCode,
+						                                true);
 					}
 					break;
 
