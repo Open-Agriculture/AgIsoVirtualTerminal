@@ -99,6 +99,9 @@ public:
 
 	void change_selected_working_set(std::uint8_t index);
 
+	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
+	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
+
 	void repaint_on_next_update();
 
 	void save_settings();
@@ -129,6 +132,18 @@ private:
 	};
 	friend class LanguageCommandConfigClosed;
 
+	struct HeldButtonData
+	{
+		HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
+		bool operator==(const HeldButtonData &other);
+		std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> associatedWorkingSet;
+		std::uint32_t timestamp_ms;
+		std::uint16_t buttonObjectID;
+		std::uint16_t activeMaskObjectID;
+		std::uint8_t buttonKeyCode;
+		bool isSoftKey;
+	};
+
 	static VTVersion get_version_from_setting(std::uint8_t aVersion);
 
 	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
@@ -153,6 +168,7 @@ private:
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::unique_ptr<ConfigureHardwareWindow> configureHardwareWindow;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
+	std::vector<HeldButtonData> heldButtons;
 	std::uint8_t numberOfPoolsToRender = 0;
 	std::uint8_t numberPhysicalSoftKeys = 6;
 	std::uint8_t numberVirtualSoftKeys = 64;

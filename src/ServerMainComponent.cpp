@@ -539,6 +539,28 @@ void ServerMainComponent::timerCallback()
 				repaint_data_and_soft_key_mask();
 				needToRepaint = false;
 			}
+
+			for (auto &heldButton : heldButtons)
+			{
+				if (isobus::SystemTiming::time_expired_ms(heldButton.timestamp_ms, 200))
+				{
+					bool sentMessage = false;
+
+					if (heldButton.isSoftKey)
+					{
+						sentMessage = send_soft_key_activation_message(KeyActivationCode::ButtonStillHeld, heldButton.buttonObjectID, heldButton.activeMaskObjectID, heldButton.buttonKeyCode, heldButton.associatedWorkingSet->get_control_function());
+					}
+					else
+					{
+						sentMessage = send_button_activation_message(KeyActivationCode::ButtonStillHeld, heldButton.buttonObjectID, heldButton.activeMaskObjectID, heldButton.buttonKeyCode, heldButton.associatedWorkingSet->get_control_function());
+					}
+
+					if (sentMessage)
+					{
+						heldButton.timestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+					}
+				}
+			}
 		}
 	}
 }
@@ -678,7 +700,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu = std::make_unique<AlertWindow>("About", "", MessageBoxIconType::InfoIcon);
 			popupMenu->addTextBlock("Version: " + String(ProjectInfo::versionString));
 			popupMenu->addTextBlock("Copyright 2023 Adrian Del Grosso and the Open-Agriculture Developers.");
-			popupMenu->addTextBlock("This software is licensed under the GPL-3.0 because it links to JUCE. You may use or change this software, even commercially, but you may not include it as part of closed-source software. If you want to use code that is part of this project in closed source software, you MUST obtain a valid JUCE license. Refer to JUCE's website for more details on your license obligations. Please retain the original copyright statements found in this software.");
+			popupMenu->addTextBlock("This software is licensed under the GPL-3.0. You may use or change this software, even commercially, but you may not include it as part of closed-source software. Refer to this project's GitHub page for more details on your license obligations. Please retain the original copyright statements found in this software.");
 			popupMenu->addTextBlock("This is an ISO11783-6 virtual terminal server application based on AgIsoStack++ and the JUCE framework. This software is intended to be used for testing ISO11783 applications that consume AgIsoStack libraries, and serves as a reference implementation of our VT server files in AgIsoStack++.");
 			popupMenu->addButton("OK", 0, KeyPress(KeyPress::returnKey, 0, 0));
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
@@ -1038,6 +1060,38 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 	}
 }
 
+void ServerMainComponent::set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey)
+{
+	HeldButtonData buttonData(workingSet, objectID, maskObjectID, keyCode, isSoftKey);
+	bool alreadyHeld = false;
+
+	for (auto &button : heldButtons)
+	{
+		if (buttonData == button)
+		{
+			button.timestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+			alreadyHeld = true;
+		}
+	}
+
+	if (!alreadyHeld)
+	{
+		heldButtons.push_back(buttonData);
+	}
+}
+
+void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey)
+{
+	HeldButtonData buttonData(workingSet, objectID, maskObjectID, keyCode, isSoftKey);
+	bool alreadyHeld = false;
+
+	auto found = std::find(heldButtons.begin(), heldButtons.end(), buttonData);
+	if (heldButtons.end() != found)
+	{
+		heldButtons.erase(found);
+	}
+}
+
 void ServerMainComponent::repaint_on_next_update()
 {
 	needToRepaint = true;
@@ -1128,6 +1182,24 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 	}
 	mParent.exitModalState(result);
 	mParent.popupMenu.reset();
+}
+
+ServerMainComponent::HeldButtonData::HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey) :
+  isSoftKey(isSoftKey),
+  associatedWorkingSet(workingSet),
+  timestamp_ms(isobus::SystemTiming::get_timestamp_ms()),
+  buttonObjectID(objectID),
+  activeMaskObjectID(maskObjectID),
+  buttonKeyCode(keyCode)
+{
+}
+
+bool ServerMainComponent::HeldButtonData::operator==(const HeldButtonData &other)
+{
+	return ((other.activeMaskObjectID == activeMaskObjectID) &&
+	        (other.associatedWorkingSet == associatedWorkingSet) &&
+	        (other.buttonObjectID == buttonObjectID) &&
+	        (other.buttonKeyCode == buttonKeyCode));
 }
 
 ServerMainComponent::VTVersion ServerMainComponent::get_version_from_setting(std::uint8_t aVersion)
