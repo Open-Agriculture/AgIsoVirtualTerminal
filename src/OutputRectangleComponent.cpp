@@ -37,18 +37,15 @@ void OutputRectangleComponent::paint(Graphics &g)
 
 				case isobus::FillAttributes::FillType::FillWithLineColor:
 				{
-					for (std::uint16_t j = 0; j < get_number_children(); j++)
-					{
-						auto childLineAttributes = get_object_by_id(get_child_id(j), parentWorkingSet->get_object_tree());
+					auto childLineAttributes = get_object_by_id(get_line_attributes(), parentWorkingSet->get_object_tree());
 
-						if ((nullptr != childLineAttributes) && (isobus::VirtualTerminalObjectType::LineAttributes == childLineAttributes->get_object_type()))
-						{
-							auto line = std::static_pointer_cast<isobus::LineAttributes>(childLineAttributes);
-							vtColour = parentWorkingSet->get_colour(line->get_background_color());
-							g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0));
-							g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
-							break;
-						}
+					if ((nullptr != childLineAttributes) && (isobus::VirtualTerminalObjectType::LineAttributes == childLineAttributes->get_object_type()))
+					{
+						auto line = std::static_pointer_cast<isobus::LineAttributes>(childLineAttributes);
+						vtColour = parentWorkingSet->get_colour(line->get_background_color());
+						g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0));
+						g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+						break;
 					}
 					isOpaque = true;
 				}
