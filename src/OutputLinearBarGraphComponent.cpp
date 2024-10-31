@@ -17,9 +17,15 @@ OutputLinearBarGraphComponent::OutputLinearBarGraphComponent(std::shared_ptr<iso
 void OutputLinearBarGraphComponent::paint(Graphics &g)
 {
 	float valueRatioToMax = static_cast<float>(get_value()) / static_cast<float>(get_max_value());
+	float targetRatioToMax = static_cast<float>(get_target_value()) / static_cast<float>(get_max_value());
 	auto vtBackgroundColour = parentWorkingSet->get_colour(get_colour());
 	auto vtTargetLineColour = parentWorkingSet->get_colour(get_target_line_colour());
 	g.setColour(Colour::fromFloatRGBA(vtBackgroundColour.r, vtBackgroundColour.g, vtBackgroundColour.b, 1.0));
+
+	if (get_option(Options::DrawBorder))
+	{
+		g.drawRect(0, 0, getWidth(), getHeight(), 3);
+	}
 
 	if (isobus::NULL_OBJECT_ID != get_variable_reference())
 	{
@@ -42,10 +48,24 @@ void OutputLinearBarGraphComponent::paint(Graphics &g)
 			if (get_option(Options::Direction))
 			{
 				// From left
+				g.drawLine(static_cast<float>(get_width()) * valueRatioToMax, 0.0f, static_cast<float>(get_width()) * valueRatioToMax, static_cast<float>(get_height()), 3);
+
+				if (get_option(Options::DrawTargetLine))
+				{
+					g.setColour(Colour::fromFloatRGBA(vtTargetLineColour.r, vtTargetLineColour.g, vtTargetLineColour.b, 1.0));
+					g.drawVerticalLine(static_cast<float>(get_width()) * targetRatioToMax, 0.0f, static_cast<float>(get_height()));
+				}
 			}
 			else
 			{
 				// From right
+				g.drawLine(static_cast<float>(get_width()) * (1.0f - valueRatioToMax), 0.0f, static_cast<float>(get_width()) * (1.0f - valueRatioToMax), static_cast<float>(get_height()), 3);
+
+				if (get_option(Options::DrawTargetLine))
+				{
+					g.setColour(Colour::fromFloatRGBA(vtTargetLineColour.r, vtTargetLineColour.g, vtTargetLineColour.b, 1.0));
+					g.drawVerticalLine(static_cast<float>(get_width()) * (1.0f - targetRatioToMax), 0.0f, static_cast<float>(get_height()));
+				}
 			}
 		}
 		else
@@ -53,11 +73,25 @@ void OutputLinearBarGraphComponent::paint(Graphics &g)
 			// Y Axis
 			if (get_option(Options::Direction))
 			{
-				// From left
+				// From bottom
+				g.drawLine(0, (1.0f - valueRatioToMax) * getHeight(), getWidth(), (1.0f - valueRatioToMax) * getHeight(), 3);
+
+				if (get_option(Options::DrawTargetLine))
+				{
+					g.setColour(Colour::fromFloatRGBA(vtTargetLineColour.r, vtTargetLineColour.g, vtTargetLineColour.b, 1.0));
+					g.drawHorizontalLine(static_cast<float>(get_height() * (1.0f - targetRatioToMax)), 0.0f, static_cast<float>(get_width()));
+				}
 			}
 			else
 			{
-				// From right
+				// From top
+				g.drawLine(0, valueRatioToMax * getHeight(), getWidth(), valueRatioToMax * getHeight(), 3);
+
+				if (get_option(Options::DrawTargetLine))
+				{
+					g.setColour(Colour::fromFloatRGBA(vtTargetLineColour.r, vtTargetLineColour.g, vtTargetLineColour.b, 1.0));
+					g.drawHorizontalLine(static_cast<float>(get_height() * targetRatioToMax), 0.0f, static_cast<float>(get_width()));
+				}
 			}
 		}
 	}
@@ -72,11 +106,23 @@ void OutputLinearBarGraphComponent::paint(Graphics &g)
 			{
 				// From left
 				g.fillRect(0.0f, 0.0f, static_cast<float>(get_width()) * valueRatioToMax, static_cast<float>(get_height()));
+
+				if (get_option(Options::DrawTargetLine))
+				{
+					g.setColour(Colour::fromFloatRGBA(vtTargetLineColour.r, vtTargetLineColour.g, vtTargetLineColour.b, 1.0));
+					g.drawVerticalLine(static_cast<float>(get_width()) * targetRatioToMax, 0.0f, static_cast<float>(get_height()));
+				}
 			}
 			else
 			{
 				// From right
 				g.fillRect(static_cast<float>(get_width()) * (1 - valueRatioToMax), 0.0f, static_cast<float>(get_width()) * valueRatioToMax, static_cast<float>(get_height()));
+
+				if (get_option(Options::DrawTargetLine))
+				{
+					g.setColour(Colour::fromFloatRGBA(vtTargetLineColour.r, vtTargetLineColour.g, vtTargetLineColour.b, 1.0));
+					g.drawVerticalLine(static_cast<float>(get_width()) * (1 - targetRatioToMax), 0.0f, static_cast<float>(get_height()));
+				}
 			}
 		}
 		else
@@ -86,11 +132,23 @@ void OutputLinearBarGraphComponent::paint(Graphics &g)
 			{
 				// From bottom
 				g.fillRect(0.0f, static_cast<float>(get_height() * (1 - valueRatioToMax)), static_cast<float>(get_width()), static_cast<float>(get_height()) * valueRatioToMax);
+
+				if (get_option(Options::DrawTargetLine))
+				{
+					g.setColour(Colour::fromFloatRGBA(vtTargetLineColour.r, vtTargetLineColour.g, vtTargetLineColour.b, 1.0));
+					g.drawHorizontalLine(static_cast<float>(get_height() * (1 - targetRatioToMax)), 0.0f, static_cast<float>(get_width()));
+				}
 			}
 			else
 			{
 				// From top
 				g.fillRect(0.0f, 0.0f, static_cast<float>(get_width()), static_cast<float>(get_height()) * valueRatioToMax);
+
+				if (get_option(Options::DrawTargetLine))
+				{
+					g.setColour(Colour::fromFloatRGBA(vtTargetLineColour.r, vtTargetLineColour.g, vtTargetLineColour.b, 1.0));
+					g.drawHorizontalLine(static_cast<float>(get_height() * targetRatioToMax), 0.0f, static_cast<float>(get_width()));
+				}
 			}
 		}
 	}
