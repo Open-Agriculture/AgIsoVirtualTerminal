@@ -81,13 +81,28 @@ void OutputStringComponent::paint(Graphics &g)
 		fontHeight = 8;
 	}
 
+	String decodedValue(value);
+
+	if ((value.length() >= 2) &&
+	    (0xFF == static_cast<std::uint8_t>(value.at(0))) &&
+	    (0xFE == static_cast<std::uint8_t>(value.at(1))))
+	{
+		// String is UTF-16 encoded, font type is ignored.
+		if (0 != (value.length() % 2))
+		{
+			// If the length attribute does not indicate an even number of bytes the last byte is ignored
+			value.pop_back();
+		}
+		decodedValue = String::createStringFromData(value.c_str(), value.size());
+	}
+
 	if (get_option(Options::AutoWrap)) // TODO need to figure out proper font clipping
 	{
-		g.drawFittedText(value, 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(get_height()) + 0.1f) / fontHeight)), 0.8f);
+		g.drawFittedText(decodedValue, 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(get_height()) + 0.1f) / fontHeight)), 0.8f);
 	}
 	else
 	{
-		g.drawFittedText(value, 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(get_height()) + 0.1f) / fontHeight)), 0.8f);
+		g.drawFittedText(decodedValue, 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(get_height()) + 0.1f) / fontHeight)), 0.8f);
 	}
 }
 
