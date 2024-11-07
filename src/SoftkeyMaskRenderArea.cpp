@@ -81,6 +81,7 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 		if (nullptr != workingSetObject)
 		{
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+			auto parentMask = activeMask;
 
 			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
 			{
@@ -117,7 +118,7 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 				ownerServer.send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
 				                                             clickedObject->get_id(),
-				                                             activeMask->get_id(),
+				                                             parentMask->get_id(),
 				                                             keyCode,
 				                                             ownerServer.get_active_working_set()->get_control_function());
 				ownerServer.set_button_held(ownerServer.get_active_working_set(),
@@ -140,6 +141,7 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 		if (nullptr != workingSetObject)
 		{
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+			auto parentMask = activeMask;
 
 			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
 			{
@@ -176,7 +178,7 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 				ownerServer.send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 				                                             clickedObject->get_id(),
-				                                             activeMask->get_id(),
+				                                             parentMask->get_id(),
 				                                             keyCode,
 				                                             ownerServer.get_active_working_set()->get_control_function());
 				ownerServer.set_button_released(ownerServer.get_active_working_set(),
