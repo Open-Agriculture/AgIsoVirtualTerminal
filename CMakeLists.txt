@@ -79,6 +79,7 @@ target_sources(
           "src/ASCIILogFile.cpp"
           "src/ConfigureHardwareWindow.cpp"
           "src/ConfigureHardwareComponent.cpp"
+          "src/StringEncodingConversions.cpp"
           "src/InputListComponent.cpp")
 
 

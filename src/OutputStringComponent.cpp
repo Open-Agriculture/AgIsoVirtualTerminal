@@ -5,6 +5,8 @@
 *******************************************************************************/
 #include "OutputStringComponent.hpp"
 
+#include "StringEncodingConversions.hpp"
+
 OutputStringComponent::OutputStringComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputString sourceObject) :
   isobus::OutputString(sourceObject),
   parentWorkingSet(workingSet)
@@ -17,6 +19,7 @@ void OutputStringComponent::paint(Graphics &g)
 {
 	std::string value = get_value();
 	std::uint8_t fontHeight = 0;
+	auto fontType = isobus::FontAttributes::FontType::ISO8859_1;
 
 	if (!get_option(Options::Transparent))
 	{
@@ -37,6 +40,7 @@ void OutputStringComponent::paint(Graphics &g)
 		{
 			auto font = std::static_pointer_cast<isobus::FontAttributes>(child);
 
+			fontType = font->get_type();
 			auto colour = parentWorkingSet->get_colour(font->get_colour());
 			Font juceFont;
 			int fontStyleFlags = Font::FontStyleFlags::plain;
@@ -94,6 +98,59 @@ void OutputStringComponent::paint(Graphics &g)
 			value.pop_back();
 		}
 		decodedValue = String::createStringFromData(value.c_str(), value.size());
+	}
+	else
+	{
+		switch (fontType)
+		{
+			case isobus::FontAttributes::FontType::ISO8859_1:
+			{
+				std::string utf8String;
+				convert_string_to_utf_8(SourceEncoding::ISO8859_1, value, utf8String, get_option(Options::AutoWrap));
+				decodedValue = utf8String;
+			}
+			break;
+
+			case isobus::FontAttributes::FontType::ISO8859_15:
+			{
+				std::string utf8String;
+				convert_string_to_utf_8(SourceEncoding::ISO8859_15, value, utf8String, get_option(Options::AutoWrap));
+				decodedValue = utf8String;
+			}
+			break;
+
+			case isobus::FontAttributes::FontType::ISO8859_2:
+			{
+				std::string utf8String;
+				convert_string_to_utf_8(SourceEncoding::ISO8859_2, value, utf8String, get_option(Options::AutoWrap));
+				decodedValue = utf8String;
+			}
+			break;
+
+			case isobus::FontAttributes::FontType::ISO8859_4:
+			{
+				std::string utf8String;
+				convert_string_to_utf_8(SourceEncoding::ISO8859_4, value, utf8String, get_option(Options::AutoWrap));
+				decodedValue = utf8String;
+			}
+			break;
+
+			case isobus::FontAttributes::FontType::ISO8859_5:
+			{
+				std::string utf8String;
+				convert_string_to_utf_8(SourceEncoding::ISO8859_5, value, utf8String, get_option(Options::AutoWrap));
+				decodedValue = utf8String;
+			}
+			break;
+
+			case isobus::FontAttributes::FontType::ISO8859_7:
+			{
+				std::string utf8String;
+				convert_string_to_utf_8(SourceEncoding::ISO8859_7, value, utf8String, get_option(Options::AutoWrap));
+				decodedValue = utf8String;
+			}
+			break;
+		}
 	}
 
 	if (get_option(Options::AutoWrap)) // TODO need to figure out proper font clipping

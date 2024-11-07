@@ -75,7 +75,7 @@ void WorkingSetSelectorComponent::redraw()
 		if (nullptr != workingSetObject)
 		{
 			auto workingSetComponent = JuceManagedWorkingSetCache::create_component(workingSet.workingSet, workingSetObject);
-			children.back().childComponents.push_back(workingSetComponent);
+			workingSet.childComponents.push_back(workingSetComponent);
 			workingSetComponent->setTopLeftPosition(4 + 15, (static_cast<int>(workingSetIndex)) * 80 + 10 + 7);
 			addAndMakeVisible(*workingSetComponent);
 		}
