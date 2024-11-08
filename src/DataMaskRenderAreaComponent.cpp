@@ -96,11 +96,15 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 				                                           activeMask->get_id(),
 				                                           keyCode,
 				                                           ownerServer.get_active_working_set()->get_control_function());
-				ownerServer.set_button_held(ownerServer.get_active_working_set(),
-				                            clickedObject->get_id(),
-				                            activeMask->get_id(),
-				                            keyCode,
-				                            (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()));
+				if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type() ||
+					isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
+				{
+					ownerServer.set_button_held(ownerServer.get_active_working_set(),
+												clickedObject->get_id(),
+												activeMask->get_id(),
+												keyCode,
+												(isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()));
+				}
 			}
 		}
 	}
