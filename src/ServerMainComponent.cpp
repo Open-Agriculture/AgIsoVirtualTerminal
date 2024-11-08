@@ -1308,11 +1308,16 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 					default:
 						break;
 				}
+				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
 			}
 			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
 			{
 				auto dataMask = std::static_pointer_cast<isobus::DataMask>(activeMask);
 				activeWorkingSetSoftkeyMaskObjectID = dataMask->get_soft_key_mask();
+				// Also process macros for the actual datamask (container) show event
+				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
 			}
 		}
 	}
