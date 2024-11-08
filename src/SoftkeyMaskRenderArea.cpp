@@ -228,14 +228,16 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 			// Knowing the location requires some knowledge of how the mask is displaying each key...
 
 			if ((nullptr != child) &&
-			    (objectCanBeClicked(child)) &&
-			    (isClickWithinBounds(x, y, 10, 10 + (60 * i) + (10 * i), ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_width())))
+				(objectCanBeClicked(child)) &&
+				(isClickWithinBounds(x, y,
+									 10, 10 + (ownerServer.get_soft_key_descriptor_x_pixel_width() * i) + (10 * i),
+									 ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_width())))
 			{
 				return child;
 			}
 			else if (!objectCanBeClicked(child))
 			{
-				retVal = getClickedChildRecursive(child, x - 10, y - (10 + (60 * i) + (10 * i)));
+				retVal = getClickedChildRecursive(child, x - 10, y - (10 + (ownerServer.get_soft_key_descriptor_y_pixel_width() * i) + (10 * i)));
 
 				if (nullptr != retVal)
 				{
