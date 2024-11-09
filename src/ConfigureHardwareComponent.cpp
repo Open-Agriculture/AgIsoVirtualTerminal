@@ -28,13 +28,18 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 #ifdef JUCE_WINDOWS
 	hardwareInterfaceSelector.setName("Hardware Interface");
 	hardwareInterfaceSelector.setTextWhenNothingSelected("Select Hardware Interface");
-	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec" }, 1);
 
+#ifdef ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE
+	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec" }, 1);
+#else
+	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN (not supported with mingw)", "TouCAN", "SysTec" }, 1);
+#endif
 	int selectedID = 1;
 
 	for (std::uint8_t i = 0; i < parentCANDrivers.size(); i++)
 	{
-		if (parentCANDrivers.at(i) == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
+		if ((nullptr != parentCANDrivers.at(i)) && 
+			(parentCANDrivers.at(i) == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0)))
 		{
 			selectedID = i + 1;
 			break;

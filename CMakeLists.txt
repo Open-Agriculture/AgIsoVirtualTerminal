@@ -13,7 +13,12 @@ set(BUILD_TESTING OFF)
 if(WIN32)
     set(CAN_DRIVER "WindowsPCANBasic")
     list(APPEND CAN_DRIVER "TouCAN")
-    list(APPEND CAN_DRIVER "WindowsInnoMakerUSB2CAN")
+
+    if(NOT (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND MINGW))
+      list(APPEND CAN_DRIVER "WindowsInnoMakerUSB2CAN")
+    else()
+      message(STATUS "InnoMaker hardware will not be supported in this build because you are using mingw")
+    endif()
     list(APPEND CAN_DRIVER "SYS_TEC")
 elseif(APPLE)
     set(CAN_DRIVER "MacCANPCAN")
@@ -92,7 +97,7 @@ target_link_libraries(
           isobus::Utility
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags)
 
-if(MSVC)
+if(WIN32)
     add_custom_command(
             TARGET AgISOVirtualTerminal POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${CMAKE_CURRENT_LIST_DIR}/lib/PCANBasic.dll "$<TARGET_FILE_DIR:AgISOVirtualTerminal>"

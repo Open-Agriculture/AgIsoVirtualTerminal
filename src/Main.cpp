@@ -77,7 +77,11 @@ public:
 		{
 #ifdef JUCE_WINDOWS
 			canDrivers.push_back(std::make_shared<isobus::PCANBasicWindowsPlugin>(static_cast<WORD>(PCAN_USBBUS1)));
+#ifdef ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE
 			canDrivers.push_back(std::make_shared<isobus::InnoMakerUSB2CANWindowsPlugin>(0));
+#else
+			canDrivers.push_back(nullptr);
+#endif
 			canDrivers.push_back(std::make_shared<isobus::TouCANPlugin>(static_cast<std::int16_t>(0), 0));
 			canDrivers.push_back(std::make_shared<isobus::SysTecWindowsPlugin>());
 #elif defined(JUCE_MAC)
