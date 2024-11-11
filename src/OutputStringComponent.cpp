@@ -17,7 +17,7 @@ OutputStringComponent::OutputStringComponent(std::shared_ptr<isobus::VirtualTerm
 
 void OutputStringComponent::paint(Graphics &g)
 {
-	std::string value = get_value();
+	std::string value = displayed_value(parentWorkingSet);
 	std::uint8_t fontHeight = 0;
 	auto fontType = isobus::FontAttributes::FontType::ISO8859_1;
 
@@ -67,16 +67,6 @@ void OutputStringComponent::paint(Graphics &g)
 			juceFont.setHorizontalScale(static_cast<float>(font->get_font_width_pixels()) / fontWidth);
 			g.setColour(Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f));
 			g.setFont(juceFont);
-		}
-	}
-
-	if (isobus::NULL_OBJECT_ID != get_variable_reference())
-	{
-		auto child = get_object_by_id(get_variable_reference(), parentWorkingSet->get_object_tree());
-
-		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::StringVariable == child->get_object_type()))
-		{
-			value = std::static_pointer_cast<isobus::StringVariable>(child)->get_value();
 		}
 	}
 

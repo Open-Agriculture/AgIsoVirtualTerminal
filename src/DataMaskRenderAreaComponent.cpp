@@ -97,13 +97,13 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 				                                           keyCode,
 				                                           ownerServer.get_active_working_set()->get_control_function());
 				if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type() ||
-					isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
+				    isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
 				{
 					ownerServer.set_button_held(ownerServer.get_active_working_set(),
-												clickedObject->get_id(),
-												activeMask->get_id(),
-												keyCode,
-												(isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()));
+					                            clickedObject->get_id(),
+					                            activeMask->get_id(),
+					                            keyCode,
+					                            (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()));
 				}
 			}
 		}
@@ -186,6 +186,21 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							auto combo = inputListModal->getComboBoxComponent("Input List Combo");
 							auto comboPopup = combo->getRootMenu();
 
+							auto selectedIndex = -1;
+							auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
+							if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
+							{
+								auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
+
+								if (nullptr != child)
+								{
+									if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
+									{
+										selectedIndex = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
+									}
+								}
+							}
+
 							for (std::uint32_t i = 0; i < clickedList->get_number_children(); i++)
 							{
 								auto child = clickedList->get_object_by_id(clickedList->get_child_id(static_cast<std::uint16_t>(i)), parentWorkingSet->get_object_tree());
@@ -193,9 +208,21 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								if (nullptr != child)
 								{
 									currentModalComponentCache.push_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
-									comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i))));
+									auto text = "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i)));
+									if (child && child->get_object_type() == isobus::VirtualTerminalObjectType::OutputString)
+									{
+										text = std::static_pointer_cast<isobus::OutputString>(child)->displayed_value(parentWorkingSet);
+									}
+
+									comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, text);
 								}
 							}
+
+							if (selectedIndex != -1)
+							{
+								combo->setSelectedItemIndex(selectedIndex);
+							}
+
 							inputListModal->addButton("OK", 0);
 							auto resultCallback = [this, clickedList](int result) {
 								auto inputCombo = inputListModal->getComboBoxComponent("Input List Combo");
