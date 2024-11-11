@@ -55,7 +55,7 @@ Supported features:
 - Output meter (except tick marks and target line)
 - Picture graphics (with and without run-length encoding)
 - Output Strings (partial - font clipping is not compliant)
-- Input lists (partial - drawing the selector needs work)
+- Input lists
 - Most relevant VT server CAN messages
 - Logging
 - Multiple simultaneous VT clients
