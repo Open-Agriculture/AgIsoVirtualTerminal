@@ -309,7 +309,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							}
 
 							inputNumberSlider.reset(new Slider(Slider::SliderStyle::LinearHorizontal, Slider::TextBoxAbove));
-							inputNumberSlider->setRange((clickedNumber->get_minimum_value() + clickedNumber->get_offset()) * clickedNumber->get_scale(), (clickedNumber->get_maximum_value() + clickedNumber->get_offset()) * clickedNumber->get_scale());
+							inputNumberSlider->setRange((static_cast<float>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
+							                            (static_cast<float>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale());
 							inputNumberSlider->setNumDecimalPlacesToDisplay(clickedNumber->get_number_of_decimals());
 							inputNumberSlider->setValue(scaledValue, NotificationType::dontSendNotification);
 							inputNumberSlider->setSize(400, 80);
