@@ -44,7 +44,7 @@ void InputNumberComponent::paint(Graphics &g)
 		    (isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type()))
 		{
 			auto font = std::static_pointer_cast<isobus::FontAttributes>(child);
-			auto colour = parentWorkingSet->get_colour(font->get_background_color());
+			auto colour = parentWorkingSet->get_colour(font->get_colour());
 			Font juceFont(Font::getDefaultMonospacedFontName(), font->get_font_height_pixels(), Font::FontStyleFlags::plain);
 			auto fontWidth = juceFont.getStringWidthFloat("1");
 			juceFont.setHorizontalScale(static_cast<float>(font->get_font_width_pixels()) / fontWidth);
