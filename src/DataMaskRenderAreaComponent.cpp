@@ -187,16 +187,20 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							auto comboPopup = combo->getRootMenu();
 
 							auto selectedIndex = -1;
-							auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
-							if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
+
+							if (clickedList->get_variable_reference() != isobus::NULL_OBJECT_ID)
 							{
 								auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
-
-								if (nullptr != child)
+								if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 								{
-									if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
+									auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
+
+									if (nullptr != child)
 									{
-										selectedIndex = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
+										if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
+										{
+											selectedIndex = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
+										}
 									}
 								}
 							}
