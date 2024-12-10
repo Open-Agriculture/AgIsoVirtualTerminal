@@ -186,7 +186,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							auto combo = inputListModal->getComboBoxComponent("Input List Combo");
 							auto comboPopup = combo->getRootMenu();
 
-							auto selectedIndex = -1;
+							auto selectedIndex = clickedList->get_value();
 
 							if (clickedList->get_variable_reference() != isobus::NULL_OBJECT_ID)
 							{
