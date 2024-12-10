@@ -218,7 +218,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									auto text = "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i)));
 									if (child && child->get_object_type() == isobus::VirtualTerminalObjectType::OutputString)
 									{
-										text = std::static_pointer_cast<isobus::OutputString>(child)->displayed_value(parentWorkingSet);
+										text = std::static_pointer_cast<isobus::OutputString>(child)->displayed_value(parentWorkingSet->get_object_tree());
 									}
 
 									comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, text);
