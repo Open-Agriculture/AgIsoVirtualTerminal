@@ -190,17 +190,13 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 							if (clickedList->get_variable_reference() != isobus::NULL_OBJECT_ID)
 							{
-								auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
-								if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
-								{
-									auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
+								auto referencedVariable = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
 
-									if (nullptr != child)
+								if (nullptr != referencedVariable)
+								{
+									if (isobus::VirtualTerminalObjectType::NumberVariable == referencedVariable->get_object_type())
 									{
-										if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
-										{
-											selectedIndex = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
-										}
+										selectedIndex = std::static_pointer_cast<isobus::NumberVariable>(referencedVariable)->get_value();
 									}
 								}
 							}
