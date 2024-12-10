@@ -274,6 +274,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 								this->inputListModal->exitModalState();
 								parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								ownerServer.onRepaintEventDispatcher.call(parentWorkingSet);
 								ownerServer.process_macro(clickedList, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
 								inputListModal.reset();
 								repaint();
