@@ -186,7 +186,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							auto combo = inputListModal->getComboBoxComponent("Input List Combo");
 							auto comboPopup = combo->getRootMenu();
 
-							auto selectedIndex = clickedList->get_value();
+							auto selectedIndex = -1;
 
 							if (clickedList->get_variable_reference() != isobus::NULL_OBJECT_ID)
 							{
@@ -199,6 +199,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										selectedIndex = std::static_pointer_cast<isobus::NumberVariable>(referencedVariable)->get_value();
 									}
 								}
+							}
+							else
+							{
+								selectedIndex = clickedList->get_value();
 							}
 
 							for (std::uint32_t i = 0; i < clickedList->get_number_children(); i++)
