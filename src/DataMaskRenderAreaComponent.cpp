@@ -320,7 +320,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							inputNumberSlider->setValue(scaledValue, NotificationType::dontSendNotification);
 							inputNumberSlider->setSize(400, 80);
 
-							inputNumberListener.set_last_value(clickedNumber->get_value());
+							inputNumberListener.set_last_value(inputNumberSlider->getValue());
 							inputNumberListener.set_target(clickedNumber);
 							inputNumberSlider->addListener(&inputNumberListener);
 
