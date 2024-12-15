@@ -24,6 +24,8 @@ public:
 
 	void paint(Graphics &g) override;
 
+	std::shared_ptr<Component> getChildComponent() const;
+
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::shared_ptr<Component> childComponent;

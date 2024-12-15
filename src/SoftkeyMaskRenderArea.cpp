@@ -4,6 +4,7 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "JuceManagedWorkingSetCache.hpp"
+#include "KeyComponent.hpp"
 #include "ServerMainComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 
@@ -110,13 +111,14 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 			ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 
-			std::uint8_t keyCode = 1;
-
 			if (nullptr != clickedObject)
 			{
+				std::uint8_t keyCode = 1;
+				std::uint8_t keyPositon = KeyComponent::InvalidSoftKeyPos;
 				if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type())
 				{
 					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
+					keyPositon = std::static_pointer_cast<KeyComponent>(clickedObject)->getKeyPosition();
 				}
 
 				ownerServer.send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
@@ -128,7 +130,8 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 				                            clickedObject->get_id(),
 				                            activeMask->get_id(),
 				                            keyCode,
-				                            true);
+				                            true,
+				                            keyPositon);
 			}
 		}
 	}
@@ -171,24 +174,30 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 			ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 
 			std::uint8_t keyCode = 1;
+			std::uint8_t keyPosition = KeyComponent::InvalidSoftKeyPos;
 
 			if (nullptr != clickedObject)
 			{
 				if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type())
 				{
 					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
+					keyPosition = std::static_pointer_cast<KeyComponent>(clickedObject)->getKeyPosition();
 				}
 
-				ownerServer.send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
-				                                             clickedObject->get_id(),
-				                                             parentMask->get_id(),
-				                                             keyCode,
-				                                             ownerServer.get_active_working_set()->get_control_function());
+				if (!ownerServer.is_key_position_released_by_mask_change(keyPosition))
+				{
+					ownerServer.send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+					                                             clickedObject->get_id(),
+					                                             parentMask->get_id(),
+					                                             keyCode,
+					                                             ownerServer.get_active_working_set()->get_control_function());
+				}
 				ownerServer.set_button_released(ownerServer.get_active_working_set(),
 				                                clickedObject->get_id(),
 				                                activeMask->get_id(),
 				                                keyCode,
-				                                true);
+				                                true,
+				                                keyPosition);
 			}
 		}
 	}
