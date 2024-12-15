@@ -39,3 +39,8 @@ void ObjectPointerComponent::on_content_changed(bool initial)
 void ObjectPointerComponent::paint(Graphics &)
 {
 }
+
+std::shared_ptr<Component> ObjectPointerComponent::getChildComponent() const
+{
+	return childComponent;
+}
