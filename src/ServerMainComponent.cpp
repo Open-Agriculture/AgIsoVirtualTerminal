@@ -7,6 +7,7 @@
 
 #include "AlarmMaskAudio.h"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "KeyComponent.hpp"
 #include "Main.hpp"
 #include "ShortcutsWindow.hpp"
 #include "isobus/utility/system_timing.hpp"
@@ -1225,10 +1226,12 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 
 		dataMaskRenderer.on_change_active_mask(ws);
 		softKeyMaskRenderer.on_change_active_mask(ws);
+		handle_softkey_release_if_mask_changed();
 		activeWorkingSet = ws;
 		process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
 		ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); }));
 		ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
+		ws->save_callback_handle(get_on_change_active_softkey_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t affectedMask, std::uint16_t newSoftKeyMask) { this->on_change_active_softkey_mask_callback(affectedWorkingSet, affectedMask, newSoftKeyMask); }));
 
 		if (send_status_message())
 		{
@@ -1249,10 +1252,12 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 	}
 }
 
-void ServerMainComponent::set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey)
+void ServerMainComponent::set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, uint8_t pos)
 {
-	HeldButtonData buttonData(workingSet, objectID, maskObjectID, keyCode, isSoftKey);
+	ServerMainComponent::HeldButtonData buttonData(workingSet, objectID, activeMaskID, keyCode, isSoftKey, pos);
 	bool alreadyHeld = false;
+
+	softKeyPositionReleasedByMaskChange = KeyComponent::InvalidSoftKeyPos;
 
 	for (auto &button : heldButtons)
 	{
@@ -1269,15 +1274,42 @@ void ServerMainComponent::set_button_held(std::shared_ptr<isobus::VirtualTermina
 	}
 }
 
-void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey)
+bool ServerMainComponent::is_key_position_released_by_mask_change(std::uint8_t pos) const
 {
-	HeldButtonData buttonData(workingSet, objectID, maskObjectID, keyCode, isSoftKey);
-	bool alreadyHeld = false;
+	return softKeyPositionReleasedByMaskChange == pos;
+}
 
+void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, uint8_t pos)
+{
+	HeldButtonData buttonData(workingSet, objectID, activeMaskID, keyCode, isSoftKey, pos);
 	auto found = std::find(heldButtons.begin(), heldButtons.end(), buttonData);
 	if (heldButtons.end() != found)
 	{
 		heldButtons.erase(found);
+	}
+}
+
+void ServerMainComponent::handle_softkey_release_if_mask_changed()
+{
+	for (auto it = heldButtons.begin(); it != heldButtons.end();)
+	{
+		if ((*it).isSoftKey)
+		{
+			send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+			                                 (*it).buttonObjectID,
+			                                 (*it).activeMaskObjectID,
+			                                 (*it).buttonKeyCode,
+			                                 get_active_working_set()->get_control_function());
+			// In the case if a currently pressed softkey is being replaced with a new one during a softkey mask change
+			// the mouseUp event on the newly added key will not be called, however the mouseRelease will.
+			// To prevent sending the unneeded mouse release events in this scenario we cache the softkey positions of the pressed and replaced keys.
+			softKeyPositionReleasedByMaskChange = (*it).keyPosition;
+			it = heldButtons.erase(it);
+		}
+		else
+		{
+			it++;
+		}
 	}
 }
 
@@ -1403,13 +1435,14 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 	mParent.popupMenu.reset();
 }
 
-ServerMainComponent::HeldButtonData::HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey) :
+ServerMainComponent::HeldButtonData::HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, uint8_t position) :
   isSoftKey(isSoftKey),
   associatedWorkingSet(workingSet),
   timestamp_ms(isobus::SystemTiming::get_timestamp_ms()),
   buttonObjectID(objectID),
-  activeMaskObjectID(maskObjectID),
-  buttonKeyCode(keyCode)
+  activeMaskObjectID(activeMaskID),
+  buttonKeyCode(keyCode),
+  keyPosition(position)
 {
 }
 
@@ -1418,7 +1451,8 @@ bool ServerMainComponent::HeldButtonData::operator==(const HeldButtonData &other
 	return ((other.activeMaskObjectID == activeMaskObjectID) &&
 	        (other.associatedWorkingSet == associatedWorkingSet) &&
 	        (other.buttonObjectID == buttonObjectID) &&
-	        (other.buttonKeyCode == buttonKeyCode));
+	        (other.buttonKeyCode == buttonKeyCode) &&
+	        (other.keyPosition == keyPosition));
 }
 
 ServerMainComponent::VTVersion ServerMainComponent::get_version_from_setting(std::uint8_t aVersion)
@@ -1524,6 +1558,19 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 		const MessageManagerLock mmLock;
 
 		dataMaskRenderer.on_change_active_mask(activeWorkingSet);
+		if (activeWorkingSetDataMaskObjectID != newMask)
+		{
+			/*
+       * if a Soft Key is pressed and the Data/Alarm Mask is changed to a new Data/Alarm Mask
+       * that is using the same Soft Key Mask, the VT shall send a Soft Key Activation message indicating released
+       * and shall then ignore the Soft Key until it has been released.
+       * ...
+       * If a Change Active Mask command ... results in no change of the current
+       * Active Data/Alarm Mask ..., then there is also no change to the pressed/held/
+       * released state of any ... Soft Keys
+       */
+			handle_softkey_release_if_mask_changed();
+		}
 		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
 
 		auto activeMask = affectedWorkingSet->get_object_by_id(newMask);
@@ -1584,6 +1631,27 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
 				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
 			}
+		}
+	}
+}
+
+void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, uint16_t targetDataOrAlarmMask, uint16_t newSoftKeyMask)
+{
+	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
+	{
+		const MessageManagerLock mmLock;
+		if (activeWorkingSetDataMaskObjectID == targetDataOrAlarmMask)
+		{
+			if (activeWorkingSetSoftkeyMaskObjectID != newSoftKeyMask)
+			{
+				softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
+				/*
+         * If ... a Change Soft Key Mask command results in no change of the current ... Active Soft Key Mask,
+         * then there is also no change to the pressed/held/released state of any ... Soft Keys
+         */
+				handle_softkey_release_if_mask_changed();
+			}
+			activeWorkingSetSoftkeyMaskObjectID = newSoftKeyMask;
 		}
 	}
 }
@@ -2021,4 +2089,24 @@ void ServerMainComponent::clear_iso_data()
 std::string ServerMainComponent::getAppDataDir()
 {
 	return juce::String(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture").toStdString();
+}
+
+uint8_t ServerMainComponent::get_softkey_index_on_softkey_mask(uint16_t keyID)
+{
+	auto object = activeWorkingSet->get_object_by_id(activeWorkingSetSoftkeyMaskObjectID);
+	if (nullptr != object && isobus::VirtualTerminalObjectType::SoftKeyMask == object->get_object_type())
+	{
+		for (int i = 0; i < object->get_number_children(); i++)
+		{
+			auto child = object->get_object_by_id(object->get_child_id(i), activeWorkingSet->get_object_tree());
+			if (nullptr != child && isobus::VirtualTerminalObjectType::Key == object->get_object_type())
+			{
+				if (object->get_child_id(i) == keyID)
+				{
+					return i;
+				}
+			}
+		}
+	}
+	return KeyComponent::InvalidSoftKeyPos;
 }

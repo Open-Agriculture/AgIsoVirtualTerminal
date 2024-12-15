@@ -117,8 +117,10 @@ public:
 
 	void change_selected_working_set(std::uint8_t index);
 
-	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
-	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
+	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t pos);
+	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t pos);
+
+	bool is_key_position_released_by_mask_change(std::uint8_t pos) const;
 
 	void repaint_on_next_update();
 
@@ -167,13 +169,14 @@ private:
 
 	struct HeldButtonData
 	{
-		HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
+		HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t position);
 		bool operator==(const HeldButtonData &other) const;
 		std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> associatedWorkingSet;
 		std::uint32_t timestamp_ms;
 		std::uint16_t buttonObjectID;
 		std::uint16_t activeMaskObjectID;
 		std::uint8_t buttonKeyCode;
+		std::uint8_t keyPosition; // applicable only for softkeys
 		bool isSoftKey;
 	};
 
@@ -185,10 +188,20 @@ private:
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
+	void on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t targetDataOrAlarmMask, std::uint16_t newSoftKeyMask);
+	void handle_softkey_release_if_mask_changed();
 	void repaint_data_and_soft_key_mask();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
+
+	/**
+	 * @brief get_softkey_index_on_softkey_mask
+	 * @param keyID ID of the key to be queried
+	 * @return The 0 based child index of the key specified by the keyID in the active softkey mask or
+	 * KeyComponent::InvalidSoftKeyPos (255) if the specified key is not part of the current softkey mask
+	 */
+	std::uint8_t get_softkey_index_on_softkey_mask(std::uint16_t keyID);
 
 	const std::string ISO_DATA_PATH = "iso_data";
 	std::string screenCaptureDirArgument = "";
@@ -215,6 +228,7 @@ private:
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
+	std::uint8_t softKeyPositionReleasedByMaskChange;
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;
 	bool needToRepaint = false;
