@@ -10,6 +10,7 @@
 #include <filesystem>
 
 class ServerMainComponent : public juce::Component
+  , public juce::KeyListener
   , public isobus::VirtualTerminalServer
   , public Timer
   , public ApplicationCommandTarget
@@ -34,6 +35,9 @@ public:
 	                                                     std::uint16_t lastWideCharInInquiryRange,
 	                                                     std::uint8_t &numberOfRanges,
 	                                                     std::vector<std::uint8_t> &wideCharRangeArray) override;
+
+	bool keyPressed(const juce::KeyPress &key, juce::Component *originatingComponent) override;
+	bool keyStateChanged(bool isKeyDown, juce::Component *originatingComponent) override;
 
 	std::vector<std::array<std::uint8_t, 7>> get_versions(isobus::NAME clientNAME) override;
 	std::vector<std::uint8_t> get_supported_objects() const override;
@@ -115,6 +119,7 @@ private:
 		ConfigureReportedVersion,
 		ConfigureReportedHardware,
 		ConfigureLogging,
+		ConfigureShortcuts,
 		GenerateLogPackage,
 		ClearISOData,
 		ConfigureCANHardware,
@@ -178,6 +183,11 @@ private:
 	bool needToRepaint = false;
 	bool autostart = false;
 	bool hasStartBeenCalled = false;
+
+	int alarmAckKeyCode = juce::KeyPress::escapeKey;
+	bool alarmAckKeyPressed = false;
+	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
+	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };
