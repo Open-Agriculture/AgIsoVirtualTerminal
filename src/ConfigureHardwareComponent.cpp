@@ -10,11 +10,7 @@
 #include "isobus/isobus/can_stack_logger.hpp"
 #include "isobus/utility/to_string.hpp"
 
-#ifdef JUCE_WINDOWS
-#include "isobus/hardware_integration/toucan_vscp_canal.hpp"
-#elif JUCE_LINUX
-#include "isobus/hardware_integration/socket_can_interface.hpp"
-#endif
+#include "isobus/hardware_integration/available_can_drivers.hpp"
 
 ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &parent, std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers) :
   okButton("OK"),
@@ -30,10 +26,11 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 	hardwareInterfaceSelector.setTextWhenNothingSelected("Select Hardware Interface");
 
 #ifdef ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE
-	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec" }, 1);
+	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec", "NTCAN" }, 1);
 #else
-	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN (not supported with mingw)", "TouCAN", "SysTec" }, 1);
+	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN (not supported with mingw)", "TouCAN", "SysTec", "NTCAN" }, 1);
 #endif
+
 	int selectedID = 1;
 
 	for (std::uint8_t i = 0; i < parentCANDrivers.size(); i++)
@@ -57,6 +54,14 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 		{
 			touCANSerialEditor.setVisible(false);
 		}
+		if (5 == hardwareInterfaceSelector.getSelectedId())
+		{
+			ntCANChannelEditor.setVisible(true);
+		}
+		else
+		{
+			ntCANChannelEditor.setVisible(false);
+		}
 		repaint();
 	};
 	addAndMakeVisible(hardwareInterfaceSelector);
@@ -68,6 +73,12 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 	touCANSerialEditor.setTopLeftPosition(10, 140);
 	touCANSerialEditor.setInputFilter(inputFilter, true);
 	addChildComponent(touCANSerialEditor);
+	ntCANChannelEditor.setName("NTCAN Channel");
+	ntCANChannelEditor.setText("0");
+	ntCANChannelEditor.setSize(getWidth() - 20, 30);
+	ntCANChannelEditor.setTopLeftPosition(10, 140);
+	ntCANChannelEditor.setInputFilter(inputFilter, true);
+	addChildComponent(ntCANChannelEditor);
 #elif JUCE_LINUX
 	socketCANNameEditor.setName("SocketCAN Interface Name");
 	socketCANNameEditor.setText(std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->get_device_name());
@@ -83,6 +94,11 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 		{
 			int serial = touCANSerialEditor.getText().trim().getIntValue();
 			std::static_pointer_cast<isobus::TouCANPlugin>(parentCANDrivers.at(hardwareInterfaceSelector.getSelectedId() - 1))->reconfigure(0, static_cast<std::uint32_t>(serial));
+		}
+		else if (5 == hardwareInterfaceSelector.getSelectedId()) // NTCAN
+		{
+			int channel = ntCANChannelEditor.getText().trim().getIntValue();
+			std::static_pointer_cast<isobus::NTCANPlugin>(parentCANDrivers.at(hardwareInterfaceSelector.getSelectedId() - 1))->reconfigure(channel);
 		}
 
 		if (nullptr != isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
@@ -119,6 +135,10 @@ void ConfigureHardwareComponent::paint(Graphics &graphics)
 	if (3 == hardwareInterfaceSelector.getSelectedId())
 	{
 		graphics.drawFittedText("TouCAN Serial Number", touCANSerialEditor.getBounds().getX(), touCANSerialEditor.getBounds().getY() - 14, touCANSerialEditor.getBounds().getWidth(), 12, Justification::centredLeft, 1);
+	}
+	else if (5 == hardwareInterfaceSelector.getSelectedId())
+	{
+		graphics.drawFittedText("NTCAN Serial Number (42=Virtual)", touCANSerialEditor.getBounds().getX(), touCANSerialEditor.getBounds().getY() - 14, touCANSerialEditor.getBounds().getWidth(), 12, Justification::centredLeft, 1);
 	}
 #elif JUCE_LINUX
 	graphics.drawFittedText("Socket CAN Interface Name", socketCANNameEditor.getBounds().getX(), socketCANNameEditor.getBounds().getY() - 14, socketCANNameEditor.getBounds().getWidth(), 12, Justification::centredLeft, 1);

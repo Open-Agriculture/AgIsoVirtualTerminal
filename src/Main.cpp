@@ -85,6 +85,7 @@ public:
 #endif
 			canDrivers.push_back(std::make_shared<isobus::TouCANPlugin>(static_cast<std::int16_t>(0), 0));
 			canDrivers.push_back(std::make_shared<isobus::SysTecWindowsPlugin>());
+			canDrivers.push_back(std::make_shared<isobus::NTCANPlugin>(0));
 #elif defined(JUCE_MAC)
 			canDrivers.push_back(std::make_shared<isobus::MacCANPCANPlugin>(PCAN_USBBUS1));
 #else

@@ -23,6 +23,14 @@ if(WIN32)
     )
   endif()
   list(APPEND CAN_DRIVER "SYS_TEC")
+  if(DEFINED ENV{CanSdkDir})
+    list(APPEND CAN_DRIVER "NTCAN")
+  else()
+    message(
+      STATUS
+        "NTCAN driver will not be supported in this build because the CanSdkDir environment variable is not set"
+    )
+  endif()
 elseif(APPLE)
   set(CAN_DRIVER "MacCANPCAN")
 else()
