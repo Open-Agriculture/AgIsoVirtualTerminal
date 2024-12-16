@@ -7,6 +7,7 @@
 
 #include "AlarmMaskAudio.h"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "ShortcutsWindow.hpp"
 #include "isobus/utility/system_timing.hpp"
 
 #ifdef JUCE_WINDOWS
@@ -66,6 +67,9 @@ ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControl
 	setApplicationCommandManagerToWatch(&mCommandManager);
 	mCommandManager.registerAllCommandsForTarget(this);
 	startTimer(50);
+
+	setWantsKeyboardFocus(true);
+	addKeyListener(this);
 }
 
 ServerMainComponent::~ServerMainComponent()
@@ -173,6 +177,35 @@ isobus::VirtualTerminalBase::SupportedWideCharsErrorCode ServerMainComponent::ge
                                                                                                        std::vector<std::uint8_t> &)
 {
 	return isobus::VirtualTerminalBase::SupportedWideCharsErrorCode::AnyOtherError;
+}
+
+bool ServerMainComponent::keyPressed(const KeyPress &key, Component *originatingComponent)
+{
+	if (key == alarmAckKeyCode && !alarmAckKeyPressed)
+	{
+		for (auto &ws : managedWorkingSetList)
+		{
+			if (activeWorkingSetMasterAddress == ws->get_control_function()->get_address())
+			{
+				alarmAckKeyPressed = true;
+				alarmAckKeyMaskId = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask();
+				alarmAckKeyWs = ws->get_control_function();
+				send_soft_key_activation_message(KeyActivationCode::ButtonPressedOrLatched, isobus::NULL_OBJECT_ID, alarmAckKeyMaskId, 0, alarmAckKeyWs);
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool ServerMainComponent::keyStateChanged(bool isKeyDown, Component *originatingComponent)
+{
+	if (!isKeyDown && alarmAckKeyPressed && !juce::KeyPress::isKeyCurrentlyDown(alarmAckKeyCode))
+	{
+		alarmAckKeyPressed = false;
+		send_soft_key_activation_message(KeyActivationCode::ButtonUnlatchedOrReleased, isobus::NULL_OBJECT_ID, alarmAckKeyMaskId, 0, alarmAckKeyWs);
+	}
+	return false;
 }
 
 std::vector<std::array<std::uint8_t, 7>> ServerMainComponent::get_versions(isobus::NAME clientNAME)
@@ -607,6 +640,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureLanguageCommand));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureReportedVersion));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureReportedHardware));
+	allCommands.add(static_cast<int>(CommandIDs::ConfigureShortcuts));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureLogging));
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackage));
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
@@ -662,6 +696,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::ClearISOData:
 		{
 			result.setInfo("Clear ISO Data", "Clears all saved ISO data", "Troubleshooting", 0);
+		}
+		break;
+
+		case CommandIDs::ConfigureShortcuts:
+		{
+			result.setInfo("Configure shortcuts", "Configure keyboard shortcuts", "Configure", 0);
 		}
 		break;
 
@@ -781,6 +821,14 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu->getComboBoxComponent("Logging Level")->setSelectedItemIndex(static_cast<int>(isobus::CANStackLogger::get_log_level()));
 			popupMenu->addButton("OK", 4, KeyPress(KeyPress::returnKey, 0, 0));
 			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
+			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::ConfigureShortcuts):
+		{
+			popupMenu = std::make_unique<ShortcutsWindow>(alarmAckKeyCode);
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 			retVal = true;
 		}
@@ -955,6 +1003,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedVersion));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureReportedHardware));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureLogging));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureShortcuts));
 
 #ifdef JUCE_WINDOWS
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ConfigureCANHardware));
@@ -1173,6 +1222,12 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			mParent.save_settings();
 		}
 		break;
+
+		case 5: // Shortcuts
+		{
+			mParent.alarmAckKeyCode = dynamic_cast<ShortcutsWindow *>(mParent.popupMenu.get())->selectedKeyCode();
+			mParent.save_settings();
+		}
 
 		default:
 		{
@@ -1500,6 +1555,11 @@ void ServerMainComponent::check_load_settings()
 								isobus::CANStackLogger::info("AutoStart enabled. Starting CAN hardware interface.");
 							}
 						}
+
+						if (!child.getProperty("AlarmAckKey").isVoid())
+						{
+							alarmAckKeyCode = static_cast<int>(child.getProperty("AlarmAckKey"));
+						}
 					}
 					index++;
 					child = settings.getChild(index);
@@ -1592,6 +1652,7 @@ void ServerMainComponent::save_settings()
 		}
 		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
+		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
