@@ -39,8 +39,7 @@
 
 std::vector<JuceManagedWorkingSetCache::ComponentCacheClass> JuceManagedWorkingSetCache::workingSetComponentCache;
 int JuceManagedWorkingSetCache::dataAndAlarmMaskSize = 480;
-int JuceManagedWorkingSetCache::keyWidth = 60;
-int JuceManagedWorkingSetCache::keyHeight = 60;
+SoftKeyMaskDimensions JuceManagedWorkingSetCache::softKeyDimensionInfo = SoftKeyMaskDimensions();
 
 std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::shared_ptr<isobus::VTObject> sourceObject)
 {
@@ -90,13 +89,15 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 
 			case isobus::VirtualTerminalObjectType::SoftKeyMask:
 			{
-				retVal = std::make_shared<SoftKeyMaskComponent>(workingSet, *std::static_pointer_cast<isobus::SoftKeyMask>(sourceObject), dataAndAlarmMaskSize, keyHeight, keyWidth);
+				retVal = std::make_shared<SoftKeyMaskComponent>(workingSet,
+																*std::static_pointer_cast<isobus::SoftKeyMask>(sourceObject),
+																softKeyDimensionInfo);
 			}
 			break;
 
 			case isobus::VirtualTerminalObjectType::Key:
 			{
-				retVal = std::make_shared<KeyComponent>(workingSet, *std::static_pointer_cast<isobus::Key>(sourceObject), keyWidth, keyHeight);
+				retVal = std::make_shared<KeyComponent>(workingSet, *std::static_pointer_cast<isobus::Key>(sourceObject), softKeyDimensionInfo.keyWidth, softKeyDimensionInfo.keyHeight);
 			}
 			break;
 
@@ -210,7 +211,7 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 
 			case isobus::VirtualTerminalObjectType::WorkingSet:
 			{
-				retVal = std::make_shared<WorkingSetComponent>(workingSet, *std::static_pointer_cast<isobus::WorkingSet>(sourceObject), keyHeight, keyWidth);
+				retVal = std::make_shared<WorkingSetComponent>(workingSet, *std::static_pointer_cast<isobus::WorkingSet>(sourceObject), softKeyDimensionInfo.keyHeight, softKeyDimensionInfo.keyWidth);
 			}
 			break;
 
@@ -228,17 +229,7 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 	return retVal;
 }
 
-void JuceManagedWorkingSetCache::set_data_alarm_mask_size(int size)
+void JuceManagedWorkingSetCache::setSoftKeyMaskDimensionInfo(const SoftKeyMaskDimensions &info)
 {
-	dataAndAlarmMaskSize = size;
-}
-
-void JuceManagedWorkingSetCache::set_soft_key_width(int size)
-{
-	keyWidth = size;
-}
-
-void JuceManagedWorkingSetCache::set_soft_key_height(int size)
-{
-	keyHeight = size;
+	softKeyDimensionInfo = info;
 }
