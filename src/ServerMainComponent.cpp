@@ -1220,7 +1220,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 
 		case 5: // Shortcuts
 		{
-			mParent.alarmAckKeyCode = dynamic_cast<ShortcutsWindow *>(mParent.popupMenu.get())->selectedKeyCode();
+			mParent.alarmAckKeyCode = dynamic_cast<ShortcutsWindow *>(mParent.popupMenu.get())->alarmAckKeyCode();
 			mParent.save_settings();
 		}
 

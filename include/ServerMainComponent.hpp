@@ -172,8 +172,11 @@ private:
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::unique_ptr<ConfigureHardwareWindow> configureHardwareWindow;
+	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
+	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
+	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	std::uint8_t numberOfPoolsToRender = 0;
 	std::uint8_t numberPhysicalSoftKeys = 6;
 	std::uint8_t numberVirtualSoftKeys = 64;
@@ -183,11 +186,7 @@ private:
 	bool needToRepaint = false;
 	bool autostart = false;
 	bool hasStartBeenCalled = false;
-
-	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	bool alarmAckKeyPressed = false;
-	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
-	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };
