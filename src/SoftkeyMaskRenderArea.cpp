@@ -213,7 +213,7 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 
 		if ((nullptr != child) &&
 		    (objectCanBeClicked(child)) &&
-		    (isClickWithinBounds(x, y, 0, 0, ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_width())))
+		    (isClickWithinBounds(x, y, 0, 0, ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_height())))
 		{
 			return child;
 		}
@@ -224,26 +224,35 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 	}
 	else
 	{
+		int row = 0, col = (ownerServer.get_physical_soft_key_columns() - 1);
 		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
 		{
 			auto child = object->get_object_by_id(object->get_child_id(i), parentWorkingSet->get_object_tree());
 
 			// Knowing the location requires some knowledge of how the mask is displaying each key...
 
+			int colX = SoftKeyMaskDimensions::padding + col * (ownerServer.get_soft_key_descriptor_x_pixel_width() + SoftKeyMaskDimensions::padding);
+			int rowY = SoftKeyMaskDimensions::padding + row * (ownerServer.get_soft_key_descriptor_y_pixel_height() + SoftKeyMaskDimensions::padding);
 			if ((nullptr != child) &&
 			    (objectCanBeClicked(child)) &&
-			    (isClickWithinBounds(x, y, 10, 10 + (ownerServer.get_soft_key_descriptor_x_pixel_width() * i) + (10 * i), ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_width())))
+					(isClickWithinBounds(x, y, colX, rowY, ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_height())))
 			{
 				return child;
 			}
 			else if (!objectCanBeClicked(child))
 			{
-				retVal = getClickedChildRecursive(child, x - 10, y - (10 + (ownerServer.get_soft_key_descriptor_y_pixel_width() * i) + (10 * i)));
+				retVal = getClickedChildRecursive(child, x - colX, y - rowY);
 
 				if (nullptr != retVal)
 				{
 					break;
 				}
+			}
+			row++;
+			if (row >= ownerServer.get_physical_soft_key_rows())
+			{
+				row = 0;
+				col--;
 			}
 		}
 	}

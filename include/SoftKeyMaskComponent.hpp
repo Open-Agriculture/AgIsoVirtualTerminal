@@ -14,11 +14,31 @@
 
 #include "JuceHeader.h"
 
+class SoftKeyMaskDimensions
+{
+public:
+	SoftKeyMaskDimensions() = default;
+
+	int keyHeight = 60;
+	int keyWidth = 60;
+	int keyCount() const;
+	int rowCount = 6;
+	int columnCount = 1;
+	int height = 480;
+	static const std::uint8_t padding = 10;
+
+	/**
+	 * @brief totalWidth
+	 * @return The total width of the softkeymask (including inner and outer column paddings)
+	 */
+	int totalWidth() const;
+};
+
 class SoftKeyMaskComponent : public isobus::SoftKeyMask
   , public Component
 {
 public:
-	SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject, int dataAndAlarmMaskSize, int keyHeight, int keyWidth);
+	SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject, SoftKeyMaskDimensions dimensions);
 
 	void on_content_changed(bool initial = false);
 
@@ -27,8 +47,7 @@ public:
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
-	int softKeyHeight = 60;
-	int softKeyWidth = 60;
+	SoftKeyMaskDimensions dimensionInfo;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoftKeyMaskComponent)
 };

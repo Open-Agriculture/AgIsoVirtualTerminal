@@ -10,6 +10,8 @@
 #include "ShortcutsWindow.hpp"
 #include "isobus/utility/system_timing.hpp"
 
+#include "SoftKeyMaskRenderAreaComponent.hpp"
+
 #ifdef JUCE_WINDOWS
 #include "isobus/hardware_integration/toucan_vscp_canal.hpp"
 #elif JUCE_LINUX
@@ -99,28 +101,29 @@ std::uint8_t ServerMainComponent::get_soft_key_descriptor_x_pixel_width() const
 	{
 		retVal = 60; // 60x60 is the minimum size for VT Version 6+
 	}
-	if (softKeyDesignatorWidth > retVal)
+	if (softKeyMaskDimensions.keyWidth > retVal)
 	{
-		retVal = softKeyDesignatorWidth;
+		retVal = softKeyMaskDimensions.keyWidth;
 	}
 	return retVal;
 }
 
-std::uint8_t ServerMainComponent::get_soft_key_descriptor_y_pixel_width() const
+std::uint8_t ServerMainComponent::get_soft_key_descriptor_y_pixel_height() const
 {
 	// Min: 60 pixels wide
 	std::uint8_t retVal = 60;
 
-	if (softKeyDesignatorHeight > retVal)
+	if (softKeyMaskDimensions.keyHeight > retVal)
 	{
-		retVal = softKeyDesignatorHeight;
+		retVal = softKeyMaskDimensions.keyHeight;
 	}
 	return retVal;
 }
+
 std::uint8_t ServerMainComponent::get_number_of_possible_virtual_soft_keys_in_soft_key_mask() const
 {
 	constexpr std::uint8_t MAX_VIRTUAL_SOFT_KEYS = 64;
-	std::uint8_t retVal = numberVirtualSoftKeys;
+	std::uint8_t retVal = softKeyMaskDimensions.keyCount();
 
 	// VT Version 3 and prior shall support a maximum of 64 virtual Soft Keys per Soft Key Mask and shall
 	// support as a minimum the number of reported physical Soft Keys
@@ -148,12 +151,22 @@ std::uint8_t ServerMainComponent::get_number_of_physical_soft_keys() const
 	if (versionToReport >= isobus::VirtualTerminalBase::VTVersion::Version4)
 	{
 		// VT Version 4 and later VTs shall provide at least 6 physical Soft Keys.
-		return numberPhysicalSoftKeys < MIN_PHYSICAL_SOFT_KEYS ? MIN_PHYSICAL_SOFT_KEYS : numberPhysicalSoftKeys;
+		return softKeyMaskDimensions.keyCount() < MIN_PHYSICAL_SOFT_KEYS ? MIN_PHYSICAL_SOFT_KEYS : softKeyMaskDimensions.keyCount();
 	}
 	else
 	{
-		return numberPhysicalSoftKeys;
+		return softKeyMaskDimensions.keyCount();
 	}
+}
+
+uint8_t ServerMainComponent::get_physical_soft_key_columns() const
+{
+	return softKeyMaskDimensions.columnCount < 1 ? 1 : softKeyMaskDimensions.columnCount;
+}
+
+uint8_t ServerMainComponent::get_physical_soft_key_rows() const
+{
+	return softKeyMaskDimensions.rowCount < 1 ? 1 : softKeyMaskDimensions.rowCount;
 }
 
 std::uint16_t ServerMainComponent::get_data_mask_area_size_x_pixels() const
@@ -621,7 +634,10 @@ void ServerMainComponent::resized()
 
 	workingSetSelector.setBounds(0, lMenuBarHeight + 4, 100, 600);
 	dataMaskRenderer.setBounds(100, lMenuBarHeight + 4, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
-	softKeyMaskRenderer.setBounds(100 + get_data_mask_area_size_x_pixels(), lMenuBarHeight + 4, 100, get_data_mask_area_size_y_pixels());
+	softKeyMaskRenderer.setBounds(100 + get_data_mask_area_size_x_pixels(),
+	                              lMenuBarHeight + 4,
+	                              2 * SoftKeyMaskDimensions::padding + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::padding + get_soft_key_descriptor_y_pixel_height()),
+	                              get_data_mask_area_size_y_pixels());
 	loggerViewport.setSize(getWidth(), getHeight() * .2f);
 	loggerViewport.setTopLeftPosition(0, getHeight() * .8f);
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight));
@@ -802,14 +818,16 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		{
 			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Capabilities", "You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients.", MessageBoxIconType::NoIcon);
 			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), "Data Mask Size (height and width)");
-			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_width()), "Soft Key Designator Height (min 60)");
+			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_height()), "Soft Key Designator Height (min 60)");
 			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), "Soft Key Designator Width (min 60)");
-			popupMenu->addTextEditor("Number of Physical Soft Keys", String(get_number_of_physical_soft_keys()), "Number of Physical Soft Keys (min 6)");
+			popupMenu->addTextEditor("Number of Physical Soft Key columns", String(get_physical_soft_key_columns()), "Number of Physical Soft Key columns (min 1)");
+			popupMenu->addTextEditor("Number of Physical Soft Key rows", String(get_physical_soft_key_rows()), "Number of Physical Soft Key rows (min 1)");
 
 			popupMenu->getTextEditor("Data Mask Size (height and width)")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Soft Key Designator Height")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Soft Key Designator Width")->setInputRestrictions(4, "1234567890");
-			popupMenu->getTextEditor("Number of Physical Soft Keys")->setInputRestrictions(2, "1234567890");
+			popupMenu->getTextEditor("Number of Physical Soft Key columns")->setInputRestrictions(1, "1234567890");
+			popupMenu->getTextEditor("Number of Physical Soft Key rows")->setInputRestrictions(2, "1234567890");
 
 			popupMenu->addButton("OK", 3, KeyPress(KeyPress::returnKey, 0, 0));
 			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
@@ -1201,19 +1219,21 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 		case 3: // Save Reported Hardware
 		{
 			auto dataMaskSize = mParent.popupMenu->getTextEditorContents("Data Mask Size (height and width)");
-			auto softKeyDesignatorHeight = mParent.popupMenu->getTextEditorContents("Soft Key Designator Height");
-			auto softKeyDesignatorWidth = mParent.popupMenu->getTextEditorContents("Soft Key Designator Width");
-			auto numberOfPhysicalSoftKeys = mParent.popupMenu->getTextEditorContents("Number of Physical Soft Keys");
-
 			mParent.dataMaskRenderer.setSize(dataMaskSize.getIntValue(), dataMaskSize.getIntValue());
-			mParent.softKeyMaskRenderer.setSize(100, dataMaskSize.getIntValue());
 			mParent.softKeyMaskRenderer.setTopLeftPosition(100 + dataMaskSize.getIntValue(), 4 + juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
-			JuceManagedWorkingSetCache::set_data_alarm_mask_size(dataMaskSize.getIntValue());
-			JuceManagedWorkingSetCache::set_soft_key_height(softKeyDesignatorHeight.getIntValue());
-			JuceManagedWorkingSetCache::set_soft_key_width(softKeyDesignatorWidth.getIntValue());
-			mParent.softKeyDesignatorWidth = softKeyDesignatorWidth.getIntValue();
-			mParent.softKeyDesignatorHeight = softKeyDesignatorHeight.getIntValue();
-			mParent.numberPhysicalSoftKeys = numberOfPhysicalSoftKeys.getIntValue();
+
+			mParent.softKeyMaskDimensions.columnCount = mParent.popupMenu->getTextEditorContents("Number of Physical Soft Key columns").getIntValue();
+			mParent.softKeyMaskDimensions.rowCount = mParent.popupMenu->getTextEditorContents("Number of Physical Soft Key rows").getIntValue();
+			if (mParent.get_number_of_physical_soft_keys() != mParent.softKeyMaskDimensions.keyCount())
+			{
+				mParent.softKeyMaskDimensions.rowCount = (mParent.get_number_of_physical_soft_keys() / mParent.softKeyMaskDimensions.columnCount);
+			}
+
+			mParent.softKeyMaskDimensions.keyWidth = mParent.popupMenu->getTextEditorContents("Soft Key Designator Width").getIntValue();
+			mParent.softKeyMaskDimensions.keyHeight = mParent.popupMenu->getTextEditorContents("Soft Key Designator Height").getIntValue();
+			JuceManagedWorkingSetCache::setSoftKeyMaskDimensionInfo(mParent.softKeyMaskDimensions);
+
+			mParent.softKeyMaskRenderer.setSize(mParent.softKeyMaskDimensions.totalWidth(), dataMaskSize.getIntValue());
 
 			mParent.save_settings();
 			mParent.repaint_data_and_soft_key_mask();
@@ -1490,20 +1510,25 @@ void ServerMainComponent::check_load_settings()
 					{
 						if (!child.getProperty("SoftKeyDesignatorWidth").isVoid())
 						{
-							softKeyDesignatorWidth = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorWidth")));
+							softKeyMaskDimensions.keyWidth = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorWidth")));
 						}
 						if (!child.getProperty("SoftKeyDesignatorHeight").isVoid())
 						{
-							softKeyDesignatorHeight = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorHeight")));
+							softKeyMaskDimensions.keyHeight = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorHeight")));
 						}
-						if (!child.getProperty("PhysicalSoftkeys").isVoid())
+						if (!child.getProperty("SoftkeyColumnCount").isVoid())
 						{
-							numberPhysicalSoftKeys = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("PhysicalSoftkeys")));
+							softKeyMaskDimensions.columnCount = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftkeyColumnCount")));
+						}
+						if (!child.getProperty("SoftkeyRowCount").isVoid())
+						{
+							softKeyMaskDimensions.rowCount = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftkeyRowCount")));
 						}
 						if (!child.getProperty("DataMaskRenderAreaSize").isVoid())
 						{
 							dataMaskRenderer.setSize(static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))), static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))));
-							softKeyMaskRenderer.setSize(100, static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
+							softKeyMaskRenderer.setSize(2 * SoftKeyMaskDimensions::padding + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::padding + get_soft_key_descriptor_y_pixel_height()),
+							                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
 						}
 #ifdef JUCE_WINDOWS
 						if (!child.getProperty("TouCANSerial").isVoid())
@@ -1534,9 +1559,7 @@ void ServerMainComponent::check_load_settings()
 						}
 #endif
 						softKeyMaskRenderer.setTopLeftPosition(100 + dataMaskRenderer.getWidth(), 4 + juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
-						JuceManagedWorkingSetCache::set_data_alarm_mask_size(dataMaskRenderer.getWidth());
-						JuceManagedWorkingSetCache::set_soft_key_height(softKeyDesignatorHeight);
-						JuceManagedWorkingSetCache::set_soft_key_width(softKeyDesignatorWidth);
+						JuceManagedWorkingSetCache::setSoftKeyMaskDimensionInfo(softKeyMaskDimensions);
 					}
 					else if (Identifier("Logging") == child.getType())
 					{
@@ -1640,9 +1663,10 @@ void ServerMainComponent::save_settings()
 		languageCommandSettings.setProperty("LanguageCode", String(languageCommandInterface.get_language_code()), nullptr);
 		compatibilitySettings.setProperty("Version", get_vt_version_byte(versionToReport), nullptr);
 		hardwareSettings.setProperty("DataMaskRenderAreaSize", dataMaskRenderer.getWidth(), nullptr);
-		hardwareSettings.setProperty("SoftKeyDesignatorWidth", get_soft_key_descriptor_x_pixel_width(), nullptr);
-		hardwareSettings.setProperty("SoftKeyDesignatorHeight", get_soft_key_descriptor_y_pixel_width(), nullptr);
-		hardwareSettings.setProperty("PhysicalSoftkeys", get_number_of_physical_soft_keys(), nullptr);
+		hardwareSettings.setProperty("SoftKeyDesignatorWidth", softKeyMaskDimensions.keyWidth, nullptr);
+		hardwareSettings.setProperty("SoftKeyDesignatorHeight", softKeyMaskDimensions.keyHeight, nullptr);
+		hardwareSettings.setProperty("SoftkeyColumnCount", softKeyMaskDimensions.columnCount, nullptr);
+		hardwareSettings.setProperty("SoftkeyRowCount", softKeyMaskDimensions.rowCount, nullptr);
 
 #ifdef JUCE_WINDOWS
 		hardwareSettings.setProperty("TouCANSerial", static_cast<int>(std::static_pointer_cast<isobus::TouCANPlugin>(parentCANDrivers.at(2))->get_serial_number()), nullptr);
