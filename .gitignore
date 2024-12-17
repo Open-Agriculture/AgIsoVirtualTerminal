@@ -36,3 +36,9 @@
 .vscode/
 out
 build
+
+# QtCreator cmake temp files
+CMakeLists.txt.user
+
+# KDE hidden file artifacts
+.directory
