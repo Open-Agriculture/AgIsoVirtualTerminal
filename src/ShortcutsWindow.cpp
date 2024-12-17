@@ -5,57 +5,57 @@
 *******************************************************************************/
 #include "ShortcutsWindow.hpp"
 
-ShortcutsWindow::ShortcutsWindow(int currentKeyCode, Component *associatedComponent) :
+ShortcutsWindow::ShortcutsWindow(int alarmAckKeyCode, Component *associatedComponent) :
   juce::AlertWindow("Keyboard shortcuts", "", MessageBoxIconType::NoIcon, associatedComponent),
-  selectedKeyCode_(currentKeyCode)
+  alarmAckKey(alarmAckKeyCode)
 {
-	juce::KeyPress key(currentKeyCode);
-	addCustomComponent(&selectKeyButton);
-	selectKeyButton.onClick = [this]() { setKeySelectionMode(true); };
-	updateAlarmAckButtonLabel(key);
+	juce::KeyPress alarmAckKey(alarmAckKeyCode);
+	addCustomComponent(&selectAlarmAckKeyButton);
+	selectAlarmAckKeyButton.onClick = [this]() { setAlarmAckKeySelection(true); };
+	updateAlarmAckButtonLabel(alarmAckKey);
 
 	addButton("OK", 5, KeyPress(KeyPress::returnKey, 0, 0));
 	addButton("Cancel", 0);
 
-	setKeySelectionMode(false);
+	setAlarmAckKeySelection(false);
 }
 
 void ShortcutsWindow::resized()
 {
 	auto area = getLocalBounds();
 	auto customArea = area.removeFromTop(40).removeFromLeft(area.getWidth() / 1.2);
-	selectKeyButton.setBounds(customArea);
+	selectAlarmAckKeyButton.setBounds(customArea);
 }
 
 bool ShortcutsWindow::keyPressed(const KeyPress &key, Component *originatingComponent)
 {
 	if (keySelectionMode)
 	{
-		selectedKeyCode_ = key.getKeyCode();
-		setKeySelectionMode(false);
+		alarmAckKey = key.getKeyCode();
+		setAlarmAckKeySelection(false);
 		updateAlarmAckButtonLabel(key);
 		return true;
 	}
 	return false;
 }
 
-int ShortcutsWindow::selectedKeyCode() const
+int ShortcutsWindow::alarmAckKeyCode() const
 {
-	return selectedKeyCode_;
+	return alarmAckKey;
 }
 
 void ShortcutsWindow::updateAlarmAckButtonLabel(const KeyPress &key)
 {
-	selectKeyButton.setButtonText("Alarm acknowledge key: " + key.getTextDescription());
+	selectAlarmAckKeyButton.setButtonText("Alarm acknowledge key: " + key.getTextDescription());
 }
 
-void ShortcutsWindow::setKeySelectionMode(bool isEnabled)
+void ShortcutsWindow::setAlarmAckKeySelection(bool isEnabled)
 {
 	keySelectionMode = isEnabled;
-	selectKeyButton.setEnabled(!isEnabled);
+	selectAlarmAckKeyButton.setEnabled(!isEnabled);
 	if (isEnabled)
 	{
-		selectKeyButton.setButtonText("Alarm acknowledge key: press one key...");
+		selectAlarmAckKeyButton.setButtonText("Alarm acknowledge key: press one key...");
 
 		setWantsKeyboardFocus(true);
 		addKeyListener(this);
