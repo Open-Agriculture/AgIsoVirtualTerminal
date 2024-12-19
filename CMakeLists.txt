@@ -85,7 +85,8 @@ target_sources(
           "src/ConfigureHardwareWindow.cpp"
           "src/ConfigureHardwareComponent.cpp"
           "src/StringEncodingConversions.cpp"
-          "src/InputListComponent.cpp")
+          "src/InputListComponent.cpp"
+          "src/ShortcutsWindow.cpp")
 
 
 target_include_directories(AgISOVirtualTerminal
