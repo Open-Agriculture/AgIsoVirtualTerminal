@@ -15,6 +15,7 @@ DataMaskRenderAreaComponent::DataMaskRenderAreaComponent(ServerMainComponent &pa
 
 void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
+	needToRepaintActiveArea = false;
 	childComponents.clear();
 	parentWorkingSet = workingSet;
 
@@ -27,7 +28,6 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 		addAndMakeVisible(*childComponents.back());
 	}
 	repaint();
-	needToRepaintActiveArea = false;
 }
 
 void DataMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
