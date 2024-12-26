@@ -529,15 +529,10 @@ void ServerMainComponent::timerCallback()
 		}
 		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state())
 		{
-			if (dataMaskRenderer.needsRepaint())
+			if (dataMaskRenderer.needsRepaint() || needToRepaint)
 			{
-				repaint_data_and_soft_key_mask();
 				needToRepaint = false;
-			}
-			else if (needToRepaint)
-			{
 				repaint_data_and_soft_key_mask();
-				needToRepaint = false;
 			}
 
 			for (auto &heldButton : heldButtons)
