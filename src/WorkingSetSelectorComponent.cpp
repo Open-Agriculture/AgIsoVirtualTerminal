@@ -6,6 +6,7 @@
 #include "WorkingSetSelectorComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
+#include "WorkingSetLoadingIndicatorComponent.hpp"
 #include "isobus/utility/system_timing.hpp"
 
 WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &server) :
@@ -23,19 +24,13 @@ void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::sha
 	{
 		children.push_back({ managedWorkingSetList.at(i) });
 
-		if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) &&
+		if ((
+		      (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) ||
+		      managedWorkingSetList.at(i)->is_object_pool_transfer_in_progress()) &&
 		    (!isobus::SystemTiming::time_expired_ms(managedWorkingSetList.at(i)->get_working_set_maintenance_message_timestamp_ms(), 3000)) &&
 		    (!managedWorkingSetList.at(i)->is_deletion_requested()))
 		{
-			auto workingSetObject = managedWorkingSetList.at(i)->get_working_set_object();
-
-			if (nullptr != workingSetObject)
-			{
-				auto workingSetComponent = JuceManagedWorkingSetCache::create_component(managedWorkingSetList.at(i), workingSetObject);
-				children.back().childComponents.push_back(workingSetComponent);
-				workingSetComponent->setTopLeftPosition(4 + 15, (static_cast<int>(i)) * 80 + 10 + 7);
-				addAndMakeVisible(*workingSetComponent);
-			}
+			children.back().childComponents.push_back(getWorkingSetChildComponent(managedWorkingSetList.at(i), i));
 		}
 	}
 
@@ -70,18 +65,45 @@ void WorkingSetSelectorComponent::redraw()
 	for (auto &workingSet : children)
 	{
 		workingSet.childComponents.clear();
-		auto workingSetObject = workingSet.workingSet->get_working_set_object();
-
-		if (nullptr != workingSetObject)
-		{
-			auto workingSetComponent = JuceManagedWorkingSetCache::create_component(workingSet.workingSet, workingSetObject);
-			workingSet.childComponents.push_back(workingSetComponent);
-			workingSetComponent->setTopLeftPosition(4 + 15, (static_cast<int>(workingSetIndex)) * 80 + 10 + 7);
-			addAndMakeVisible(*workingSetComponent);
-		}
+		workingSet.childComponents.push_back(getWorkingSetChildComponent(workingSet.workingSet, workingSetIndex));
 		workingSetIndex++;
 	}
 	repaint();
+}
+
+void WorkingSetSelectorComponent::updateIopLoadIndicators()
+{
+	for (auto &child : children)
+	{
+		if (child.workingSet->is_object_pool_transfer_in_progress() &&
+		    child.workingSet->get_object_pool_processing_state() == isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::None)
+		{
+			for (auto &subChild : child.childComponents)
+			{
+				subChild->repaint();
+			}
+		}
+	}
+}
+
+std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, int workingSetIndex)
+{
+	auto workingSetObject = workingSet->get_working_set_object();
+	std::shared_ptr<Component> workingSetComponent;
+	if (nullptr != workingSetObject)
+	{
+		workingSetComponent = JuceManagedWorkingSetCache::create_component(workingSet, workingSetObject);
+	}
+	else
+	{
+		workingSetComponent = std::make_shared<WorkingSetLoadingIndicatorComponent>(
+		  workingSet,
+		  parentServer.get_soft_key_descriptor_x_pixel_width(),
+		  parentServer.get_soft_key_descriptor_y_pixel_height());
+	}
+	workingSetComponent->setTopLeftPosition(4 + 15, workingSetIndex * 80 + 10 + 7);
+	addAndMakeVisible(*workingSetComponent);
+	return workingSetComponent;
 }
 
 void WorkingSetSelectorComponent::mouseUp(const MouseEvent &event)
