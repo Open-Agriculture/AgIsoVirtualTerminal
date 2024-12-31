@@ -30,6 +30,7 @@ public:
 	void mouseUp(const MouseEvent &event) override;
 
 	void redraw();
+	void updateIopLoadIndicators();
 
 private:
 	struct SELECTOR_CHILD_OBJECTS_STRUCT
@@ -39,6 +40,10 @@ private:
 	};
 	std::vector<SELECTOR_CHILD_OBJECTS_STRUCT> children;
 	ServerMainComponent &parentServer;
+
+	std::shared_ptr<Component> getWorkingSetChildComponent(
+	  std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet,
+	  int workingSetIndex);
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetSelectorComponent)
 };
