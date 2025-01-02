@@ -19,13 +19,16 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 	childComponents.clear();
 	parentWorkingSet = workingSet;
 
-	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
-
-	if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
+	if (parentWorkingSet)
 	{
-		auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
-		childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, activeMask));
-		addAndMakeVisible(*childComponents.back());
+		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
+
+		if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
+		{
+			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+			childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, activeMask));
+			addAndMakeVisible(*childComponents.back());
+		}
 	}
 	repaint();
 }
