@@ -18,32 +18,35 @@ void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobu
 	childComponents.clear();
 	parentWorkingSet = workingSet;
 
-	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
-
-	if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
+	if (parentWorkingSet)
 	{
-		auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
 
-		if (nullptr != activeMask)
+		if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 		{
-			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
-			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 
-				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
+			if (nullptr != activeMask)
+			{
+				if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
 				{
-					childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
-					addAndMakeVisible(*childComponents.back());
+					auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+
+					if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
+					{
+						childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
+						addAndMakeVisible(*childComponents.back());
+					}
 				}
-			}
-			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
-			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
-
-				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
+				else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
 				{
-					childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
-					addAndMakeVisible(*childComponents.back());
+					auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+
+					if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
+					{
+						childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
+						addAndMakeVisible(*childComponents.back());
+					}
 				}
 			}
 		}
