@@ -545,8 +545,17 @@ void ServerMainComponent::timerCallback()
 					if (nextWorkingSet->get_control_function()->get_address() != activeWorkingSetMasterAddress)
 					{
 						activeWorkingSetMasterAddress = nextWorkingSet->get_control_function()->get_address();
-						activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSet->get_working_set_object())->get_active_mask();
-						newWorkingSetFound = true;
+						auto nextWorkingSetObject = nextWorkingSet->get_working_set_object();
+						if (nextWorkingSetObject)
+						{
+							activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSetObject)->get_active_mask();
+							newWorkingSetFound = true;
+						}
+						else
+						{
+							activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
+							newWorkingSetFound = false;
+						}
 						break;
 					}
 				}
