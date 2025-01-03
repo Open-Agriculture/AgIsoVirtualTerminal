@@ -3,6 +3,7 @@
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
 #include "LoggerComponent.hpp"
+#include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
@@ -24,9 +25,11 @@ public:
 	VTVersion get_version() const override;
 	std::uint8_t get_number_of_navigation_soft_keys() const override;
 	std::uint8_t get_soft_key_descriptor_x_pixel_width() const override;
-	std::uint8_t get_soft_key_descriptor_y_pixel_width() const override;
+	std::uint8_t get_soft_key_descriptor_y_pixel_height() const override;
 	std::uint8_t get_number_of_possible_virtual_soft_keys_in_soft_key_mask() const override;
 	std::uint8_t get_number_of_physical_soft_keys() const override;
+	std::uint8_t get_physical_soft_key_rows() const;
+	std::uint8_t get_physical_soft_key_columns() const;
 	std::uint16_t get_data_mask_area_size_x_pixels() const override;
 	std::uint16_t get_data_mask_area_size_y_pixels() const override;
 	void suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetWithError) override;
@@ -127,6 +130,8 @@ private:
 		AutoStart
 	};
 
+	SoftKeyMaskDimensions softKeyMaskDimensions;
+
 	class LanguageCommandConfigClosed
 	{
 	public:
@@ -178,10 +183,6 @@ private:
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	std::uint8_t numberOfPoolsToRender = 0;
-	std::uint8_t numberPhysicalSoftKeys = 6;
-	std::uint8_t numberVirtualSoftKeys = 64;
-	std::uint8_t softKeyDesignatorWidth = 60;
-	std::uint8_t softKeyDesignatorHeight = 60;
 	VTVersion versionToReport = VTVersion::Version5;
 	bool needToRepaint = false;
 	bool autostart = false;
