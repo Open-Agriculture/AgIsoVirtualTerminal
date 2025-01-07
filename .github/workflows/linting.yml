@@ -1,0 +1,37 @@
+name: Linting
+on: pull_request
+jobs:
+  clang-format:
+    name: clang-format style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run clang-format style check for C/C++/Protobuf programs.
+        uses: jidicula/clang-format-action@v4.11.0
+        with:
+          clang-format-version: 16
+          # Some files can be excluded from the clang-format style check, like 3rd party driver files,
+          # as their licenses may not allow us to modify them, such as if they are LGPL licensed.
+          # The exclude-regex option can be used to exclude these files from the style check:
+          # exclude-regex: ^.*(test1\.h|test2\.h)$
+  cmake-format:
+    name: cmake-format style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+      - name: Install lint tool
+        run: |
+          python -m pip install --upgrade pip
+          pip install cmake-format pyyaml
+      - name: Check cmake-lint
+        run: find . -name CMakeLists.txt | xargs cmake-lint
+      - name: Run cmake-format
+        run: find . -name CMakeLists.txt | xargs cmake-format -i
+      - name: Check cmake-format
+        run: git diff --patch-with-stat --exit-code
