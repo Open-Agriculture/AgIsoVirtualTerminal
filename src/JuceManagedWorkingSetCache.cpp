@@ -90,8 +90,8 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 			case isobus::VirtualTerminalObjectType::SoftKeyMask:
 			{
 				retVal = std::make_shared<SoftKeyMaskComponent>(workingSet,
-																*std::static_pointer_cast<isobus::SoftKeyMask>(sourceObject),
-																softKeyDimensionInfo);
+				                                                *std::static_pointer_cast<isobus::SoftKeyMask>(sourceObject),
+				                                                softKeyDimensionInfo);
 			}
 			break;
 
@@ -229,7 +229,7 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 	return retVal;
 }
 
-void JuceManagedWorkingSetCache::setSoftKeyMaskDimensionInfo(const SoftKeyMaskDimensions &info)
+void JuceManagedWorkingSetCache::set_softkey_mask_dimension_info(const SoftKeyMaskDimensions &info)
 {
 	softKeyDimensionInfo = info;
 }

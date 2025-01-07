@@ -19,19 +19,24 @@ class SoftKeyMaskDimensions
 public:
 	SoftKeyMaskDimensions() = default;
 
+	/**
+	 * @brief total_width
+	 * @return The total width of the softkeymask (including inner and outer column paddings)
+	 */
+	int total_width() const;
+
+	/**
+	 * @brief key_count
+	 * @return the number of the possible key positions in the softkey mask
+	 */
+	int key_count() const;
+
 	int keyHeight = 60;
 	int keyWidth = 60;
-	int keyCount() const;
 	int rowCount = 6;
 	int columnCount = 1;
 	int height = 480;
-	static const std::uint8_t padding = 10;
-
-	/**
-	 * @brief totalWidth
-	 * @return The total width of the softkeymask (including inner and outer column paddings)
-	 */
-	int totalWidth() const;
+	static constexpr std::uint8_t PADDING = 10;
 };
 
 class SoftKeyMaskComponent : public isobus::SoftKeyMask

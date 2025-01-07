@@ -14,15 +14,15 @@ SoftKeyMaskComponent::SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTermin
   dimensionInfo(dimensions)
 {
 	setOpaque(true);
-	setBounds(0, 0, dimensions.totalWidth(), dimensions.height);
+	setBounds(0, 0, dimensions.total_width(), dimensions.height);
 	on_content_changed(true);
 }
 
 void SoftKeyMaskComponent::on_content_changed(bool initial)
 {
 	int row = 0;
-	int x = dimensionInfo.padding + (dimensionInfo.columnCount - 1) * (dimensionInfo.padding + dimensionInfo.keyWidth);
-	int y = dimensionInfo.padding;
+	int x = dimensionInfo.PADDING + (dimensionInfo.columnCount - 1) * (dimensionInfo.PADDING + dimensionInfo.keyWidth);
+	int y = dimensionInfo.PADDING;
 
 	for (std::uint16_t i = 0; i < this->get_number_children(); i++)
 	{
@@ -41,14 +41,14 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 			{
 				addAndMakeVisible(*childComponents.back());
 				childComponents.back()->setTopLeftPosition(x, y);
-				y += (dimensionInfo.padding + dimensionInfo.keyWidth);
+				y += (dimensionInfo.PADDING + dimensionInfo.keyWidth);
 
 				row++;
 				if (row >= dimensionInfo.rowCount)
 				{
 					row = 0;
-					x -= (dimensionInfo.padding + dimensionInfo.keyWidth);
-					y = dimensionInfo.padding;
+					x -= (dimensionInfo.PADDING + dimensionInfo.keyWidth);
+					y = dimensionInfo.PADDING;
 				}
 			}
 		}
@@ -67,12 +67,12 @@ void SoftKeyMaskComponent::paint(Graphics &g)
 	g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 }
 
-int SoftKeyMaskDimensions::keyCount() const
+int SoftKeyMaskDimensions::key_count() const
 {
 	return columnCount * rowCount;
 }
 
-int SoftKeyMaskDimensions::totalWidth() const
+int SoftKeyMaskDimensions::total_width() const
 {
-	return padding + (columnCount * (keyWidth + padding));
+	return PADDING + (columnCount * (keyWidth + PADDING));
 }

@@ -123,7 +123,7 @@ std::uint8_t ServerMainComponent::get_soft_key_descriptor_y_pixel_height() const
 std::uint8_t ServerMainComponent::get_number_of_possible_virtual_soft_keys_in_soft_key_mask() const
 {
 	constexpr std::uint8_t MAX_VIRTUAL_SOFT_KEYS = 64;
-	std::uint8_t retVal = softKeyMaskDimensions.keyCount();
+	std::uint8_t retVal = softKeyMaskDimensions.key_count();
 
 	// VT Version 3 and prior shall support a maximum of 64 virtual Soft Keys per Soft Key Mask and shall
 	// support as a minimum the number of reported physical Soft Keys
@@ -151,11 +151,11 @@ std::uint8_t ServerMainComponent::get_number_of_physical_soft_keys() const
 	if (versionToReport >= isobus::VirtualTerminalBase::VTVersion::Version4)
 	{
 		// VT Version 4 and later VTs shall provide at least 6 physical Soft Keys.
-		return softKeyMaskDimensions.keyCount() < MIN_PHYSICAL_SOFT_KEYS ? MIN_PHYSICAL_SOFT_KEYS : softKeyMaskDimensions.keyCount();
+		return softKeyMaskDimensions.key_count() < MIN_PHYSICAL_SOFT_KEYS ? MIN_PHYSICAL_SOFT_KEYS : softKeyMaskDimensions.key_count();
 	}
 	else
 	{
-		return softKeyMaskDimensions.keyCount();
+		return softKeyMaskDimensions.key_count();
 	}
 }
 
@@ -636,7 +636,7 @@ void ServerMainComponent::resized()
 	dataMaskRenderer.setBounds(100, lMenuBarHeight + 4, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
 	softKeyMaskRenderer.setBounds(100 + get_data_mask_area_size_x_pixels(),
 	                              lMenuBarHeight + 4,
-	                              2 * SoftKeyMaskDimensions::padding + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::padding + get_soft_key_descriptor_y_pixel_height()),
+	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
 	                              get_data_mask_area_size_y_pixels());
 	loggerViewport.setSize(getWidth(), getHeight() * .2f);
 	loggerViewport.setTopLeftPosition(0, getHeight() * .8f);
@@ -1224,16 +1224,16 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 
 			mParent.softKeyMaskDimensions.columnCount = mParent.popupMenu->getTextEditorContents("Number of Physical Soft Key columns").getIntValue();
 			mParent.softKeyMaskDimensions.rowCount = mParent.popupMenu->getTextEditorContents("Number of Physical Soft Key rows").getIntValue();
-			if (mParent.get_number_of_physical_soft_keys() != mParent.softKeyMaskDimensions.keyCount())
+			if (mParent.get_number_of_physical_soft_keys() != mParent.softKeyMaskDimensions.key_count())
 			{
 				mParent.softKeyMaskDimensions.rowCount = (mParent.get_number_of_physical_soft_keys() / mParent.softKeyMaskDimensions.columnCount);
 			}
 
 			mParent.softKeyMaskDimensions.keyWidth = mParent.popupMenu->getTextEditorContents("Soft Key Designator Width").getIntValue();
 			mParent.softKeyMaskDimensions.keyHeight = mParent.popupMenu->getTextEditorContents("Soft Key Designator Height").getIntValue();
-			JuceManagedWorkingSetCache::setSoftKeyMaskDimensionInfo(mParent.softKeyMaskDimensions);
+			JuceManagedWorkingSetCache::set_softkey_mask_dimension_info(mParent.softKeyMaskDimensions);
 
-			mParent.softKeyMaskRenderer.setSize(mParent.softKeyMaskDimensions.totalWidth(), dataMaskSize.getIntValue());
+			mParent.softKeyMaskRenderer.setSize(mParent.softKeyMaskDimensions.total_width(), dataMaskSize.getIntValue());
 
 			mParent.save_settings();
 			mParent.repaint_data_and_soft_key_mask();
@@ -1527,7 +1527,7 @@ void ServerMainComponent::check_load_settings()
 						if (!child.getProperty("DataMaskRenderAreaSize").isVoid())
 						{
 							dataMaskRenderer.setSize(static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))), static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))));
-							softKeyMaskRenderer.setSize(2 * SoftKeyMaskDimensions::padding + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::padding + get_soft_key_descriptor_y_pixel_height()),
+							softKeyMaskRenderer.setSize(2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
 							                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
 						}
 #ifdef JUCE_WINDOWS
@@ -1559,7 +1559,7 @@ void ServerMainComponent::check_load_settings()
 						}
 #endif
 						softKeyMaskRenderer.setTopLeftPosition(100 + dataMaskRenderer.getWidth(), 4 + juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
-						JuceManagedWorkingSetCache::setSoftKeyMaskDimensionInfo(softKeyMaskDimensions);
+						JuceManagedWorkingSetCache::set_softkey_mask_dimension_info(softKeyMaskDimensions);
 					}
 					else if (Identifier("Logging") == child.getType())
 					{
