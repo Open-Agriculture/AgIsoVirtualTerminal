@@ -38,8 +38,8 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 
 	for (std::uint8_t i = 0; i < parentCANDrivers.size(); i++)
 	{
-		if ((nullptr != parentCANDrivers.at(i)) && 
-			(parentCANDrivers.at(i) == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0)))
+		if ((nullptr != parentCANDrivers.at(i)) &&
+		    (parentCANDrivers.at(i) == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0)))
 		{
 			selectedID = i + 1;
 			break;
