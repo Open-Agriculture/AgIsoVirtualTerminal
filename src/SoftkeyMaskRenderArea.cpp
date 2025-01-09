@@ -213,7 +213,7 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 
 		if ((nullptr != child) &&
 		    (objectCanBeClicked(child)) &&
-		    (isClickWithinBounds(x, y, 0, 0, ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_width())))
+		    (isClickWithinBounds(x, y, 0, 0, ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_height())))
 		{
 			return child;
 		}
@@ -232,13 +232,13 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 
 			if ((nullptr != child) &&
 			    (objectCanBeClicked(child)) &&
-			    (isClickWithinBounds(x, y, 10, 10 + (ownerServer.get_soft_key_descriptor_x_pixel_width() * i) + (10 * i), ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_width())))
+			    (isClickWithinBounds(x, y, 10, 10 + (ownerServer.get_soft_key_descriptor_x_pixel_width() * i) + (10 * i), ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_height())))
 			{
 				return child;
 			}
 			else if (!objectCanBeClicked(child))
 			{
-				retVal = getClickedChildRecursive(child, x - 10, y - (10 + (ownerServer.get_soft_key_descriptor_y_pixel_width() * i) + (10 * i)));
+				retVal = getClickedChildRecursive(child, x - 10, y - (10 + (ownerServer.get_soft_key_descriptor_y_pixel_height() * i) + (10 * i)));
 
 				if (nullptr != retVal)
 				{

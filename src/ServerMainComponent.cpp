@@ -106,7 +106,7 @@ std::uint8_t ServerMainComponent::get_soft_key_descriptor_x_pixel_width() const
 	return retVal;
 }
 
-std::uint8_t ServerMainComponent::get_soft_key_descriptor_y_pixel_width() const
+std::uint8_t ServerMainComponent::get_soft_key_descriptor_y_pixel_height() const
 {
 	// Min: 60 pixels wide
 	std::uint8_t retVal = 60;
@@ -802,7 +802,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		{
 			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Capabilities", "You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients.", MessageBoxIconType::NoIcon);
 			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), "Data Mask Size (height and width)");
-			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_width()), "Soft Key Designator Height (min 60)");
+			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_height()), "Soft Key Designator Height (min 60)");
 			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), "Soft Key Designator Width (min 60)");
 			popupMenu->addTextEditor("Number of Physical Soft Keys", String(get_number_of_physical_soft_keys()), "Number of Physical Soft Keys (min 6)");
 
@@ -1641,7 +1641,7 @@ void ServerMainComponent::save_settings()
 		compatibilitySettings.setProperty("Version", get_vt_version_byte(versionToReport), nullptr);
 		hardwareSettings.setProperty("DataMaskRenderAreaSize", dataMaskRenderer.getWidth(), nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorWidth", get_soft_key_descriptor_x_pixel_width(), nullptr);
-		hardwareSettings.setProperty("SoftKeyDesignatorHeight", get_soft_key_descriptor_y_pixel_width(), nullptr);
+		hardwareSettings.setProperty("SoftKeyDesignatorHeight", get_soft_key_descriptor_y_pixel_height(), nullptr);
 		hardwareSettings.setProperty("PhysicalSoftkeys", get_number_of_physical_soft_keys(), nullptr);
 
 #ifdef JUCE_WINDOWS

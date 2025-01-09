@@ -24,7 +24,7 @@ public:
 	VTVersion get_version() const override;
 	std::uint8_t get_number_of_navigation_soft_keys() const override;
 	std::uint8_t get_soft_key_descriptor_x_pixel_width() const override;
-	std::uint8_t get_soft_key_descriptor_y_pixel_width() const override;
+	std::uint8_t get_soft_key_descriptor_y_pixel_height() const override;
 	std::uint8_t get_number_of_possible_virtual_soft_keys_in_soft_key_mask() const override;
 	std::uint8_t get_number_of_physical_soft_keys() const override;
 	std::uint16_t get_data_mask_area_size_x_pixels() const override;
