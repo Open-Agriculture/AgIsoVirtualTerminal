@@ -7,6 +7,7 @@
 
 #include <JuceHeader.h>
 #include "ASCIILogFile.hpp"
+#include "AppImages.h"
 #include "ServerMainComponent.hpp"
 #include "isobus/hardware_integration/can_hardware_interface.hpp"
 #include "isobus/isobus/can_internal_control_function.hpp"
@@ -113,6 +114,15 @@ public:
 			centreWithSize(getWidth(), getHeight());
 #endif
 
+			setIcon(ImageCache::getFromMemory(AppImages::logosmall_png, AppImages::logosmall_pngSize));
+#if JUCE_LINUX
+			// this hack is needed on Linux
+			ComponentPeer *peer = getPeer();
+			if (peer)
+			{
+				peer->setIcon(ImageCache::getFromMemory(AppImages::logosmall_png, AppImages::logosmall_pngSize));
+			}
+#endif
 			setVisible(true);
 		}
 
