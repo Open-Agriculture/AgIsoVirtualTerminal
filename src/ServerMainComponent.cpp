@@ -7,8 +7,8 @@
 
 #include "AlarmMaskAudio.h"
 #include "JuceManagedWorkingSetCache.hpp"
-#include "ShortcutsWindow.hpp"
 #include "KeyComponent.hpp"
+#include "ShortcutsWindow.hpp"
 #include "isobus/utility/system_timing.hpp"
 
 #include "SoftKeyMaskRenderAreaComponent.hpp"
@@ -1141,7 +1141,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 
 void ServerMainComponent::set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey, uint8_t pos)
 {
-	HeldButtonData buttonData(workingSet, objectID, maskObjectID, keyCode, isSoftKey, pos);
+	ServerMainComponent::HeldButtonData buttonData(workingSet, objectID, maskObjectID, keyCode, isSoftKey, pos);
 	bool alreadyHeld = false;
 
 	softKeyPositionReleasedByMaskChange = KeyComponent::InvalidSoftKeyPos;
@@ -1180,30 +1180,23 @@ void ServerMainComponent::handle_softkey_release_if_mask_changed()
 {
 	// If a Key object .... is erased from the screen ... while it is activated, the VT shall send a Soft Key Activation message
 	// ... indicating released to the erased object on its parent Data Mask.
-
-	for (auto button = heldButtons.begin(); button != heldButtons.end();)
-	{
-		if (button->softKeyMaskObjectID != activeWorkingSetSoftkeyMaskObjectID)
-		{
-			if (button->isSoftKey)
-			{
-				send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
-				                                 button->buttonObjectID,
-				                                 button->softKeyMaskObjectID,
-				                                 button->buttonKeyCode,
-				                                 get_active_working_set()->get_control_function());
-				// In the case if a currently pressed softkey is being replaced with a new one during a softkey mask change
-				// the mouseUp event on the newly added key will not be called, however the mouseRelease will.
-				// To prevent sending the unneeded mouse release events in this scenario we cache the softkey positions of the pressed and replaced keys.
-				softKeyPositionReleasedByMaskChange = button->keyPosition;
-				button = heldButtons.erase(button);
-			}
-		}
-		else
-		{
-			button++;
-		}
-	}
+	std::erase_if(heldButtons,
+	              [this](const HeldButtonData button) {
+		              if ((button.softKeyMaskObjectID != activeWorkingSetSoftkeyMaskObjectID) && button.isSoftKey)
+		              {
+			              send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+			                                               button.buttonObjectID,
+			                                               button.softKeyMaskObjectID,
+			                                               button.buttonKeyCode,
+			                                               get_active_working_set()->get_control_function());
+			              // In the case if a currently pressed softkey is being replaced with a new one during a softkey mask change
+			              // the mouseUp event on the newly added key will not be called, however the mouseRelease will.
+			              // To prevent sending the unneeded mouse release events in this scenario we cache the softkey positions of the pressed and replaced keys.
+			              softKeyPositionReleasedByMaskChange = button.keyPosition;
+			              return true;
+		              }
+		              return false;
+	              });
 }
 
 void ServerMainComponent::repaint_on_next_update()
@@ -1327,7 +1320,7 @@ ServerMainComponent::HeldButtonData::HeldButtonData(std::shared_ptr<isobus::Virt
 {
 }
 
-bool ServerMainComponent::HeldButtonData::operator==(const HeldButtonData &other)
+bool ServerMainComponent::HeldButtonData::operator==(const HeldButtonData &other) const
 {
 	return ((other.softKeyMaskObjectID == softKeyMaskObjectID) &&
 	        (other.associatedWorkingSet == associatedWorkingSet) &&

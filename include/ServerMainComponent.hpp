@@ -153,7 +153,7 @@ private:
 	struct HeldButtonData
 	{
 		HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t position);
-		bool operator==(const HeldButtonData &other);
+		bool operator==(const HeldButtonData &other) const;
 		std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> associatedWorkingSet;
 		std::uint32_t timestamp_ms;
 		std::uint16_t buttonObjectID;
