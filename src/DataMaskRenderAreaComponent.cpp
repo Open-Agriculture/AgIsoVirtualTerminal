@@ -280,14 +280,20 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									}
 								}
 								this->inputListModal->exitModalState();
-								parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								if (nullptr != parentWorkingSet)
+								{
+									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								}
 								ownerServer.repaint_on_next_update();
 								ownerServer.process_macro(clickedList, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
 								inputListModal.reset();
 								repaint();
 							};
 							inputListModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
-							parentWorkingSet->set_object_focus(clickedObject->get_id());
+							if (nullptr != parentWorkingSet)
+							{
+								parentWorkingSet->set_object_focus(clickedObject->get_id());
+							}
 							ownerServer.process_macro(clickedObject, isobus::EventID::OnInputFieldSelection, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
 						}
 					}
