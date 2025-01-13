@@ -397,12 +397,18 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									// TODO ESC
 								}
 
-								parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								if (parentWorkingSet)
+								{
+									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								}
 								ownerServer.process_macro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
 							};
 							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
 							ownerServer.send_select_input_object_message(clickedNumber->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-							parentWorkingSet->set_object_focus(clickedObject->get_id());
+							if (parentWorkingSet)
+							{
+								parentWorkingSet->set_object_focus(clickedObject->get_id());
+							}
 							ownerServer.process_macro(clickedObject, isobus::EventID::OnInputFieldSelection, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
 						}
 					}
@@ -511,12 +517,18 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 								inputStringModal->exitModalState();
 								inputStringModal.reset();
-								parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								if (parentWorkingSet)
+								{
+									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								}
 								ownerServer.process_macro(clickedString, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
 							};
 							inputStringModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
 							ownerServer.send_select_input_object_message(clickedString->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-							parentWorkingSet->set_object_focus(clickedObject->get_id());
+							if (parentWorkingSet)
+							{
+								parentWorkingSet->set_object_focus(clickedObject->get_id());
+							}
 							ownerServer.process_macro(clickedObject, isobus::EventID::OnInputFieldSelection, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
 						}
 					}
@@ -575,6 +587,7 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 	std::shared_ptr<isobus::VTObject> retVal;
 
 	if ((nullptr == object) ||
+	    (nullptr == parentWorkingSet) ||
 	    ((isobus::VirtualTerminalObjectType::ObjectPointer != object->get_object_type()) &&
 	     (0 == object->get_number_children())))
 	{
