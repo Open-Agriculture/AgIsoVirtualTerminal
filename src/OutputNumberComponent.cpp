@@ -64,6 +64,12 @@ void OutputNumberComponent::paint(Graphics &g)
 		}
 	}
 
+	if (get_option(isobus::OutputNumber::Options::DisplayZeroAsBlank) && scaledValue == 0)
+	{
+		// When this option bit is set, a blank field is displayed if and only if the displayed value of the object is exactly zero.
+		return;
+	}
+
 	std::ostringstream valueText;
 	valueText << std::fixed << std::setprecision(get_number_of_decimals()) << scaledValue;
 	g.drawText(valueText.str(), 0, 0, get_width(), get_height(), convert_justification(get_horizontal_justification(), get_vertical_justification()), false);
