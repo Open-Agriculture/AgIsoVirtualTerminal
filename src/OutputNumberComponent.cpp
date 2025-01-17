@@ -64,7 +64,7 @@ void OutputNumberComponent::paint(Graphics &g)
 		}
 	}
 
-	if (get_option(isobus::OutputNumber::Options::DisplayZeroAsBlank) && scaledValue == 0)
+	if (get_option(isobus::OutputNumber::Options::DisplayZeroAsBlank) && scaledValue == 0.0f)
 	{
 		// When this option bit is set, a blank field is displayed if and only if the displayed value of the object is exactly zero.
 		return;
