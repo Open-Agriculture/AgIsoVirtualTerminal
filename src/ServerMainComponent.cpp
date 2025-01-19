@@ -612,6 +612,19 @@ void ServerMainComponent::timerCallback()
 				}
 			}
 		}
+		else if (ws->is_object_pool_transfer_in_progress())
+		{
+			if (!managedWorkingSetIopLoadStateMap[ws])
+			{
+				// object pool trasnsfer started add working set load indicators
+				workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
+				managedWorkingSetIopLoadStateMap[ws] = true;
+			}
+			else
+			{
+				workingSetSelector.updateIopLoadIndicators();
+			}
+		}
 	}
 }
 
@@ -1701,6 +1714,7 @@ void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerm
 	{
 		if (workingSetToRemove == *it)
 		{
+			managedWorkingSetIopLoadStateMap.erase(*it);
 			managedWorkingSetList.erase(it);
 			break;
 		}
