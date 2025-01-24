@@ -34,11 +34,26 @@ public:
 	}
 
 	//==============================================================================
-	void initialise(const juce::String &) override
+	void initialise(const juce::String &commandLineParameters) override
 	{
-		// This method is where you should put your application's initialisation code..
+		juce::StringArray args;
+		args.addTokens(commandLineParameters, true);
 
-		mainWindow.reset(new MainWindow(getApplicationName()));
+		std::uint8_t vtNumber = 0;
+		for (const auto &arg : args)
+		{
+			if (arg.startsWith("--vt-number"))
+			{
+				vtNumber = arg.fromFirstOccurrenceOf("--vt-number=", false, false).getIntValue();
+				if (0 == vtNumber || vtNumber > 32)
+				{
+					std::cout << "The VT number must be between 1 and 32";
+					vtNumber = 0;
+				}
+			}
+		}
+
+		mainWindow.reset(new MainWindow(getApplicationName(), vtNumber));
 	}
 
 	void shutdown() override
@@ -71,7 +86,7 @@ public:
 	class MainWindow : public juce::DocumentWindow
 	{
 	public:
-		MainWindow(juce::String name) :
+		MainWindow(juce::String name, std::uint8_t vtNumber = 0) :
 		  DocumentWindow(name,
 		                 juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId),
 		                 DocumentWindow::allButtons)
@@ -105,7 +120,7 @@ public:
 			serverNAME.set_manufacturer_code(1407);
 			serverInternalControlFunction = isobus::CANNetworkManager::CANNetwork.create_internal_control_function(serverNAME, 0, 0x26);
 			setUsingNativeTitleBar(true);
-			setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers), true);
+			setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, vtNumber), true);
 
 #if JUCE_IOS || JUCE_ANDROID
 			setFullScreen(true);
