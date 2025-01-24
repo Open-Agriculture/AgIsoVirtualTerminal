@@ -23,18 +23,32 @@
 #include <iterator>
 #include <sstream>
 
-ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction, std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers) :
-  VirtualTerminalServer(serverControlFunction),
-  workingSetSelector(*this),
-  dataMaskRenderer(*this),
-  softKeyMaskRenderer(*this),
-  parentCANDrivers(canDrivers)
+ServerMainComponent::ServerMainComponent(
+  std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
+  std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
+  uint8_t vtNumberArg) :
+  VirtualTerminalServer(serverControlFunction), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
 
 	VirtualTerminalServer::initialize();
 	check_load_settings();
+
+	isobus::NAME name = serverControlFunction->get_NAME();
+	if (0 == vtNumberArg)
+	{
+		// no command line argument provided -> use the saved setting
+		name.set_function_instance(vtNumber - 1);
+		vtNumberComponent.setVtNumber(vtNumber);
+	}
+	else
+	{
+		// VT number provided from the command line
+		name.set_function_instance(vtNumberArg - 1);
+		vtNumberComponent.setVtNumber(vtNumberArg);
+	}
+	serverControlFunction->set_NAME(name);
 
 	if (languageCommandInterface.get_country_code().empty())
 	{
@@ -53,7 +67,7 @@ ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControl
 	addAndMakeVisible(dataMaskRenderer);
 	addAndMakeVisible(softKeyMaskRenderer);
 	addAndMakeVisible(loggerViewport);
-
+	addChildComponent(vtNumberComponent);
 	menuBar.setModel(this);
 	addAndMakeVisible(menuBar);
 
@@ -634,6 +648,10 @@ void ServerMainComponent::resized()
 
 	workingSetSelector.setBounds(0, lMenuBarHeight + 4, 100, 600);
 	dataMaskRenderer.setBounds(100, lMenuBarHeight + 4, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
+	vtNumberComponent.setBounds(dataMaskRenderer.getBounds().getX() + (dataMaskRenderer.getWidth() / 4.0),
+	                            dataMaskRenderer.getBounds().getY() + (dataMaskRenderer.getHeight() / 10.0),
+	                            dataMaskRenderer.getBounds().getWidth() / 2.0,
+	                            (dataMaskRenderer.getBounds().getHeight() / 10.0) * 8);
 	softKeyMaskRenderer.setBounds(100 + get_data_mask_area_size_x_pixels(),
 	                              lMenuBarHeight + 4,
 	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
@@ -817,12 +835,14 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		case static_cast<int>(CommandIDs::ConfigureReportedHardware):
 		{
 			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Capabilities", "You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients.", MessageBoxIconType::NoIcon);
+			popupMenu->addTextEditor("VT number", String(vtNumber), "VT number (0-31, only applied on restart)");
 			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), "Data Mask Size (height and width)");
 			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_height()), "Soft Key Designator Height (min 60)");
 			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), "Soft Key Designator Width (min 60)");
 			popupMenu->addTextEditor("Number of Physical Soft Key columns", String(get_physical_soft_key_columns()), "Number of Physical Soft Key columns (min 1)");
 			popupMenu->addTextEditor("Number of Physical Soft Key rows", String(get_physical_soft_key_rows()), "Number of Physical Soft Key rows (min 1)");
 
+			popupMenu->getTextEditor("VT number")->setInputRestrictions(2, "1234567890");
 			popupMenu->getTextEditor("Data Mask Size (height and width)")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Soft Key Designator Height")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Soft Key Designator Width")->setInputRestrictions(4, "1234567890");
@@ -1235,6 +1255,16 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 
 			mParent.softKeyMaskRenderer.setSize(mParent.softKeyMaskDimensions.total_width(), dataMaskSize.getIntValue());
 
+			mParent.vtNumber = mParent.popupMenu->getTextEditorContents("VT Number").getIntValue();
+			if (mParent.vtNumber > 32)
+			{
+				mParent.vtNumber = 32;
+			}
+			else if (mParent.vtNumber == 0)
+			{
+				mParent.vtNumber = 1;
+			}
+
 			mParent.save_settings();
 			mParent.repaint_data_and_soft_key_mask();
 		}
@@ -1508,6 +1538,14 @@ void ServerMainComponent::check_load_settings()
 					}
 					else if (Identifier("Hardware") == child.getType())
 					{
+						if (!child.getProperty("VT_Number").isVoid())
+						{
+							vtNumber = static_cast<std::uint8_t>(static_cast<int>(child.getProperty("VT_Number")));
+							if (vtNumber == 0 || vtNumber > 32)
+							{
+								vtNumber = 1;
+							}
+						}
 						if (!child.getProperty("SoftKeyDesignatorWidth").isVoid())
 						{
 							softKeyMaskDimensions.keyWidth = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorWidth")));
@@ -1663,6 +1701,7 @@ void ServerMainComponent::save_settings()
 		languageCommandSettings.setProperty("LanguageCode", String(languageCommandInterface.get_language_code()), nullptr);
 		compatibilitySettings.setProperty("Version", get_vt_version_byte(versionToReport), nullptr);
 		hardwareSettings.setProperty("DataMaskRenderAreaSize", dataMaskRenderer.getWidth(), nullptr);
+		hardwareSettings.setProperty("VT_Number", vtNumber, nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorWidth", softKeyMaskDimensions.keyWidth, nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorHeight", softKeyMaskDimensions.keyHeight, nullptr);
 		hardwareSettings.setProperty("SoftkeyColumnCount", softKeyMaskDimensions.columnCount, nullptr);
@@ -1693,6 +1732,28 @@ void ServerMainComponent::save_settings()
 			xml->writeTo(settingsFile);
 		}
 	}
+}
+
+void ServerMainComponent::identify_vt()
+{
+	// first check if we have active alarm
+	for (auto &ws : managedWorkingSetList)
+	{
+		if (activeWorkingSetMasterAddress == ws->get_control_function()->get_address())
+		{
+			auto activeMask = ws->get_object_by_id(std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask());
+			if (nullptr != activeMask && isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
+			{
+				return;
+			}
+		}
+	}
+
+	juce::MessageManager::callAsync([this] {
+		vtNumberComponent.setVisible(true);
+		repaint();
+		juce::Timer::callAfterDelay(3000, [this]() { vtNumberComponent.setVisible(false); });
+	});
 }
 
 void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
