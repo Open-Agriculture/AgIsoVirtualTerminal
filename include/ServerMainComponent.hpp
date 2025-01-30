@@ -168,6 +168,7 @@ private:
 	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
+	void on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t targetDataOrAlarmMask, std::uint16_t newSoftKeyMask);
 	void handle_softkey_release_if_mask_changed();
 	void repaint_data_and_soft_key_mask();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);

@@ -1119,6 +1119,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
 		ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); }));
 		ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
+		ws->save_callback_handle(get_on_change_active_softkey_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t affectedMask, std::uint16_t newSoftKeyMask) { this->on_change_active_softkey_mask_callback(affectedWorkingSet, affectedMask, newSoftKeyMask); }));
 
 		if (send_status_message())
 		{
@@ -1447,6 +1448,23 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
 				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
 			}
+		}
+	}
+}
+
+void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, uint16_t targetDataOrAlarmMask, uint16_t newSoftKeyMask)
+{
+	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
+	{
+		const MessageManagerLock mmLock;
+		if (activeWorkingSetDataMaskObjectID == targetDataOrAlarmMask)
+		{
+			if (activeWorkingSetSoftkeyMaskObjectID != newSoftKeyMask)
+			{
+				softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
+			}
+			handle_softkey_release_if_mask_changed();
+			activeWorkingSetSoftkeyMaskObjectID = newSoftKeyMask;
 		}
 	}
 }
