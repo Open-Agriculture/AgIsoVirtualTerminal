@@ -18,6 +18,13 @@ OutputStringComponent::OutputStringComponent(std::shared_ptr<isobus::VirtualTerm
 void OutputStringComponent::paint(Graphics &g)
 {
 	std::string value = displayed_value(parentWorkingSet);
+
+	size_t pos = value.find('\0');
+	if (pos != std::string::npos)
+	{
+		value = value.substr(0, pos);
+	}
+
 	std::uint8_t fontHeight = 0;
 	auto fontType = isobus::FontAttributes::FontType::ISO8859_1;
 
