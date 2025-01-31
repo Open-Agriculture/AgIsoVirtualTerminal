@@ -19,7 +19,7 @@ void OutputStringComponent::paint(Graphics &g)
 {
 	std::string value = displayed_value(parentWorkingSet);
 
-	size_t pos = value.find('\0');
+	std::size_t pos = value.find('\0');
 	if (pos != std::string::npos)
 	{
 		value = value.substr(0, pos);
