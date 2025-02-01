@@ -24,6 +24,8 @@ public:
 
 	void paintButton(Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
 
+	void set_options(std::uint8_t value) override;
+
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
