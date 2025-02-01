@@ -14,6 +14,8 @@ ButtonComponent::ButtonComponent(std::shared_ptr<isobus::VirtualTerminalServerMa
 	setOpaque(false);
 	setSize(get_width(), get_height());
 
+	auto borderOffset = get_option(Options::NoBorder) ? 0 : 4;
+
 	for (std::uint16_t i = 0; i < this->get_number_children(); i++)
 	{
 		auto child = get_object_by_id(get_child_id(i), parentWorkingSet->get_object_tree());
@@ -25,7 +27,7 @@ ButtonComponent::ButtonComponent(std::shared_ptr<isobus::VirtualTerminalServerMa
 			if (nullptr != childComponents.back())
 			{
 				addAndMakeVisible(*childComponents.back());
-				childComponents.back()->setTopLeftPosition(get_child_x(i), get_child_y(i));
+				childComponents.back()->setTopLeftPosition(get_child_x(i) + borderOffset, get_child_y(i) + borderOffset);
 			}
 		}
 	}
@@ -44,7 +46,7 @@ void ButtonComponent::paint(Graphics &g)
 		g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 	}
 
-	if (false == get_option(Options::NoBorder))
+	if (false == get_option(Options::NoBorder) && false == get_option(Options::SuppressBorder))
 	{
 		vtColour = parentWorkingSet->get_colour(get_border_colour());
 		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
@@ -54,4 +56,20 @@ void ButtonComponent::paint(Graphics &g)
 
 void ButtonComponent::paintButton(Graphics &, bool, bool)
 {
+}
+
+void ButtonComponent::set_options(uint8_t value)
+{
+	// adjust the position of the childs to the button face area if the NoBorder attribute is changed
+	if ((value & static_cast<uint8_t>(Options::NoBorder)) != get_option(Options::NoBorder))
+	{
+		auto borderOffset = (value & static_cast<uint8_t>(Options::NoBorder)) ? -4 : 4;
+		int i = 0;
+		for (auto &child : childComponents)
+		{
+			child->setTopLeftPosition(get_child_x(i) + borderOffset, get_child_y(i) + borderOffset);
+			i++;
+		}
+	}
+	return isobus::Button::set_options(value);
 }
