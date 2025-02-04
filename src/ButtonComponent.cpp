@@ -63,7 +63,7 @@ void ButtonComponent::set_options(uint8_t value)
 	// adjust the position of the childs to the button face area if the NoBorder attribute is changed
 	if ((value & static_cast<uint8_t>(Options::NoBorder)) != get_option(Options::NoBorder))
 	{
-		auto borderOffset = (value & static_cast<uint8_t>(Options::NoBorder)) ? -4 : 4;
+		auto borderOffset = (0 != (value & static_cast<uint8_t>(Options::NoBorder))) ? -4 : 4;
 		int i = 0;
 		for (auto &child : childComponents)
 		{
