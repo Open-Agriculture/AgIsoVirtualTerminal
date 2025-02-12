@@ -5,6 +5,8 @@
 *******************************************************************************/
 #include "SoftKeyMaskComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "KeyComponent.hpp"
+#include "ObjectPointerComponent.hpp"
 
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 
@@ -34,7 +36,16 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 
 			if (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type())
 			{
-				childComponents.back()->setSize(dimensionInfo.keyWidth, dimensionInfo.keyHeight);
+				childComponents.back()->setSize(dimensionInfo.keyHeight, dimensionInfo.keyWidth);
+				auto keyReference = get_object_by_id(std::static_pointer_cast<ObjectPointerComponent>(childComponents.back())->get_value(), parentWorkingSet->get_object_tree());
+				if (nullptr != keyReference && isobus::VirtualTerminalObjectType::Key == child->get_object_type())
+				{
+					std::static_pointer_cast<KeyComponent>(childComponents.back())->setKeyPosition(i);
+				}
+			}
+			else if (isobus::VirtualTerminalObjectType::Key == child->get_object_type())
+			{
+				std::static_pointer_cast<KeyComponent>(childComponents.back())->setKeyPosition(i);
 			}
 
 			if (nullptr != childComponents.back())
