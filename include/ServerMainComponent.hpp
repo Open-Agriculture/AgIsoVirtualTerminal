@@ -5,6 +5,7 @@
 #include "LoggerComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
+#include "VT_NumberComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
@@ -18,7 +19,9 @@ class ServerMainComponent : public juce::Component
   , public MenuBarModel
 {
 public:
-	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction, std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers);
+	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
+	                    std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
+	                    std::uint8_t vtNumberArg = 0);
 	~ServerMainComponent() override;
 
 	bool get_is_enough_memory(std::uint32_t requestedMemory) const override;
@@ -113,6 +116,8 @@ public:
 
 	void save_settings();
 
+	void identify_vt() override;
+
 private:
 	enum class CommandIDs : int
 	{
@@ -173,6 +178,7 @@ private:
 	MenuBarComponent menuBar;
 	LoggerComponent logger;
 	Viewport loggerViewport;
+	VT_NumberComponent vtNumberComponent;
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<AlertWindow> popupMenu;
@@ -182,6 +188,7 @@ private:
 	std::vector<HeldButtonData> heldButtons;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
+	std::uint8_t vtNumber = 1;
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;
 	bool needToRepaint = false;
