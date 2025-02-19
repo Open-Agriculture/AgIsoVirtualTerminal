@@ -31,6 +31,7 @@ endif()
 
 find_package(JUCE MODULE)
 find_package(CAN_Stack MODULE)
+find_package(cmake_git_version_tracking MODULE)
 find_package(Threads REQUIRED)
 
 juce_add_gui_app(
@@ -105,7 +106,8 @@ target_link_libraries(
   AgISOVirtualTerminal
   PRIVATE juce::juce_gui_extra juce::juce_audio_basics juce::juce_audio_utils
           isobus::Isobus isobus::HardwareIntegration isobus::Utility
-  PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags)
+  PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
+         cmake_git_version_tracking)
 
 if(WIN32)
   add_custom_command(

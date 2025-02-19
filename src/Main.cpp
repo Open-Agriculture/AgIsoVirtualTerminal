@@ -9,6 +9,7 @@
 #include "ASCIILogFile.hpp"
 #include "AppImages.h"
 #include "ServerMainComponent.hpp"
+#include "git.h"
 #include "isobus/hardware_integration/can_hardware_interface.hpp"
 #include "isobus/isobus/can_internal_control_function.hpp"
 #include "isobus/isobus/can_network_manager.hpp"
@@ -38,7 +39,10 @@ public:
 	{
 		// This method is where you should put your application's initialisation code..
 
-		mainWindow.reset(new MainWindow(getApplicationName()));
+		mainWindow.reset(new MainWindow(getApplicationName() +
+		                                " - " +
+		                                std::string(git::Describe()) +
+		                                (git::AnyUncommittedChanges() ? "-dirty" : "")));
 	}
 
 	void shutdown() override
