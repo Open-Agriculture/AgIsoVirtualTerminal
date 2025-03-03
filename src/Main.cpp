@@ -39,10 +39,12 @@ public:
 	{
 		// This method is where you should put your application's initialisation code..
 
-		mainWindow.reset(new MainWindow(getApplicationName() +
-		                                " - " +
-		                                std::string(git::Describe()) +
-		                                (git::AnyUncommittedChanges() ? "-dirty" : "")));
+		std::string name = getApplicationName().toStdString();
+		if (git::Describe().length() > 0)
+		{
+			name.append(" - " + std::string(git::Describe()) + (git::AnyUncommittedChanges() ? "-dirty" : ""));
+		}
+		mainWindow.reset(new MainWindow(name));
 	}
 
 	void shutdown() override
