@@ -8,8 +8,12 @@
 //================================================================================================
 #include "LoggerComponent.hpp"
 
+#include "Main.hpp"
+
 LoggerComponent::LoggerComponent() :
-  FileLogger(File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + "/Open-Agriculture/AgISOVirtualTerminalLog.txt"), "Starting AgIsoVirtualTerminal", 1024000)
+  FileLogger(File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + "/Open-Agriculture/AgISOVirtualTerminalLog.txt"),
+             "Starting " + AgISOVirtualTerminalApplication::getApplicationNameWithBuildInfo(),
+             1024000)
 {
 	auto bounds = getLocalBounds();
 	setBounds(10, 10, bounds.getWidth() - 10, bounds.getHeight() - 10);
