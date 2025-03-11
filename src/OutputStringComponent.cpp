@@ -5,8 +5,6 @@
 *******************************************************************************/
 #include "OutputStringComponent.hpp"
 
-#include "StringEncodingConversions.hpp"
-
 OutputStringComponent::OutputStringComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputString sourceObject) :
   isobus::OutputString(sourceObject),
   TextDrawingComponent(workingSet)

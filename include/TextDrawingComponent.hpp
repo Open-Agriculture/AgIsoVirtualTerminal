@@ -18,18 +18,18 @@ class TextDrawingComponent : public Component
 public:
 	TextDrawingComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
-	void setSourceObject(isobus::VTObject *newSourceObject);
+	void setSourceObject(const isobus::VTObject *newSourceObject);
 
 protected:
 	static Justification convert_justification(isobus::TextualVTObject::HorizontalJustification horizontalJustification,
 	                                           isobus::TextualVTObject::VerticalJustification verticalJustification);
-	uint8_t prepare_text_painting(Graphics &g,
-	                              std::shared_ptr<isobus::FontAttributes> font_attributes,
-	                              char referenceCharForWidthCalc);
+	std::uint8_t prepare_text_painting(Graphics &g,
+	                                   std::shared_ptr<isobus::FontAttributes> font_attributes,
+	                                   char referenceCharForWidthCalc);
 
 	void paintText(Graphics &g, const std::string &text, bool enabled = true);
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
-	isobus::VTObject *sourceObject;
+	const isobus::VTObject *sourceObject = nullptr;
 
 	void drawStrikeThrough(Graphics &g, int w, int h, const String &str, isobus::TextualVTObject::HorizontalJustification justification);
 

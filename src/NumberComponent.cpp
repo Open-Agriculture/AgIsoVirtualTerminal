@@ -22,7 +22,7 @@ void NumberComponent::paint(Graphics &g)
 		return;
 	}
 
-	auto sourceNumber = static_cast<isobus::NumberVTObject *>(sourceObject);
+	auto sourceNumber = static_cast<const isobus::NumberVTObject *>(sourceObject);
 
 	if (isOpaque())
 	{

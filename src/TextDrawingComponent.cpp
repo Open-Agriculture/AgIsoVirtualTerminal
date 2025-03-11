@@ -7,16 +7,13 @@
 
 #include "StringEncodingConversions.hpp"
 
-#include <iomanip>
-#include <sstream>
-
 TextDrawingComponent::TextDrawingComponent(
   std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) :
   parentWorkingSet(workingSet)
 {
 }
 
-void TextDrawingComponent::setSourceObject(isobus::VTObject *newSourceObject)
+void TextDrawingComponent::setSourceObject(const isobus::VTObject *newSourceObject)
 {
 	sourceObject = newSourceObject;
 }
@@ -130,7 +127,6 @@ std::uint8_t TextDrawingComponent::prepare_text_painting(Graphics &g,
 {
 	Font juceFont = Font(Font::getDefaultMonospacedFontName(), 0, 0);
 	std::uint8_t fontHeight;
-	auto fontType = font->get_type();
 	auto colour = parentWorkingSet->get_colour(font->get_colour());
 	int fontStyleFlags = Font::FontStyleFlags::plain;
 
@@ -153,12 +149,16 @@ std::uint8_t TextDrawingComponent::prepare_text_painting(Graphics &g,
 	juceFont.setHeight(font->get_font_height_pixels());
 
 	auto fontWidth = juceFont.getStringWidthFloat(juce::String::fromUTF8(&referenceCharForWidthCalc, 1));
-	fontHeight = font->get_font_width_pixels();
+	fontHeight = font->get_font_height_pixels();
 	if (fontHeight == 0)
 	{
 		fontHeight = 8;
 	}
-	juceFont.setHorizontalScale(static_cast<float>(font->get_font_width_pixels()) / fontWidth);
+
+	if (!approximatelyEqual(fontWidth, 0.0f))
+	{
+		juceFont.setHorizontalScale(static_cast<float>(font->get_font_width_pixels()) / fontWidth);
+	}
 
 	g.setColour(Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f));
 	g.setFont(juceFont);
@@ -170,10 +170,10 @@ void TextDrawingComponent::drawStrikeThrough(Graphics &g, int w, int h, const St
 {
 	auto font = g.getCurrentFont();
 	auto textWidth = font.getStringWidth(str);
-	auto lineThickness = h * 0.05; // set the thickness to 5% of the total text height
-	if (lineThickness < 1.0)
+	auto lineThickness = h * 0.05f; // set the thickness to 5% of the total text height
+	if (lineThickness < 1.0f)
 	{
-		lineThickness = 1.0;
+		lineThickness = 1.0f;
 	}
 
 	auto y = h / 2;
@@ -196,11 +196,17 @@ void TextDrawingComponent::drawStrikeThrough(Graphics &g, int w, int h, const St
 
 void TextDrawingComponent::paintText(Graphics &g, const std::string &text, bool enabled)
 {
+	if (isobus::VirtualTerminalObjectType::InputString != sourceObject->get_object_type() &&
+	    isobus::VirtualTerminalObjectType::OutputString != sourceObject->get_object_type())
+	{
+		jassert(false);
+		return;
+	}
 	std::string value = text;
 	std::uint8_t fontHeight = 8;
 	bool strikeThrough = false;
 	auto fontType = isobus::FontAttributes::FontType::ISO8859_1;
-	auto sourceString = static_cast<isobus::StringVTObject *>(sourceObject);
+	auto sourceString = static_cast<const isobus::StringVTObject *>(sourceObject);
 
 	if (!sourceString->get_option(isobus::StringVTObject::Options::Transparent))
 	{
