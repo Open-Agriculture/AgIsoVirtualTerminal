@@ -442,7 +442,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 							if (!hasNumberVariable)
 							{
-								clickedBool->set_value(~clickedBool->get_value());
+								clickedBool->set_value(!(0 != clickedBool->get_value()));
 								ownerServer.send_change_numeric_value_message(clickedBool->get_id(), clickedBool->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 								ownerServer.process_macro(clickedBool, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputBoolean, parentWorkingSet);
 							}
