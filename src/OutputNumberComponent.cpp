@@ -32,7 +32,7 @@ void OutputNumberComponent::paint(Graphics &g)
 		g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 	}
 
-	float scaledValue = (get_value() + get_offset()) * get_scale();
+	float scaledValue = (static_cast<std::int64_t>(get_value()) + get_offset()) * get_scale();
 	g.setColour(getLookAndFeel().findColour(ListBox::textColourId));
 
 	// Get font data
