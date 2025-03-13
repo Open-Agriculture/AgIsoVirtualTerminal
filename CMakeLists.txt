@@ -97,6 +97,7 @@ target_sources(
           "src/StringEncodingConversions.cpp"
           "src/InputListComponent.cpp"
           "src/ShortcutsWindow.cpp"
+          "src/Settings.cpp"
           "src/VT_NumberComponent.cpp")
 
 target_include_directories(AgISOVirtualTerminal
