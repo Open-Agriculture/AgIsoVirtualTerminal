@@ -9,6 +9,7 @@
 #include "ASCIILogFile.hpp"
 #include "AppImages.h"
 #include "ServerMainComponent.hpp"
+#include "Settings.hpp"
 #include "isobus/hardware_integration/can_hardware_interface.hpp"
 #include "isobus/isobus/can_internal_control_function.hpp"
 #include "isobus/isobus/can_network_manager.hpp"
@@ -86,11 +87,12 @@ public:
 	class MainWindow : public juce::DocumentWindow
 	{
 	public:
-		MainWindow(juce::String name, std::uint8_t vtNumber = 0) :
+		MainWindow(juce::String name, std::uint8_t vtNumberCmdLineArg = 0) :
 		  DocumentWindow(name,
 		                 juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId),
 		                 DocumentWindow::allButtons)
 		{
+			int vtNumber = vtNumberCmdLineArg;
 #ifdef JUCE_WINDOWS
 			canDrivers.push_back(std::make_shared<isobus::PCANBasicWindowsPlugin>(static_cast<WORD>(PCAN_USBBUS1)));
 #ifdef ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE
@@ -112,15 +114,41 @@ public:
 #ifndef JUCE_WINDOWS
 			isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDrivers.at(0));
 #endif
-
 			isobus::NAME serverNAME(0);
+
+			Settings settings;
+			if (!settings.load_settings())
+			{
+				{
+					isobus::CANStackLogger::info("Config file not found, using defaults.");
+#ifdef JUCE_LINUX
+					std::static_pointer_cast<isobus::SocketCANInterface>(canDrivers.at(0))->set_name("can0");
+					isobus::CANStackLogger::warn("Socket CAN interface name not yet configured. Using default of \"can0\"");
+#endif
+				}
+			}
+			else
+			{
+				if (0 == vtNumberCmdLineArg)
+				{
+					// no command line argument provided -> use the saved setting
+					serverNAME.set_function_instance(settings.vt_number() - 1);
+					vtNumber = settings.vt_number();
+				}
+				else
+				{
+					// VT number provided from the vtNumberCmdLineArg line
+					serverNAME.set_function_instance(settings.vt_number() - 1);
+				}
+			}
+
 			serverNAME.set_arbitrary_address_capable(true);
 			serverNAME.set_function_code(static_cast<std::uint8_t>(isobus::NAME::Function::VirtualTerminal));
 			serverNAME.set_industry_group(2);
 			serverNAME.set_manufacturer_code(1407);
 			serverInternalControlFunction = isobus::CANNetworkManager::CANNetwork.create_internal_control_function(serverNAME, 0, 0x26);
 			setUsingNativeTitleBar(true);
-			setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, vtNumber), true);
+			setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, settings.settingsValueTree(), vtNumber), true);
 
 #if JUCE_IOS || JUCE_ANDROID
 			setFullScreen(true);
