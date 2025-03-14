@@ -23,18 +23,18 @@
 #include <iterator>
 #include <sstream>
 
-ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction, std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers) :
-  VirtualTerminalServer(serverControlFunction),
-  workingSetSelector(*this),
-  dataMaskRenderer(*this),
-  softKeyMaskRenderer(*this),
-  parentCANDrivers(canDrivers)
+ServerMainComponent::ServerMainComponent(
+  std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
+  std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
+  std::shared_ptr<ValueTree> settings,
+  uint8_t vtNumber) :
+  VirtualTerminalServer(serverControlFunction), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
 
 	VirtualTerminalServer::initialize();
-	check_load_settings();
+	check_load_settings(settings);
 
 	if (languageCommandInterface.get_country_code().empty())
 	{
@@ -53,7 +53,7 @@ ServerMainComponent::ServerMainComponent(std::shared_ptr<isobus::InternalControl
 	addAndMakeVisible(dataMaskRenderer);
 	addAndMakeVisible(softKeyMaskRenderer);
 	addAndMakeVisible(loggerViewport);
-
+	addChildComponent(vtNumberComponent);
 	menuBar.setModel(this);
 	addAndMakeVisible(menuBar);
 
@@ -634,6 +634,10 @@ void ServerMainComponent::resized()
 
 	workingSetSelector.setBounds(0, lMenuBarHeight + 4, 100, 600);
 	dataMaskRenderer.setBounds(100, lMenuBarHeight + 4, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
+	vtNumberComponent.setBounds(dataMaskRenderer.getBounds().getX() + (dataMaskRenderer.getWidth() / 4.0),
+	                            dataMaskRenderer.getBounds().getY() + (dataMaskRenderer.getHeight() / 10.0),
+	                            dataMaskRenderer.getBounds().getWidth() / 2.0,
+	                            (dataMaskRenderer.getBounds().getHeight() / 10.0) * 8);
 	softKeyMaskRenderer.setBounds(100 + get_data_mask_area_size_x_pixels(),
 	                              lMenuBarHeight + 4,
 	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
@@ -817,12 +821,14 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		case static_cast<int>(CommandIDs::ConfigureReportedHardware):
 		{
 			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Capabilities", "You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients.", MessageBoxIconType::NoIcon);
+			popupMenu->addTextEditor("VT number", String(vtNumber), "VT number (0-31, only applied on restart)");
 			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), "Data Mask Size (height and width)");
 			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_height()), "Soft Key Designator Height (min 60)");
 			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), "Soft Key Designator Width (min 60)");
 			popupMenu->addTextEditor("Number of Physical Soft Key columns", String(get_physical_soft_key_columns()), "Number of Physical Soft Key columns (min 1)");
 			popupMenu->addTextEditor("Number of Physical Soft Key rows", String(get_physical_soft_key_rows()), "Number of Physical Soft Key rows (min 1)");
 
+			popupMenu->getTextEditor("VT number")->setInputRestrictions(2, "1234567890");
 			popupMenu->getTextEditor("Data Mask Size (height and width)")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Soft Key Designator Height")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Soft Key Designator Width")->setInputRestrictions(4, "1234567890");
@@ -1235,6 +1241,16 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 
 			mParent.softKeyMaskRenderer.setSize(mParent.softKeyMaskDimensions.total_width(), dataMaskSize.getIntValue());
 
+			mParent.vtNumber = mParent.popupMenu->getTextEditorContents("VT Number").getIntValue();
+			if (mParent.vtNumber > 32)
+			{
+				mParent.vtNumber = 32;
+			}
+			else if (mParent.vtNumber == 0)
+			{
+				mParent.vtNumber = 1;
+			}
+
 			mParent.save_settings();
 			mParent.repaint_data_and_soft_key_mask();
 		}
@@ -1409,198 +1425,159 @@ void ServerMainComponent::repaint_data_and_soft_key_mask()
 	workingSetSelector.redraw();
 }
 
-void ServerMainComponent::check_load_settings()
+void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> settings)
 {
-	auto lDefaultSaveLocation = File::getSpecialLocation(File::userApplicationDataDirectory);
-	String lDataDirectoryPath = (lDefaultSaveLocation.getFullPathName().toStdString() + "/Open-Agriculture");
-	File dataDirectory(lDataDirectoryPath);
-	bool lCanLoadSettings = false;
+	int index = 0;
+	auto child = settings->getChild(index);
 
-	if (dataDirectory.exists() && dataDirectory.isDirectory())
+	while (child.isValid())
 	{
-		lCanLoadSettings = true;
-	}
-	else
-	{
-		auto result = dataDirectory.createDirectory();
-	}
-
-	if (lCanLoadSettings)
-	{
-		String lFilePath = (lDefaultSaveLocation.getFullPathName().toStdString() + "/Open-Agriculture/" + "vt_settings.xml");
-		File settingsFile = File(lFilePath);
-
-		if (settingsFile.existsAsFile())
+		if (Identifier("LanguageCommand") == child.getType())
 		{
-			auto xml(XmlDocument::parse(settingsFile));
-			ValueTree settings("Settings");
-
-			if (nullptr != xml)
+			if (!child.getProperty("AreaUnits").isVoid())
 			{
-				settings.copyPropertiesAndChildrenFrom(ValueTree::fromXml(*xml), nullptr);
-
-				int index = 0;
-				auto child = settings.getChild(index);
-
-				while (child.isValid())
-				{
-					if (Identifier("LanguageCommand") == child.getType())
-					{
-						if (!child.getProperty("AreaUnits").isVoid())
-						{
-							languageCommandInterface.set_commanded_area_units(static_cast<isobus::LanguageCommandInterface::AreaUnits>(int(child.getProperty("AreaUnits"))));
-						}
-						if (!child.getProperty("DateFormat").isVoid())
-						{
-							languageCommandInterface.set_commanded_date_format(static_cast<isobus::LanguageCommandInterface::DateFormats>(int(child.getProperty("DateFormat"))));
-						}
-						if (!child.getProperty("DecimalSymbol").isVoid())
-						{
-							languageCommandInterface.set_commanded_decimal_symbol(static_cast<isobus::LanguageCommandInterface::DecimalSymbols>(int(child.getProperty("DecimalSymbol"))));
-						}
-						if (!child.getProperty("DistanceUnits").isVoid())
-						{
-							languageCommandInterface.set_commanded_distance_units(static_cast<isobus::LanguageCommandInterface::DistanceUnits>(int(child.getProperty("DistanceUnits"))));
-						}
-						if (!child.getProperty("ForceUnits").isVoid())
-						{
-							languageCommandInterface.set_commanded_force_units(static_cast<isobus::LanguageCommandInterface::ForceUnits>(int(child.getProperty("ForceUnits"))));
-						}
-						if (!child.getProperty("UnitSystem").isVoid())
-						{
-							languageCommandInterface.set_commanded_generic_units(static_cast<isobus::LanguageCommandInterface::UnitSystem>(int(child.getProperty("UnitSystem"))));
-						}
-						if (!child.getProperty("MassUnits").isVoid())
-						{
-							languageCommandInterface.set_commanded_mass_units(static_cast<isobus::LanguageCommandInterface::MassUnits>(int(child.getProperty("MassUnits"))));
-						}
-						if (!child.getProperty("PressureUnits").isVoid())
-						{
-							languageCommandInterface.set_commanded_pressure_units(static_cast<isobus::LanguageCommandInterface::PressureUnits>(int(child.getProperty("PressureUnits"))));
-						}
-						if (!child.getProperty("TemperatureUnits").isVoid())
-						{
-							languageCommandInterface.set_commanded_temperature_units(static_cast<isobus::LanguageCommandInterface::TemperatureUnits>(int(child.getProperty("TemperatureUnits"))));
-						}
-						if (!child.getProperty("TimeFormat").isVoid())
-						{
-							languageCommandInterface.set_commanded_time_format(static_cast<isobus::LanguageCommandInterface::TimeFormats>(int(child.getProperty("TimeFormat"))));
-						}
-						if (!child.getProperty("VolumeUnits").isVoid())
-						{
-							languageCommandInterface.set_commanded_volume_units(static_cast<isobus::LanguageCommandInterface::VolumeUnits>(int(child.getProperty("VolumeUnits"))));
-						}
-						if (!child.getProperty("CountryCode").isVoid())
-						{
-							languageCommandInterface.set_country_code(String(child.getProperty("CountryCode").toString()).toStdString());
-						}
-						if (!child.getProperty("LanguageCode").isVoid())
-						{
-							languageCommandInterface.set_language_code(String(child.getProperty("LanguageCode").toString()).toStdString());
-						}
-					}
-					else if (Identifier("Compatibility") == child.getType())
-					{
-						if (!child.getProperty("Version").isVoid())
-						{
-							versionToReport = get_version_from_setting(static_cast<std::uint8_t>(static_cast<int>(child.getProperty("Version"))));
-						}
-					}
-					else if (Identifier("Hardware") == child.getType())
-					{
-						if (!child.getProperty("SoftKeyDesignatorWidth").isVoid())
-						{
-							softKeyMaskDimensions.keyWidth = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorWidth")));
-						}
-						if (!child.getProperty("SoftKeyDesignatorHeight").isVoid())
-						{
-							softKeyMaskDimensions.keyHeight = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorHeight")));
-						}
-						if (!child.getProperty("SoftkeyColumnCount").isVoid())
-						{
-							softKeyMaskDimensions.columnCount = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftkeyColumnCount")));
-						}
-						if (!child.getProperty("SoftkeyRowCount").isVoid())
-						{
-							softKeyMaskDimensions.rowCount = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftkeyRowCount")));
-						}
-						if (!child.getProperty("DataMaskRenderAreaSize").isVoid())
-						{
-							dataMaskRenderer.setSize(static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))), static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))));
-							softKeyMaskRenderer.setSize(2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
-							                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
-						}
-#ifdef JUCE_WINDOWS
-						if (!child.getProperty("TouCANSerial").isVoid())
-						{
-							std::static_pointer_cast<isobus::TouCANPlugin>(parentCANDrivers.at(2))->reconfigure(0, static_cast<std::uint32_t>(static_cast<int>(child.getProperty("TouCANSerial"))));
-						}
-
-						if (!child.getProperty("CANDriver").isVoid())
-						{
-							auto index = static_cast<std::uint32_t>(static_cast<int>(child.getProperty("CANDriver")));
-
-							if (index < parentCANDrivers.size())
-							{
-								isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, parentCANDrivers.at(index));
-								isobus::CANStackLogger::debug("CAN Driver selection loaded from config file.");
-							}
-						}
-#elif JUCE_LINUX
-						if (!child.getProperty("SocketCANInterface").isVoid())
-						{
-							std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->set_name(static_cast<String>(child.getProperty("SocketCANInterface")).toStdString());
-							isobus::CANStackLogger::info("Using Socket CAN interface name of: " + std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->get_device_name());
-						}
-						else
-						{
-							std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->set_name("can0");
-							isobus::CANStackLogger::warn("Socket CAN interface name not yet configured. Using default of \"can0\"");
-						}
-#endif
-						softKeyMaskRenderer.setTopLeftPosition(100 + dataMaskRenderer.getWidth(), 4 + juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
-						JuceManagedWorkingSetCache::set_softkey_mask_dimension_info(softKeyMaskDimensions);
-					}
-					else if (Identifier("Logging") == child.getType())
-					{
-						if ((!child.getProperty("Level").isVoid()) && (static_cast<int>(child.getProperty("Level")) <= static_cast<int>(isobus::CANStackLogger::LoggingLevel::Critical)))
-						{
-							isobus::CANStackLogger::set_log_level(static_cast<isobus::CANStackLogger::LoggingLevel>(static_cast<int>(child.getProperty("Level"))));
-						}
-					}
-					else if (Identifier("Control") == child.getType())
-					{
-						if (!child.getProperty("AutoStart").isVoid())
-						{
-							autostart = static_cast<bool>(static_cast<int>(child.getProperty("AutoStart")));
-
-							if (autostart)
-							{
-								isobus::CANHardwareInterface::start();
-								dataMaskRenderer.set_has_started(true);
-								hasStartBeenCalled = true;
-								isobus::CANStackLogger::info("AutoStart enabled. Starting CAN hardware interface.");
-							}
-						}
-
-						if (!child.getProperty("AlarmAckKey").isVoid())
-						{
-							alarmAckKeyCode = static_cast<int>(child.getProperty("AlarmAckKey"));
-						}
-					}
-					index++;
-					child = settings.getChild(index);
-				}
+				languageCommandInterface.set_commanded_area_units(static_cast<isobus::LanguageCommandInterface::AreaUnits>(int(child.getProperty("AreaUnits"))));
+			}
+			if (!child.getProperty("DateFormat").isVoid())
+			{
+				languageCommandInterface.set_commanded_date_format(static_cast<isobus::LanguageCommandInterface::DateFormats>(int(child.getProperty("DateFormat"))));
+			}
+			if (!child.getProperty("DecimalSymbol").isVoid())
+			{
+				languageCommandInterface.set_commanded_decimal_symbol(static_cast<isobus::LanguageCommandInterface::DecimalSymbols>(int(child.getProperty("DecimalSymbol"))));
+			}
+			if (!child.getProperty("DistanceUnits").isVoid())
+			{
+				languageCommandInterface.set_commanded_distance_units(static_cast<isobus::LanguageCommandInterface::DistanceUnits>(int(child.getProperty("DistanceUnits"))));
+			}
+			if (!child.getProperty("ForceUnits").isVoid())
+			{
+				languageCommandInterface.set_commanded_force_units(static_cast<isobus::LanguageCommandInterface::ForceUnits>(int(child.getProperty("ForceUnits"))));
+			}
+			if (!child.getProperty("UnitSystem").isVoid())
+			{
+				languageCommandInterface.set_commanded_generic_units(static_cast<isobus::LanguageCommandInterface::UnitSystem>(int(child.getProperty("UnitSystem"))));
+			}
+			if (!child.getProperty("MassUnits").isVoid())
+			{
+				languageCommandInterface.set_commanded_mass_units(static_cast<isobus::LanguageCommandInterface::MassUnits>(int(child.getProperty("MassUnits"))));
+			}
+			if (!child.getProperty("PressureUnits").isVoid())
+			{
+				languageCommandInterface.set_commanded_pressure_units(static_cast<isobus::LanguageCommandInterface::PressureUnits>(int(child.getProperty("PressureUnits"))));
+			}
+			if (!child.getProperty("TemperatureUnits").isVoid())
+			{
+				languageCommandInterface.set_commanded_temperature_units(static_cast<isobus::LanguageCommandInterface::TemperatureUnits>(int(child.getProperty("TemperatureUnits"))));
+			}
+			if (!child.getProperty("TimeFormat").isVoid())
+			{
+				languageCommandInterface.set_commanded_time_format(static_cast<isobus::LanguageCommandInterface::TimeFormats>(int(child.getProperty("TimeFormat"))));
+			}
+			if (!child.getProperty("VolumeUnits").isVoid())
+			{
+				languageCommandInterface.set_commanded_volume_units(static_cast<isobus::LanguageCommandInterface::VolumeUnits>(int(child.getProperty("VolumeUnits"))));
+			}
+			if (!child.getProperty("CountryCode").isVoid())
+			{
+				languageCommandInterface.set_country_code(String(child.getProperty("CountryCode").toString()).toStdString());
+			}
+			if (!child.getProperty("LanguageCode").isVoid())
+			{
+				languageCommandInterface.set_language_code(String(child.getProperty("LanguageCode").toString()).toStdString());
 			}
 		}
-		else
+		else if (Identifier("Compatibility") == child.getType())
 		{
-			isobus::CANStackLogger::info("Config file not found, using defaults.");
-#ifdef JUCE_LINUX
-			std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->set_name("can0");
-			isobus::CANStackLogger::warn("Socket CAN interface name not yet configured. Using default of \"can0\"");
-#endif
+			if (!child.getProperty("Version").isVoid())
+			{
+				versionToReport = get_version_from_setting(static_cast<std::uint8_t>(static_cast<int>(child.getProperty("Version"))));
+			}
 		}
+		else if (Identifier("Hardware") == child.getType())
+		{
+			if (!child.getProperty("SoftKeyDesignatorWidth").isVoid())
+			{
+				softKeyMaskDimensions.keyWidth = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorWidth")));
+			}
+			if (!child.getProperty("SoftKeyDesignatorHeight").isVoid())
+			{
+				softKeyMaskDimensions.keyHeight = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftKeyDesignatorHeight")));
+			}
+			if (!child.getProperty("SoftkeyColumnCount").isVoid())
+			{
+				softKeyMaskDimensions.columnCount = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftkeyColumnCount")));
+			}
+			if (!child.getProperty("SoftkeyRowCount").isVoid())
+			{
+				softKeyMaskDimensions.rowCount = static_cast<std::uint16_t>(static_cast<int>(child.getProperty("SoftkeyRowCount")));
+			}
+			if (!child.getProperty("DataMaskRenderAreaSize").isVoid())
+			{
+				dataMaskRenderer.setSize(static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))), static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))));
+				softKeyMaskRenderer.setSize(2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
+				                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
+			}
+#ifdef JUCE_WINDOWS
+			if (!child.getProperty("TouCANSerial").isVoid())
+			{
+				std::static_pointer_cast<isobus::TouCANPlugin>(parentCANDrivers.at(2))->reconfigure(0, static_cast<std::uint32_t>(static_cast<int>(child.getProperty("TouCANSerial"))));
+			}
+
+			if (!child.getProperty("CANDriver").isVoid())
+			{
+				auto index = static_cast<std::uint32_t>(static_cast<int>(child.getProperty("CANDriver")));
+
+				if (index < parentCANDrivers.size())
+				{
+					isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, parentCANDrivers.at(index));
+					isobus::CANStackLogger::debug("CAN Driver selection loaded from config file.");
+				}
+			}
+#elif JUCE_LINUX
+			if (!child.getProperty("SocketCANInterface").isVoid())
+			{
+				std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->set_name(static_cast<String>(child.getProperty("SocketCANInterface")).toStdString());
+				isobus::CANStackLogger::info("Using Socket CAN interface name of: " + std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->get_device_name());
+			}
+			else
+			{
+				std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->set_name("can0");
+				isobus::CANStackLogger::warn("Socket CAN interface name not yet configured. Using default of \"can0\"");
+			}
+#endif
+			softKeyMaskRenderer.setTopLeftPosition(100 + dataMaskRenderer.getWidth(), 4 + juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
+			JuceManagedWorkingSetCache::set_softkey_mask_dimension_info(softKeyMaskDimensions);
+		}
+		else if (Identifier("Logging") == child.getType())
+		{
+			if ((!child.getProperty("Level").isVoid()) && (static_cast<int>(child.getProperty("Level")) <= static_cast<int>(isobus::CANStackLogger::LoggingLevel::Critical)))
+			{
+				isobus::CANStackLogger::set_log_level(static_cast<isobus::CANStackLogger::LoggingLevel>(static_cast<int>(child.getProperty("Level"))));
+			}
+		}
+		else if (Identifier("Control") == child.getType())
+		{
+			if (!child.getProperty("AutoStart").isVoid())
+			{
+				autostart = static_cast<bool>(static_cast<int>(child.getProperty("AutoStart")));
+
+				if (autostart)
+				{
+					isobus::CANHardwareInterface::start();
+					dataMaskRenderer.set_has_started(true);
+					hasStartBeenCalled = true;
+					isobus::CANStackLogger::info("AutoStart enabled. Starting CAN hardware interface.");
+				}
+			}
+
+			if (!child.getProperty("AlarmAckKey").isVoid())
+			{
+				alarmAckKeyCode = static_cast<int>(child.getProperty("AlarmAckKey"));
+			}
+		}
+		index++;
+		child = settings->getChild(index);
 	}
 
 	if (!autostart)
@@ -1663,6 +1640,7 @@ void ServerMainComponent::save_settings()
 		languageCommandSettings.setProperty("LanguageCode", String(languageCommandInterface.get_language_code()), nullptr);
 		compatibilitySettings.setProperty("Version", get_vt_version_byte(versionToReport), nullptr);
 		hardwareSettings.setProperty("DataMaskRenderAreaSize", dataMaskRenderer.getWidth(), nullptr);
+		hardwareSettings.setProperty("VT_Number", vtNumber, nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorWidth", softKeyMaskDimensions.keyWidth, nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorHeight", softKeyMaskDimensions.keyHeight, nullptr);
 		hardwareSettings.setProperty("SoftkeyColumnCount", softKeyMaskDimensions.columnCount, nullptr);
@@ -1693,6 +1671,28 @@ void ServerMainComponent::save_settings()
 			xml->writeTo(settingsFile);
 		}
 	}
+}
+
+void ServerMainComponent::identify_vt()
+{
+	// first check if we have active alarm
+	for (auto &ws : managedWorkingSetList)
+	{
+		if (activeWorkingSetMasterAddress == ws->get_control_function()->get_address())
+		{
+			auto activeMask = ws->get_object_by_id(std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask());
+			if (nullptr != activeMask && isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
+			{
+				return;
+			}
+		}
+	}
+
+	juce::MessageManager::callAsync([this] {
+		vtNumberComponent.setVisible(true);
+		repaint();
+		juce::Timer::callAfterDelay(3000, [this]() { vtNumberComponent.setVisible(false); });
+	});
 }
 
 void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
