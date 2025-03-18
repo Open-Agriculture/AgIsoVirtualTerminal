@@ -34,7 +34,7 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 
 			if (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type())
 			{
-        childComponents.back()->setSize(dimensionInfo.keyWidth, dimensionInfo.keyHeight);
+				childComponents.back()->setSize(dimensionInfo.keyWidth, dimensionInfo.keyHeight);
 				auto keyReference = get_object_by_id(std::static_pointer_cast<ObjectPointerComponent>(childComponents.back())->get_value(), parentWorkingSet->get_object_tree());
 				if (nullptr != keyReference && isobus::VirtualTerminalObjectType::Key == child->get_object_type())
 				{
