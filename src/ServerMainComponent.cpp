@@ -18,6 +18,7 @@
 #include "isobus/hardware_integration/socket_can_interface.hpp"
 #endif
 
+#include <chrono>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
@@ -47,6 +48,12 @@ ServerMainComponent::ServerMainComponent(
 	}
 
 	languageCommandInterface.initialize();
+
+	auto timerCallback = std::bind(&ServerMainComponent::timeAndDateCallback, this, std::placeholders::_1);
+	timeServingInterface = std::make_unique<isobus::TimeDateInterface>(serverControlFunction, timerCallback);
+
+	timeServingInterface->initialize();
+
 	mAudioDeviceManager.initialise(0, 1, nullptr, true);
 	mAudioDeviceManager.addAudioCallback(&mSoundPlayer);
 	addAndMakeVisible(workingSetSelector);
@@ -1345,6 +1352,30 @@ std::size_t ServerMainComponent::number_of_iop_files_in_directory(std::filesyste
 		}
 	}
 	return retVal;
+}
+
+bool ServerMainComponent::timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDate)
+{
+	auto now = std::chrono::system_clock::now();
+	auto durationSinceEpoch = now.time_since_epoch();
+	auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(durationSinceEpoch).count() % 1000;
+
+	std::time_t t = std::chrono::system_clock::to_time_t(now);
+	std::tm localTime = *std::localtime(&t);
+
+	timeAndDate.milliseconds = static_cast<std::uint16_t>((millis / 250) * 250);
+	timeAndDate.seconds = static_cast<std::uint8_t>(localTime.tm_sec);
+	timeAndDate.minutes = static_cast<std::uint8_t>(localTime.tm_min);
+	timeAndDate.hours = static_cast<std::uint8_t>(localTime.tm_hour);
+	timeAndDate.quarterDays = static_cast<std::uint8_t>(localTime.tm_hour / 6);
+	timeAndDate.day = static_cast<std::uint8_t>(localTime.tm_mday);
+	timeAndDate.month = static_cast<std::uint8_t>(localTime.tm_mon + 1);
+	timeAndDate.year = static_cast<std::uint16_t>(localTime.tm_year + 1900);
+
+	std::tm utcTime = *std::gmtime(&t);
+	timeAndDate.localHourOffset = static_cast<std::int8_t>(localTime.tm_hour - utcTime.tm_hour);
+	timeAndDate.localMinuteOffset = static_cast<std::int8_t>(localTime.tm_min - utcTime.tm_min);
+	return true;
 }
 
 void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t, std::uint16_t newMask)
