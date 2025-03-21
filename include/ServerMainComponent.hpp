@@ -7,6 +7,7 @@
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 #include "VT_NumberComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
+#include "isobus/isobus/isobus_time_date_interface.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
 #include <filesystem>
@@ -164,6 +165,8 @@ private:
 
 	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
 
+	bool timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDateToPopulate);
+
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
 	void repaint_data_and_soft_key_mask();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
@@ -182,6 +185,7 @@ private:
 	VT_NumberComponent vtNumberComponent;
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
+	std::unique_ptr<isobus::TimeDateInterface> timeServingInterface;
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::unique_ptr<ConfigureHardwareWindow> configureHardwareWindow;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
