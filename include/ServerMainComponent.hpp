@@ -7,6 +7,7 @@
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 #include "VT_NumberComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
+#include "isobus/isobus/isobus_diagnostic_protocol.hpp"
 #include "isobus/isobus/isobus_time_date_interface.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
@@ -186,6 +187,7 @@ private:
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<isobus::TimeDateInterface> timeServingInterface;
+	std::unique_ptr<isobus::DiagnosticProtocol> diagnosticProtocol;
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::unique_ptr<ConfigureHardwareWindow> configureHardwareWindow;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;

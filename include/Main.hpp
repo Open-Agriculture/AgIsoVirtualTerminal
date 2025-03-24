@@ -30,6 +30,7 @@ public:
 		return ProjectInfo::versionString;
 	}
 
+	static std::string getApplicationBuildInfo();
 	static std::string getApplicationNameWithBuildInfo();
 
 	bool moreThanOneInstanceAllowed() override
