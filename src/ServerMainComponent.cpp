@@ -7,6 +7,7 @@
 
 #include "AlarmMaskAudio.h"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "Main.hpp"
 #include "ShortcutsWindow.hpp"
 #include "isobus/utility/system_timing.hpp"
 
@@ -51,8 +52,17 @@ ServerMainComponent::ServerMainComponent(
 
 	auto timerCallback = std::bind(&ServerMainComponent::timeAndDateCallback, this, std::placeholders::_1);
 	timeServingInterface = std::make_unique<isobus::TimeDateInterface>(serverControlFunction, timerCallback);
-
 	timeServingInterface->initialize();
+
+	diagnosticProtocol = std::make_unique<isobus::DiagnosticProtocol>(serverControlFunction);
+	diagnosticProtocol->set_product_identification_brand("Open-Agriculture");
+	diagnosticProtocol->set_product_identification_model("AgIsoVirtualTerminal");
+	diagnosticProtocol->set_software_id_field(0, AgISOVirtualTerminalApplication::getApplicationBuildInfo());
+	diagnosticProtocol->initialize();
+
+	isobus::CANHardwareInterface::get_periodic_update_event_dispatcher().add_listener([this]() {
+		diagnosticProtocol->update();
+	});
 
 	mAudioDeviceManager.initialise(0, 1, nullptr, true);
 	mAudioDeviceManager.addAudioCallback(&mSoundPlayer);

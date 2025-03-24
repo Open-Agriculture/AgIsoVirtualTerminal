@@ -100,12 +100,23 @@ void AgISOVirtualTerminalApplication::MainWindow::closeButtonPressed()
 	JUCEApplication::getInstance()->systemRequestedQuit();
 }
 
+std::string AgISOVirtualTerminalApplication::getApplicationBuildInfo()
+{
+	std::string gitDescribe = std::string(git::Describe());
+	if (gitDescribe.length() > 0)
+	{
+		return gitDescribe + (git::AnyUncommittedChanges() ? "-dirty" : "");
+	}
+	return ProjectInfo::versionString;
+}
+
 std::string AgISOVirtualTerminalApplication::getApplicationNameWithBuildInfo()
 {
 	std::string name = ProjectInfo::projectName;
-	if (git::Describe().length() > 0)
+	auto buildInfo = getApplicationBuildInfo();
+	if (buildInfo.length() > 0)
 	{
-		name.append(" - " + std::string(git::Describe()) + (git::AnyUncommittedChanges() ? "-dirty" : ""));
+		name.append(" - " + buildInfo);
 	}
 	return name;
 }
