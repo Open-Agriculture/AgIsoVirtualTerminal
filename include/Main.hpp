@@ -41,6 +41,8 @@ public:
 	//==============================================================================
 	void initialise(const juce::String &commandLineParameters) override
 	{
+		SystemStats::setApplicationCrashHandler(onCrash);
+
 		juce::StringArray args;
 		args.addTokens(commandLineParameters, true);
 
@@ -81,6 +83,24 @@ public:
 		// When another instance of the app is launched while this one is running,
 		// this method is invoked, and the commandLine parameter tells you what
 		// the other instance's command-line arguments were.
+	}
+
+	static void onCrash(void *)
+	{
+		auto stackTrace = SystemStats::getStackBacktrace();
+		auto appDataDir = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() +
+		                       File::getSeparatorString() +
+		                       "Open-Agriculture" +
+		                       File::getSeparatorString());
+		String timestamp(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()));
+
+		if (!appDataDir.exists())
+		{
+			appDataDir.createDirectory();
+		}
+
+		auto outputFile = appDataDir.getChildFile(JUCEApplication::getInstance()->getApplicationName() + "_crash_" + timestamp + ".txt");
+		outputFile.appendText(stackTrace);
 	}
 
 	//==============================================================================
