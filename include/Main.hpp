@@ -92,14 +92,17 @@ public:
 		                       File::getSeparatorString() +
 		                       "Open-Agriculture" +
 		                       File::getSeparatorString());
-		String timestamp(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()));
+		auto currentTime = Time::getCurrentTime().toString(true, true, true, false);
+		auto fileNameTime = currentTime;
+		fileNameTime = currentTime.replaceCharacter(' ', '_');
+		fileNameTime = currentTime.replaceCharacter(':', '_');
 
 		if (!appDataDir.exists())
 		{
 			appDataDir.createDirectory();
 		}
 
-		auto outputFile = appDataDir.getChildFile(JUCEApplication::getInstance()->getApplicationName() + "_crash_" + timestamp + ".txt");
+		auto outputFile = appDataDir.getChildFile(JUCEApplication::getInstance()->getApplicationName() + "_crash_" + currentTime + ".txt");
 		outputFile.appendText(stackTrace);
 	}
 
