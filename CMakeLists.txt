@@ -54,7 +54,7 @@ juce_add_gui_app(
   DESCRIPTION
   "An ISO11783-6 Server")
 
-set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 17)
+set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 20)
 
 target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=0
                                                         JUCE_WEB_BROWSER=0)
