@@ -61,6 +61,7 @@ Supported features:
 - Multiple simultaneous VT clients
 - Selecting different working sets
 - Most common macro and extended macro functionality
+- Screen capture command/response
 
 Unimplemented features (for now - we are always adding new features)
 

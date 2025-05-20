@@ -8,10 +8,12 @@
 //================================================================================================
 #include "LoggerComponent.hpp"
 
+#include "ServerMainComponent.hpp"
+
 #include "Main.hpp"
 
 LoggerComponent::LoggerComponent() :
-  FileLogger(File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + "/Open-Agriculture/AgISOVirtualTerminalLog.txt"),
+  FileLogger(File(ServerMainComponent::getAppDataDir() + "/AgISOVirtualTerminalLog.txt"),
              "Starting " + AgISOVirtualTerminalApplication::getApplicationNameWithBuildInfo(),
              1024000)
 {
