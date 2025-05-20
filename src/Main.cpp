@@ -9,9 +9,12 @@
 #include "Settings.hpp"
 #include "git.h"
 
-AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name, int vtNumberCmdLineArg) :
+AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
+                                                        int vtNumberCmdLineArg,
+                                                        std::string screenCaptureDir) :
   DocumentWindow(name,
-                 juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId),
+                 juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
+                   juce::ResizableWindow::backgroundColourId),
                  DocumentWindow::allButtons)
 {
 	int vtNumber = vtNumberCmdLineArg;
@@ -76,7 +79,7 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name, int v
 	serverNAME.set_manufacturer_code(1407);
 	serverInternalControlFunction = isobus::CANNetworkManager::CANNetwork.create_internal_control_function(serverNAME, 0, 0x26);
 	setUsingNativeTitleBar(true);
-	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, settings.settingsValueTree(), vtNumber), true);
+	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, settings.settingsValueTree(), vtNumber, screenCaptureDir), true);
 
 #if JUCE_IOS || JUCE_ANDROID
 	setFullScreen(true);
