@@ -64,8 +64,19 @@ void OutputPolygonComponent::paint(Graphics &g)
 			{
 				auto fill = std::static_pointer_cast<isobus::FillAttributes>(child);
 
-				auto vtColour = parentWorkingSet->get_colour(fill->get_background_color());
-				g.setFillType(FillType(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f)));
+				if (fill->get_type() == isobus::FillAttributes::FillType::FillWithLineColor)
+				{
+					g.setFillType(FillType(lineColour));
+				}
+				else if (fill->get_type() == isobus::FillAttributes::FillType::FillWithSpecifiedColorInFillColorAttribute)
+				{
+					auto vtColour = parentWorkingSet->get_colour(fill->get_background_color());
+					g.setFillType(FillType(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f)));
+				}
+				else
+				{
+					// @ TODO support gradient fill
+				}
 				g.fillPath(polygonPath);
 			}
 		}

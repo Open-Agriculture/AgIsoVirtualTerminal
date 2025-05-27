@@ -24,7 +24,7 @@ public:
 
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
-
+	void addArcToPath(Path &path, float x, float y, float w, float h, float fromRadians, float toRadians, bool startAsNewSubPath) const;
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OutputEllipseComponent)
 };
 
