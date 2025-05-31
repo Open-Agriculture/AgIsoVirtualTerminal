@@ -47,6 +47,7 @@ public:
 		args.addTokens(commandLineParameters, true);
 
 		std::uint8_t vtNumber = 0;
+		std::string screenCaptureDir;
 		for (const auto &arg : args)
 		{
 			if (arg.startsWith("--vt-number"))
@@ -58,9 +59,14 @@ public:
 					vtNumber = 0;
 				}
 			}
+
+			if (arg.startsWith("--screen-capture-dir"))
+			{
+				screenCaptureDir = arg.fromFirstOccurrenceOf("--screen-capture-dir=", false, false).toStdString();
+			}
 		}
 
-		mainWindow.reset(new MainWindow(getApplicationNameWithBuildInfo(), vtNumber));
+		mainWindow.reset(new MainWindow(getApplicationNameWithBuildInfo(), vtNumber, screenCaptureDir));
 	}
 
 	void shutdown() override
@@ -114,7 +120,7 @@ public:
 	class MainWindow : public juce::DocumentWindow
 	{
 	public:
-		MainWindow(juce::String name, int vtNumberCmdLineArg = 0);
+		MainWindow(juce::String name, int vtNumberCmdLineArg = 0, std::string screenCaptureDir = "");
 
 		/* Note: Be careful if you override any DocumentWindow methods - the base
            class uses a lot of them, so by overriding you might break its functionality.
