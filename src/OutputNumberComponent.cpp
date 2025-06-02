@@ -5,9 +5,6 @@
 *******************************************************************************/
 #include "OutputNumberComponent.hpp"
 
-#include <iomanip>
-#include <sstream>
-
 OutputNumberComponent::OutputNumberComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputNumber sourceObject) :
   isobus::OutputNumber(sourceObject),
   NumberComponent(workingSet)
