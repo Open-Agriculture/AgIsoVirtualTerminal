@@ -17,6 +17,7 @@ jobs:
         with:
           submodules: recursive
           fetch-tags: true
+          fetch-depth: 0
       - name: Compile
         run: |
           mkdir build
@@ -36,6 +37,7 @@ jobs:
         with:
           submodules: recursive
           fetch-tags: true
+          fetch-depth: 0
       - name: Compile
         run: |
           mkdir build
@@ -55,6 +57,7 @@ jobs:
         with:
           submodules: recursive
           fetch-tags: true
+          fetch-depth: 0
       - name: Compile
         run: |
           mkdir build
@@ -78,6 +81,7 @@ jobs:
         with:
           submodules: recursive
           fetch-tags: true
+          fetch-depth: 0
       - name: Compile
         run: |
           mkdir build
