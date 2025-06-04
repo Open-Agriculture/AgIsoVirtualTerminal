@@ -27,7 +27,16 @@ void ObjectPointerComponent::on_content_changed(bool initial)
 			int w = 0, h = 0;
 			addAndMakeVisible(*childComponent);
 			childComponent->setTopLeftPosition(get_child_x(0), get_child_y(0));
-			std::static_pointer_cast<ObjectPointerComponent>(childComponent)->getChildSizeRecursive(w, h);
+			if (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type())
+			{
+				std::static_pointer_cast<ObjectPointerComponent>(childComponent)->getChildSizeRecursive(w, h);
+			}
+			else
+			{
+				w = child->get_width();
+				h = child->get_height();
+			}
+
 			setSize(w, h);
 		}
 	}
@@ -47,7 +56,7 @@ void ObjectPointerComponent::getChildSizeRecursive(int &w, int &h) const
 	auto child = get_object_by_id(get_value(), parentWorkingSet->get_object_tree());
 	if (nullptr != child)
 	{
-		if (child->get_object_type() == isobus::VirtualTerminalObjectType::ObjectPointer)
+		if (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type())
 		{
 			int numChildren = getNumChildComponents();
 			if (numChildren == 1)
