@@ -33,6 +33,11 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name, int v
 	jassert(!canDrivers.empty()); // You need some kind of CAN interface to run this program!
 	isobus::CANHardwareInterface::set_number_of_can_channels(1);
 
+	auto config = isobus::CANNetworkManager::CANNetwork.get_configuration();
+	config.set_max_number_transport_protocol_sessions(256);
+	config.set_number_of_packets_per_dpo_message(255);
+	config.set_number_of_packets_per_cts_message(255);
+
 #ifndef JUCE_WINDOWS
 	isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDrivers.at(0));
 #endif
