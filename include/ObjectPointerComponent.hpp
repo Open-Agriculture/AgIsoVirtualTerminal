@@ -27,6 +27,7 @@ public:
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::shared_ptr<Component> childComponent;
+	void getChildSizeRecursive(int &w, int &h) const;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ObjectPointerComponent)
 };

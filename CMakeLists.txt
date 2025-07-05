@@ -67,6 +67,7 @@ target_sources(
           "src/ServerMainComponent.cpp"
           "src/DataMaskComponent.cpp"
           "src/WorkingSetSelectorComponent.cpp"
+          "src/WorkingSetLoadingIndicatorComponent.cpp"
           "src/PictureGraphicComponent.cpp"
           "src/WorkingSetComponent.cpp"
           "src/AlarmMaskComponent.cpp"

@@ -16,6 +16,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-tags: true
+          fetch-depth: 0
       - name: Compile
         run: |
           mkdir build
@@ -34,6 +36,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-tags: true
+          fetch-depth: 0
       - name: Compile
         run: |
           mkdir build
@@ -52,6 +56,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-tags: true
+          fetch-depth: 0
       - name: Compile
         run: |
           mkdir build
@@ -74,6 +80,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-tags: true
+          fetch-depth: 0
       - name: Compile
         run: |
           mkdir build
