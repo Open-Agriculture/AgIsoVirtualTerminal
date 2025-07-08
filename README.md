@@ -172,6 +172,9 @@ cmake --build build --target package --config Release
 ## Troubleshooting
 
 * On OSX, if you get an error about `libPCBUSB` when trying to run the program, you'll need to allow the file in System Preferences -> Security & Privacy. This is due to our inclusion of the Mac port of the PCAN driver, and isn't something we can control.
+Download the PCAN Library from [mac-can](https://mac-can.com/) and install it as it is written in the README. Then add the Library Path to rpath for the VT-Application on MacOS 15+ 
+`install_name_tool -add_rpath /usr/local/lib/ /Applications/AgISOVirtualTerminal.app/Contents/MacOS/AgISOVirtualTerminal`. 
+Be shure, to have the correct PCAN Library that matches the Version Number used in AgISOVirtialTerminal
 
 If you find something that doesn't work, please open an issue on GitHub. Seriously. We want to know about it. Our goal is to make this application completely conformant to the VT standard, so finding issues will help accelerate that process.
 
