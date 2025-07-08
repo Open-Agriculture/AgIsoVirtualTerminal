@@ -159,9 +159,6 @@ if(APPLE)
     TARGETS AgISOVirtualTerminal
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION . COMPONENT applications)
-  target_link_libraries(
-    AgISOVirtualTerminal
-    PRIVATE ${CMAKE_CURRENT_LIST_DIR}/lib/libPCBUSB.0.12.dylib)
 else()
   install(TARGETS AgISOVirtualTerminal RUNTIME DESTINATION bin
                                                COMPONENT applications)
