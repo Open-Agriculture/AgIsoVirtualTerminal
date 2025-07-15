@@ -112,8 +112,8 @@ public:
 
 	void change_selected_working_set(std::uint8_t index);
 
-	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t pos);
-	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t pos);
+	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t pos);
+	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t pos);
 
 	bool is_key_position_released_by_mask_change(std::uint8_t pos) const;
 
@@ -154,12 +154,12 @@ private:
 
 	struct HeldButtonData
 	{
-		HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t position);
+		HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, std::uint8_t position);
 		bool operator==(const HeldButtonData &other) const;
 		std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> associatedWorkingSet;
 		std::uint32_t timestamp_ms;
 		std::uint16_t buttonObjectID;
-		std::uint16_t softKeyMaskObjectID;
+		std::uint16_t activeMaskObjectID;
 		std::uint8_t buttonKeyCode;
 		std::uint8_t keyPosition; // applicable only for softkeys
 		bool isSoftKey;

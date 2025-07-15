@@ -618,11 +618,11 @@ void ServerMainComponent::timerCallback()
 
 					if (heldButton.isSoftKey)
 					{
-						sentMessage = send_soft_key_activation_message(KeyActivationCode::ButtonStillHeld, heldButton.buttonObjectID, heldButton.softKeyMaskObjectID, heldButton.buttonKeyCode, heldButton.associatedWorkingSet->get_control_function());
+						sentMessage = send_soft_key_activation_message(KeyActivationCode::ButtonStillHeld, heldButton.buttonObjectID, heldButton.activeMaskObjectID, heldButton.buttonKeyCode, heldButton.associatedWorkingSet->get_control_function());
 					}
 					else
 					{
-						sentMessage = send_button_activation_message(KeyActivationCode::ButtonStillHeld, heldButton.buttonObjectID, heldButton.softKeyMaskObjectID, heldButton.buttonKeyCode, heldButton.associatedWorkingSet->get_control_function());
+						sentMessage = send_button_activation_message(KeyActivationCode::ButtonStillHeld, heldButton.buttonObjectID, heldButton.activeMaskObjectID, heldButton.buttonKeyCode, heldButton.associatedWorkingSet->get_control_function());
 					}
 
 					if (sentMessage)
@@ -1178,9 +1178,9 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 	}
 }
 
-void ServerMainComponent::set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey, uint8_t pos)
+void ServerMainComponent::set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, uint8_t pos)
 {
-	ServerMainComponent::HeldButtonData buttonData(workingSet, objectID, maskObjectID, keyCode, isSoftKey, pos);
+	ServerMainComponent::HeldButtonData buttonData(workingSet, objectID, activeMaskID, keyCode, isSoftKey, pos);
 	bool alreadyHeld = false;
 
 	softKeyPositionReleasedByMaskChange = KeyComponent::InvalidSoftKeyPos;
@@ -1205,9 +1205,9 @@ bool ServerMainComponent::is_key_position_released_by_mask_change(std::uint8_t p
 	return softKeyPositionReleasedByMaskChange == pos;
 }
 
-void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey, uint8_t pos)
+void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, uint8_t pos)
 {
-	HeldButtonData buttonData(workingSet, objectID, maskObjectID, keyCode, isSoftKey, pos);
+	HeldButtonData buttonData(workingSet, objectID, activeMaskID, keyCode, isSoftKey, pos);
 	auto found = std::find(heldButtons.begin(), heldButtons.end(), buttonData);
 	if (heldButtons.end() != found)
 	{
@@ -1221,11 +1221,11 @@ void ServerMainComponent::handle_softkey_release_if_mask_changed()
 	// ... indicating released to the erased object on its parent Data Mask.
 	std::erase_if(heldButtons,
 	              [this](const HeldButtonData button) {
-		              if ((button.softKeyMaskObjectID != activeWorkingSetSoftkeyMaskObjectID) && button.isSoftKey)
+		              if ((button.activeMaskObjectID != activeWorkingSetSoftkeyMaskObjectID) && button.isSoftKey)
 		              {
 			              send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 			                                               button.buttonObjectID,
-			                                               button.softKeyMaskObjectID,
+			                                               button.activeMaskObjectID,
 			                                               button.buttonKeyCode,
 			                                               get_active_working_set()->get_control_function());
 			              // In the case if a currently pressed softkey is being replaced with a new one during a softkey mask change
@@ -1348,12 +1348,12 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 	mParent.popupMenu.reset();
 }
 
-ServerMainComponent::HeldButtonData::HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey, uint8_t position) :
+ServerMainComponent::HeldButtonData::HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t activeMaskID, std::uint8_t keyCode, bool isSoftKey, uint8_t position) :
   isSoftKey(isSoftKey),
   associatedWorkingSet(workingSet),
   timestamp_ms(isobus::SystemTiming::get_timestamp_ms()),
   buttonObjectID(objectID),
-  softKeyMaskObjectID(maskObjectID),
+  activeMaskObjectID(activeMaskID),
   buttonKeyCode(keyCode),
   keyPosition(position)
 {
@@ -1361,7 +1361,7 @@ ServerMainComponent::HeldButtonData::HeldButtonData(std::shared_ptr<isobus::Virt
 
 bool ServerMainComponent::HeldButtonData::operator==(const HeldButtonData &other) const
 {
-	return ((other.softKeyMaskObjectID == softKeyMaskObjectID) &&
+	return ((other.activeMaskObjectID == activeMaskObjectID) &&
 	        (other.associatedWorkingSet == associatedWorkingSet) &&
 	        (other.buttonObjectID == buttonObjectID) &&
 	        (other.buttonKeyCode == buttonKeyCode) &&
