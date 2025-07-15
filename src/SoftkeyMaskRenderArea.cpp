@@ -84,30 +84,30 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 		if (nullptr != workingSetObject)
 		{
-			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
-			auto parentMask = activeMask;
+			auto activeDataOrAlarmMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+			std::shared_ptr<isobus::VTObject> softKeyMask = nullptr;
 
-			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
+			if (isobus::VirtualTerminalObjectType::AlarmMask == activeDataOrAlarmMask->get_object_type())
 			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+				auto child = activeDataOrAlarmMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeDataOrAlarmMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
 
 				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{
-					activeMask = child;
+					softKeyMask = child;
 				}
 			}
-			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
+			else if (isobus::VirtualTerminalObjectType::DataMask == activeDataOrAlarmMask->get_object_type())
 			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+				auto child = activeDataOrAlarmMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeDataOrAlarmMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
 
 				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{
-					activeMask = child;
+					softKeyMask = child;
 				}
 			}
 
 			auto relativeEvent = event.getEventRelativeTo(this);
-			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
+			auto clickedObject = getClickedChildRecursive(softKeyMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
 
 			ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 
@@ -123,12 +123,12 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 				ownerServer.send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
 				                                             clickedObject->get_id(),
-				                                             parentMask->get_id(),
+				                                             activeDataOrAlarmMask->get_id(),
 				                                             keyCode,
 				                                             ownerServer.get_active_working_set()->get_control_function());
 				ownerServer.set_button_held(ownerServer.get_active_working_set(),
 				                            clickedObject->get_id(),
-				                            activeMask->get_id(),
+				                            activeDataOrAlarmMask->get_id(),
 				                            keyCode,
 				                            true,
 				                            keyPositon);
@@ -146,30 +146,30 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 		if (nullptr != workingSetObject)
 		{
-			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
-			auto parentMask = activeMask;
+			auto activeDataOrAlarmMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+			std::shared_ptr<isobus::VTObject> softKeyMask;
 
-			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
+			if (isobus::VirtualTerminalObjectType::AlarmMask == activeDataOrAlarmMask->get_object_type())
 			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+				auto child = activeDataOrAlarmMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeDataOrAlarmMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
 
 				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{
-					activeMask = child;
+					softKeyMask = child;
 				}
 			}
-			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
+			else if (isobus::VirtualTerminalObjectType::DataMask == activeDataOrAlarmMask->get_object_type())
 			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+				auto child = activeDataOrAlarmMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeDataOrAlarmMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
 
 				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{
-					activeMask = child;
+					softKeyMask = child;
 				}
 			}
 
 			auto relativeEvent = event.getEventRelativeTo(this);
-			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getPosition().x, relativeEvent.getPosition().y);
+			auto clickedObject = getClickedChildRecursive(softKeyMask, relativeEvent.getPosition().x, relativeEvent.getPosition().y);
 
 			ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 
@@ -184,17 +184,21 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 					keyPosition = std::static_pointer_cast<KeyComponent>(clickedObject)->getKeyPosition();
 				}
 
+				// TODO for VT4 / key group support we will need to pass the object ID of the key group object, not the active data/alarm mask ID
+				//
+				// Parent object ID field:
+				// Object ID of visible Data Mask, Alarm Mask, or in the case where the Soft Key is in a visible Key Group, the Object ID of the Key Group Object
 				if (!ownerServer.is_key_position_released_by_mask_change(keyPosition))
 				{
 					ownerServer.send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 					                                             clickedObject->get_id(),
-					                                             parentMask->get_id(),
+					                                             activeDataOrAlarmMask->get_id(),
 					                                             keyCode,
 					                                             ownerServer.get_active_working_set()->get_control_function());
 				}
 				ownerServer.set_button_released(ownerServer.get_active_working_set(),
 				                                clickedObject->get_id(),
-				                                activeMask->get_id(),
+				                                activeDataOrAlarmMask->get_id(),
 				                                keyCode,
 				                                true,
 				                                keyPosition);
