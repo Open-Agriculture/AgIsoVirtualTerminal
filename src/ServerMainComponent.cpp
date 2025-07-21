@@ -1216,11 +1216,13 @@ void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTer
 
 void ServerMainComponent::handle_softkey_release_if_mask_changed()
 {
-	// If a Key object .... is erased from the screen ... while it is activated, the VT shall send a Soft Key Activation message
-	// ... indicating released to the erased object on its parent Data Mask.
+	// Remove the hold keys in the case if the active mask is changed
+	// In the case if the softkeymask is not changed and the key is still at the same postion the held state will not be removed
 	std::erase_if(heldButtons,
 	              [this](const HeldButtonData button) {
-		              if ((button.activeMaskObjectID != activeWorkingSetSoftkeyMaskObjectID) && button.isSoftKey)
+		              auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(button.associatedWorkingSet->get_working_set_object());
+		              if (button.isSoftKey &&
+		                  ((button.softKeyMaskID != activeWorkingSetSoftkeyMaskObjectID) || (button.keyPosition != get_softkey_index_on_softkey_mask(button.buttonObjectID))))
 		              {
 			              send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 			                                               button.buttonObjectID,
@@ -1533,7 +1535,6 @@ void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr
 void ServerMainComponent::repaint_data_and_soft_key_mask()
 {
 	dataMaskRenderer.on_change_active_mask(activeWorkingSet);
-	handle_softkey_release_if_mask_changed();
 	softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
 	workingSetSelector.redraw();
 }
@@ -1835,4 +1836,24 @@ void ServerMainComponent::clear_iso_data()
 		isoDirectory.deleteRecursively();
 		isobus::CANStackLogger::info("ISO Data cleared");
 	}
+}
+
+uint8_t ServerMainComponent::get_softkey_index_on_softkey_mask(uint16_t keyID)
+{
+	auto object = activeWorkingSet->get_object_by_id(activeWorkingSetSoftkeyMaskObjectID);
+	if (nullptr != object && isobus::VirtualTerminalObjectType::SoftKeyMask == object->get_object_type())
+	{
+		for (int i = 0; i < object->get_number_children(); i++)
+		{
+			auto child = object->get_object_by_id(object->get_child_id(i), activeWorkingSet->get_object_tree());
+			if (nullptr != child && isobus::VirtualTerminalObjectType::Key == object->get_object_type())
+			{
+				if (object->get_child_id(i) == keyID)
+				{
+					return i;
+				}
+			}
+		}
+	}
+	return KeyComponent::InvalidSoftKeyPos;
 }
