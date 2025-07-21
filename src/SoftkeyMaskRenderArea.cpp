@@ -183,7 +183,6 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
 					keyPosition = std::static_pointer_cast<KeyComponent>(clickedObject)->getKeyPosition();
 				}
-
 				// TODO for VT4 / key group support we will need to pass the object ID of the key group object, not the active data/alarm mask ID
 				//
 				// Parent object ID field:

@@ -160,6 +160,7 @@ private:
 		std::uint32_t timestamp_ms;
 		std::uint16_t buttonObjectID;
 		std::uint16_t activeMaskObjectID;
+		std::uint16_t softKeyMaskID; // applicable only for softkeys
 		std::uint8_t buttonKeyCode;
 		std::uint8_t keyPosition; // applicable only for softkeys
 		bool isSoftKey;
@@ -178,6 +179,14 @@ private:
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
+
+	/**
+	 * @brief get_softkey_index_on_softkey_mask
+	 * @param keyID ID of the key to be queried
+	 * @return The 0 based child index of the key specified by the keyID in the active softkey mask or
+	 * KeyComponent::InvalidSoftKeyPos (255) if the specified key is not part of the current softkey mask
+	 */
+	std::uint8_t get_softkey_index_on_softkey_mask(std::uint16_t keyID);
 
 	const std::string ISO_DATA_PATH = "iso_data";
 
