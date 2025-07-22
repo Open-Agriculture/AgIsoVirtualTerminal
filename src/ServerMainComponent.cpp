@@ -36,6 +36,10 @@ ServerMainComponent::ServerMainComponent(
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
 
 	VirtualTerminalServer::initialize();
+
+	logger.setVisible(true);
+	loggerViewport.setVisible(true);
+
 	check_load_settings(settings);
 
 	if (languageCommandInterface.get_country_code().empty())
@@ -69,7 +73,7 @@ ServerMainComponent::ServerMainComponent(
 	addAndMakeVisible(workingSetSelector);
 	addAndMakeVisible(dataMaskRenderer);
 	addAndMakeVisible(softKeyMaskRenderer);
-	addAndMakeVisible(loggerViewport);
+	addChildComponent(loggerViewport);
 	addChildComponent(vtNumberComponent);
 	vtNumber = vtNumberArg;
 	menuBar.setModel(this);
@@ -82,7 +86,6 @@ ServerMainComponent::ServerMainComponent(
 	logger.setTopLeftPosition(0, 600);
 	logger.setSize(800, 200);
 	loggerViewport.setViewedComponent(&logger, false);
-	logger.setVisible(true);
 
 	setApplicationCommandManagerToWatch(&mCommandManager);
 	mCommandManager.registerAllCommandsForTarget(this);
@@ -882,9 +885,13 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 		case static_cast<int>(CommandIDs::ConfigureLogging):
 		{
-			popupMenu = std::make_unique<AlertWindow>("Configure Logging", "You can use this to change the logging level, which affects what's shown in the logging area, and what is written to the log file. Setting logging to \"debug\" may impact performance, but will provide very verbose output.", MessageBoxIconType::NoIcon);
+			popupMenu = std::make_unique<AlertWindow>("Configure Logging", "", MessageBoxIconType::NoIcon);
+			popupMenu->addTextBlock("Select a logging level. The logging level affects what's shown in the logging area, and what is written to the log file. Setting logging to \"debug\" may impact performance.");
 			popupMenu->addComboBox("Logging Level", { "Debug", "Info", "Warning", "Error", "Critical" });
 			popupMenu->getComboBoxComponent("Logging Level")->setSelectedItemIndex(static_cast<int>(isobus::CANStackLogger::get_log_level()));
+			popupMenu->addTextBlock("Select if the log window should be shown or hidden. Showing the log window may affect performance.");
+			popupMenu->addComboBox("Logging Window", { "Hidden", "Enabled" });
+			popupMenu->getComboBoxComponent("Logging Window")->setSelectedItemIndex(loggerViewport.isVisible() ? 1 : 0);
 			popupMenu->addButton("OK", 4, KeyPress(KeyPress::returnKey, 0, 0));
 			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
@@ -1297,6 +1304,16 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 		case 4: // Log level
 		{
 			isobus::CANStackLogger::set_log_level(static_cast<isobus::CANStackLogger::LoggingLevel>(mParent.popupMenu->getComboBoxComponent("Logging Level")->getSelectedItemIndex()));
+			if (mParent.popupMenu->getComboBoxComponent("Logging Window")->getSelectedItemIndex() == 1)
+			{
+				mParent.logger.setVisible(true);
+				mParent.loggerViewport.setVisible(true);
+			}
+			else
+			{
+				mParent.logger.setVisible(false);
+				mParent.loggerViewport.setVisible(false);
+			}
 			mParent.save_settings();
 		}
 		break;
@@ -1617,6 +1634,18 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			{
 				isobus::CANStackLogger::set_log_level(static_cast<isobus::CANStackLogger::LoggingLevel>(static_cast<int>(child.getProperty("Level"))));
 			}
+			if (!child.getProperty("Shown").isVoid())
+			{
+				auto shown = static_cast<int>(child.getProperty("Shown"));
+
+				logger.setVisible(shown);
+				loggerViewport.setVisible(shown);
+			}
+			else
+			{
+				logger.setVisible(false);
+				loggerViewport.setVisible(false);
+			}
 		}
 		else if (Identifier("Control") == child.getType())
 		{
@@ -1719,6 +1748,7 @@ void ServerMainComponent::save_settings()
 			hardwareSettings.setProperty("CANDriver", static_cast<int>(hardwareDriverIndex), nullptr);
 		}
 		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
+		loggingSettings.setProperty("Shown", static_cast<int>(logger.isVisible()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
