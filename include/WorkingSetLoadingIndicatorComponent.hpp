@@ -24,6 +24,7 @@ private:
 	int height = 0;
 	int width = 0;
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
+	std::string m_manufacturerName;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetLoadingIndicatorComponent)
 };
