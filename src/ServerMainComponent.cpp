@@ -70,7 +70,7 @@ ServerMainComponent::ServerMainComponent(
 	addAndMakeVisible(dataMaskRenderer);
 	addAndMakeVisible(softKeyMaskRenderer);
 	// If the logger is not set to Info, we add the logger viewport
-	if (logger.get_log_level() != isobus::CANStackLogger::LoggingLevel::Info){
+	if (logger.get_log_level() != isobus::CANStackLogger::LoggingLevel::Info) {
 	addAndMakeVisible(loggerViewport);
 	}
 	
