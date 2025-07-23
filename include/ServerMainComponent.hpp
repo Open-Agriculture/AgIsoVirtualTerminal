@@ -160,7 +160,6 @@ private:
 		std::uint32_t timestamp_ms;
 		std::uint16_t buttonObjectID;
 		std::uint16_t activeMaskObjectID;
-		std::uint16_t softKeyMaskID; // applicable only for softkeys
 		std::uint8_t buttonKeyCode;
 		std::uint8_t keyPosition; // applicable only for softkeys
 		bool isSoftKey;
