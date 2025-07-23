@@ -1216,13 +1216,10 @@ void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTer
 
 void ServerMainComponent::handle_softkey_release_if_mask_changed()
 {
-	// Remove the hold keys in the case if the active mask is changed
-	// In the case if the softkeymask is not changed and the key is still at the same postion the held state will not be removed
 	std::erase_if(heldButtons,
 	              [this](const HeldButtonData button) {
 		              auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(button.associatedWorkingSet->get_working_set_object());
-		              if (button.isSoftKey &&
-		                  ((button.softKeyMaskID != activeWorkingSetSoftkeyMaskObjectID) || (button.keyPosition != get_softkey_index_on_softkey_mask(button.buttonObjectID))))
+		              if (button.isSoftKey)
 		              {
 			              send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 			                                               button.buttonObjectID,
@@ -1450,7 +1447,19 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 		const MessageManagerLock mmLock;
 
 		dataMaskRenderer.on_change_active_mask(activeWorkingSet);
-		handle_softkey_release_if_mask_changed();
+		if (activeWorkingSetDataMaskObjectID != newMask)
+		{
+			/*
+       * if a Soft Key is pressed and the Data/Alarm Mask is changed to a new Data/Alarm Mask
+       * that is using the same Soft Key Mask, the VT shall send a Soft Key Activation message indicating released
+       * and shall then ignore the Soft Key until it has been released.
+       * ...
+       * If a Change Active Mask command ... results in no change of the current
+       * Active Data/Alarm Mask ..., then there is also no change to the pressed/held/
+       * released state of any ... Soft Keys
+       */
+			handle_softkey_release_if_mask_changed();
+		}
 		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
 
 		auto activeMask = affectedWorkingSet->get_object_by_id(newMask);
@@ -1525,8 +1534,12 @@ void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr
 			if (activeWorkingSetSoftkeyMaskObjectID != newSoftKeyMask)
 			{
 				softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
+				/*
+         * If ... a Change Soft Key Mask command results in no change of the current ... Active Soft Key Mask,
+         * then there is also no change to the pressed/held/released state of any ... Soft Keys
+         */
+				handle_softkey_release_if_mask_changed();
 			}
-			handle_softkey_release_if_mask_changed();
 			activeWorkingSetSoftkeyMaskObjectID = newSoftKeyMask;
 		}
 	}
