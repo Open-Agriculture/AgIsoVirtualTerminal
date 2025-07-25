@@ -928,6 +928,39 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 				}
 			}
 
+			MemoryInputStream *mIopInputStream = nullptr;
+			MemoryOutputStream mMergedIopData;
+			if (nullptr != activeWorkingSet)
+			{
+				std::ostringstream nameString;
+				nameString << std::hex << std::setfill('0') << std::setw(16) << activeWorkingSet->get_control_function()->get_NAME().get_full_name();
+
+				auto iopFolder = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString() + "iso_data" + File::getSeparatorString() + nameString.str());
+
+				auto iopFiles = iopFolder.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iop");
+
+				if (iopFiles.size() > 0)
+				{
+					mMergedIopData.reset();
+					std::sort(iopFiles.begin(), iopFiles.end(), [](const File &a, const File &b) {
+						return a.getFileName() < b.getFileName();
+					});
+
+					for (const auto &iopFile : iopFiles)
+					{
+						FileInputStream iopPartStream(iopFile);
+						if (iopPartStream.openedOk())
+						{
+							mMergedIopData.writeFromInputStream(iopPartStream, -1);
+						}
+					}
+
+					mIopInputStream = new MemoryInputStream(mMergedIopData.getData(), mMergedIopData.getDataSize(), false); // will be deleted by the builder object
+					diagnosticFileBuilder->addEntry(mIopInputStream, 9, nameString.str() + ".iop", Time::getCurrentTime());
+					anyFilesAdded = true;
+				}
+			}
+
 			if (anyFilesAdded)
 			{
 				auto currentTime = Time::getCurrentTime().toString(true, true, true, false);
