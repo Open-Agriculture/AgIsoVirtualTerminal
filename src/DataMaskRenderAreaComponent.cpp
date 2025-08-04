@@ -432,9 +432,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								{
 									if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 									{
+										auto numVar = std::static_pointer_cast<isobus::NumberVariable>(child);
 										hasNumberVariable = true;
-										std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(!(0 != std::static_pointer_cast<isobus::NumberVariable>(child)->get_value()));
-										ownerServer.send_change_numeric_value_message(child->get_id(), std::static_pointer_cast<isobus::NumberVariable>(child)->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+										numVar->set_value(numVar->get_value() != 0 ? 0 : 1);
+										ownerServer.send_change_numeric_value_message(child->get_id(), numVar->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 										ownerServer.process_macro(child, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, parentWorkingSet);
 									}
 								}
@@ -442,7 +443,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 							if (!hasNumberVariable)
 							{
-								clickedBool->set_value(~clickedBool->get_value());
+								clickedBool->set_value(clickedBool->get_value() != 0 ? 0 : 1);
 								ownerServer.send_change_numeric_value_message(clickedBool->get_id(), clickedBool->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 								ownerServer.process_macro(clickedBool, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputBoolean, parentWorkingSet);
 							}
