@@ -29,7 +29,7 @@ ServerMainComponent::ServerMainComponent(
   std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
   std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
   std::shared_ptr<ValueTree> settings,
-  uint8_t vtNumber) :
+  uint8_t vtNumberArg) :
   VirtualTerminalServer(serverControlFunction), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
@@ -71,6 +71,7 @@ ServerMainComponent::ServerMainComponent(
 	addAndMakeVisible(softKeyMaskRenderer);
 	addAndMakeVisible(loggerViewport);
 	addChildComponent(vtNumberComponent);
+	vtNumber = vtNumberArg;
 	menuBar.setModel(this);
 	addAndMakeVisible(menuBar);
 
@@ -858,7 +859,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		case static_cast<int>(CommandIDs::ConfigureReportedHardware):
 		{
 			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Capabilities", "You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients.", MessageBoxIconType::NoIcon);
-			popupMenu->addTextEditor("VT number", String(vtNumber), "VT number (0-31, only applied on restart)");
+			popupMenu->addTextEditor("VT number", String(vtNumber), "VT number (1-32, only applied on restart)");
 			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), "Data Mask Size (height and width)");
 			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_height()), "Soft Key Designator Height (min 60)");
 			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), "Soft Key Designator Width (min 60)");
@@ -1750,6 +1751,7 @@ void ServerMainComponent::identify_vt()
 	}
 
 	juce::MessageManager::callAsync([this] {
+		vtNumberComponent.setVtNumber(vtNumber);
 		vtNumberComponent.setVisible(true);
 		repaint();
 		juce::Timer::callAfterDelay(3000, [this]() { vtNumberComponent.setVisible(false); });

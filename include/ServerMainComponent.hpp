@@ -24,7 +24,7 @@ public:
 	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
 	                    std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
 	                    std::shared_ptr<ValueTree> settings,
-	                    std::uint8_t vtNumber = 0);
+	                    std::uint8_t vtNumberArg = 0);
 	~ServerMainComponent() override;
 
 	bool get_is_enough_memory(std::uint32_t requestedMemory) const override;
@@ -195,7 +195,7 @@ private:
 	std::vector<HeldButtonData> heldButtons;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
-	std::uint8_t vtNumber = 1;
+	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;
 	bool needToRepaint = false;
