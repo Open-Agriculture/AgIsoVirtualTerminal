@@ -114,6 +114,11 @@ public:
 	class MainWindow : public juce::DocumentWindow
 	{
 	public:
+		/**
+     * @brief MainWindow
+     * @param name - window name to be displayed in the window title
+     * @param vtNumberCmdLineArg - in the range of 1 - 32
+     */
 		MainWindow(juce::String name, int vtNumberCmdLineArg = 0);
 
 		/* Note: Be careful if you override any DocumentWindow methods - the base
