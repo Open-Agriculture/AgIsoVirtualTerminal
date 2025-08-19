@@ -76,6 +76,7 @@ void SoftKeyMaskRenderAreaComponent::paint(Graphics &g)
 
 void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 {
+	LOG_INFO("SoftKey mouseDown isTouch: %d multipleClicks: %d", event.source.isTouch(), event.source.getNumberOfMultipleClicks());
 	if (nullptr != parentWorkingSet)
 	{
 		// Do a top down search to see if they clicked on some interactable object
@@ -136,6 +137,7 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 {
+	LOG_INFO("SoftKey mouseUp isTouch: %d multipleClicks: %d", event.source.isTouch(), event.source.getNumberOfMultipleClicks());
 	if (nullptr != parentWorkingSet)
 	{
 		// Do a top down search to see if they clicked on some interactable object
