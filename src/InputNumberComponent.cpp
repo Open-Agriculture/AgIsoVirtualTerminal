@@ -32,7 +32,7 @@ void InputNumberComponent::paint(Graphics &g)
 		g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 	}
 
-	float scaledValue = (get_value() + get_offset()) * get_scale();
+	double scaledValue = (static_cast<double>(get_value()) + static_cast<double>(get_offset())) * static_cast<double>(get_scale());
 	g.setColour(getLookAndFeel().findColour(ListBox::textColourId));
 
 	// Get font data
@@ -60,7 +60,8 @@ void InputNumberComponent::paint(Graphics &g)
 		if ((nullptr != child) &&
 		    (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 		{
-			scaledValue = (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() + get_offset()) * get_scale();
+			double val = static_cast<double>(std::static_pointer_cast<isobus::NumberVariable>(child)->get_value());
+			scaledValue = (val + static_cast<double>(get_offset())) * static_cast<double>(get_scale());
 		}
 	}
 
