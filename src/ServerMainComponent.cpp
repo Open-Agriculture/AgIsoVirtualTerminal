@@ -506,6 +506,18 @@ bool ServerMainComponent::delete_object_pool(isobus::NAME clientNAME)
 	return retVal;
 }
 
+uint8_t ServerMainComponent::get_user_layout_datamask_bg_color() const
+{
+	// return with black for now
+	return 0;
+}
+
+uint8_t ServerMainComponent::get_user_layout_softkeymask_bg_color() const
+{
+	// return with black for now
+	return 0;
+}
+
 void ServerMainComponent::timerCallback()
 {
 	if ((isobus::SystemTiming::time_expired_ms(statusMessageTimestamp_ms, 1000)) &&
