@@ -1217,24 +1217,26 @@ void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTer
 
 void ServerMainComponent::handle_softkey_release_if_mask_changed()
 {
-	std::erase_if(heldButtons,
-	              [this](const HeldButtonData button) {
-		              auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(button.associatedWorkingSet->get_working_set_object());
-		              if (button.isSoftKey)
-		              {
-			              send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
-			                                               button.buttonObjectID,
-			                                               button.activeMaskObjectID,
-			                                               button.buttonKeyCode,
-			                                               get_active_working_set()->get_control_function());
-			              // In the case if a currently pressed softkey is being replaced with a new one during a softkey mask change
-			              // the mouseUp event on the newly added key will not be called, however the mouseRelease will.
-			              // To prevent sending the unneeded mouse release events in this scenario we cache the softkey positions of the pressed and replaced keys.
-			              softKeyPositionReleasedByMaskChange = button.keyPosition;
-			              return true;
-		              }
-		              return false;
-	              });
+	for (auto it = heldButtons.begin(); it != heldButtons.end();)
+	{
+		if ((*it).isSoftKey)
+		{
+			send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+			                                 (*it).buttonObjectID,
+			                                 (*it).activeMaskObjectID,
+			                                 (*it).buttonKeyCode,
+			                                 get_active_working_set()->get_control_function());
+			// In the case if a currently pressed softkey is being replaced with a new one during a softkey mask change
+			// the mouseUp event on the newly added key will not be called, however the mouseRelease will.
+			// To prevent sending the unneeded mouse release events in this scenario we cache the softkey positions of the pressed and replaced keys.
+			softKeyPositionReleasedByMaskChange = (*it).keyPosition;
+			it = heldButtons.erase(it);
+		}
+		else
+		{
+			it++;
+		}
+	}
 }
 
 void ServerMainComponent::repaint_on_next_update()
