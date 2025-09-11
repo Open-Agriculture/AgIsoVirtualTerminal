@@ -24,7 +24,7 @@ public:
 	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
 	                    std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
 	                    std::shared_ptr<ValueTree> settings,
-                      std::uint8_t vtNumberArg = 0,
+	                    std::uint8_t vtNumberArg = 0,
 	                    std::string screenCaptureDir = "");
 	~ServerMainComponent() override;
 
