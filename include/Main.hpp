@@ -60,7 +60,7 @@ public:
 			}
 		}
 
-		mainWindow.reset(new MainWindow(getApplicationNameWithBuildInfo(), vtNumber));
+		mainWindow.reset(new MainWindow(getApplicationNameWithBuildInfo(), logFile.currentLogFile(), vtNumber));
 	}
 
 	void shutdown() override
@@ -119,7 +119,7 @@ public:
      * @param name - window name to be displayed in the window title
      * @param vtNumberCmdLineArg - in the range of 1 - 32
      */
-		MainWindow(juce::String name, int vtNumberCmdLineArg = 0);
+		MainWindow(juce::String name, const std::string &canLogPath, int vtNumberCmdLineArg = 0);
 
 		/* Note: Be careful if you override any DocumentWindow methods - the base
            class uses a lot of them, so by overriding you might break its functionality.
