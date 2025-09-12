@@ -1308,11 +1308,13 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			{
 				mParent.logger.setVisible(true);
 				mParent.loggerViewport.setVisible(true);
+				mParent.setSize(800, 800);
 			}
 			else
 			{
 				mParent.logger.setVisible(false);
 				mParent.loggerViewport.setVisible(false);
+				mParent.setSize(800, 600);
 			}
 			mParent.save_settings();
 		}
@@ -1640,11 +1642,13 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 
 				logger.setVisible(shown);
 				loggerViewport.setVisible(shown);
+				setSize(800, 800);
 			}
 			else
 			{
 				logger.setVisible(false);
 				loggerViewport.setVisible(false);
+				setSize(800, 600);
 			}
 		}
 		else if (Identifier("Control") == child.getType())
