@@ -109,3 +109,8 @@ ASCIILogFile::ASCIILogFile()
 		RuntimePermissions::request(RuntimePermissions::writeExternalStorage, nullptr);
 	}
 }
+
+std::string ASCIILogFile::currentLogFile() const
+{
+	return logFile.getFullPathName().toStdString();
+}

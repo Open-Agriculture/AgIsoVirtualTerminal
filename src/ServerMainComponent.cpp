@@ -29,8 +29,9 @@ ServerMainComponent::ServerMainComponent(
   std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
   std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
   std::shared_ptr<ValueTree> settings,
+  const std::string &canLogPath_,
   uint8_t vtNumberArg) :
-  VirtualTerminalServer(serverControlFunction), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers)
+  VirtualTerminalServer(serverControlFunction), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers), canLogPath(canLogPath_)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
@@ -547,6 +548,10 @@ void ServerMainComponent::timerCallback()
 			{
 				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, isobus::NULL_OBJECT_ID, 0, ws->get_control_function());
 			}
+
+			std::ostringstream nameString;
+			nameString << std::hex << std::setfill('0') << std::setw(16) << ws->get_control_function()->get_NAME().get_full_name();
+			loadedNames.insert(nameString.str());
 		}
 		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Fail == ws->get_object_pool_processing_state())
 		{
@@ -710,6 +715,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureShortcuts));
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureLogging));
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackage));
+	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
 	allCommands.add(static_cast<int>(CommandIDs::StartStop));
 	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
@@ -757,6 +763,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::GenerateLogPackage:
 		{
 			result.setInfo("Generate Diagnostic Package", "Creates a zip file of diagnostic information", "Troubleshooting", 0);
+		}
+		break;
+
+		case CommandIDs::GenerateLogPackageFromCurrentSession:
+		{
+			result.setInfo("Generate Diagnostic Package from the current session", "Creates a zip file of diagnostic information from the current session", "Troubleshooting", 0);
 		}
 		break;
 
@@ -969,6 +981,54 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession):
+		{
+			auto diagnosticFileBuilder = std::make_unique<ZipFile::Builder>();
+
+			// for the current session add the current CAN log file only
+			auto canLogFileName = File(canLogPath);
+			diagnosticFileBuilder->addFile(canLogFileName, 9, canLogFileName.getFileName());
+
+			// Cut the output logging where we started
+			FileInputStream *fis = new FileInputStream(logger.getLogFile());
+			if (fis->openedOk())
+			{
+				fis->setPosition(logger.initialPos());
+				diagnosticFileBuilder->addEntry(fis, 9, "AgISOVirtualTerminalLog.txt", Time::getCurrentTime());
+			}
+
+			auto userDataFolder = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString());
+
+			auto iopDirs = userDataFolder.getChildFile("iso_data").findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
+			for (auto &iopDir : iopDirs)
+			{
+				if (loadedNames.find(iopDir.getFileName().toStdString()) != loadedNames.end())
+				{
+					auto childFiles = iopDir.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iop");
+					for (auto &file : childFiles)
+					{
+						diagnosticFileBuilder->addFile(file, 9, "iso_data/" + iopDir.getFileName().toStdString() + "/" + file.getFileName().toStdString());
+					}
+				}
+			}
+
+			auto currentTime = Time::getCurrentTime().toString(true, true, true, false);
+			currentTime = currentTime.replaceCharacter(' ', '_');
+			currentTime = currentTime.replaceCharacter(':', '_');
+			const String fileName = File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() +
+			  File::getSeparatorString() +
+			  "Open-Agriculture" +
+			  File::getSeparatorString() +
+			  "AgISOVirtualTerminalLogs_" +
+			  currentTime +
+			  ".zip";
+			auto output = File(fileName).createOutputStream();
+			diagnosticFileBuilder->writeToStream(*output.get(), nullptr);
+			File(fileName).revealToUser();
+			retVal = true;
+		}
+		break;
+
 		case static_cast<int>(CommandIDs::ClearISOData):
 		{
 			clear_iso_data();
@@ -1094,6 +1154,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 		case 2:
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackage));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ClearISOData));
 		}
 		break;

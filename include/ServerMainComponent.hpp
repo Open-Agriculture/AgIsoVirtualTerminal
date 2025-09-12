@@ -24,6 +24,7 @@ public:
 	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
 	                    std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
 	                    std::shared_ptr<ValueTree> settings,
+	                    const std::string &canLogPath_,
 	                    std::uint8_t vtNumberArg = 0);
 	~ServerMainComponent() override;
 
@@ -138,6 +139,7 @@ private:
 		ConfigureLogging,
 		ConfigureShortcuts,
 		GenerateLogPackage,
+		GenerateLogPackageFromCurrentSession,
 		ClearISOData,
 		ConfigureCANHardware,
 		StartStop,
@@ -182,6 +184,7 @@ private:
 	void clear_iso_data();
 
 	const std::string ISO_DATA_PATH = "iso_data";
+	std::string canLogPath;
 
 	juce::ApplicationCommandManager mCommandManager;
 	WorkingSetSelectorComponent workingSetSelector;
@@ -200,6 +203,7 @@ private:
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
+	std::set<std::string> loadedNames;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
