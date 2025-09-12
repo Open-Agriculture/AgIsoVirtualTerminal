@@ -853,7 +853,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu->addComboBox("Version", { "Version 2 or Older", "Version 3", "Version 4", "Version 5", "Version 6" });
 			popupMenu->addButton("OK", 2, KeyPress(KeyPress::returnKey, 0, 0));
 			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
-			popupMenu->getComboBoxComponent("Version")->setSelectedItemIndex(static_cast<int>(versionToReport) - 2);
+			popupMenu->getComboBoxComponent("Version")->setSelectedItemIndex(static_cast<int>(versionToReport));
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 			retVal = true;
 		}
