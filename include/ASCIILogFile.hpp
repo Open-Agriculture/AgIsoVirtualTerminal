@@ -21,6 +21,8 @@ public:
 
 	~ASCIILogFile() = default;
 
+	std::string currentLogFile() const;
+
 private:
 	File logFile;
 	isobus::EventCallbackHandle canFrameReceivedListener;
