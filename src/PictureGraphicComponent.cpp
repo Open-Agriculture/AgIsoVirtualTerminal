@@ -45,5 +45,35 @@ void PictureGraphicComponent::generate_and_store_image()
 
 void PictureGraphicComponent::paint(Graphics &g)
 {
-	g.drawImage(reconstructedImage, getLocalBounds().toFloat());
+	if (showImage)
+	{
+		g.drawImage(reconstructedImage, getLocalBounds().toFloat());
+	}
+
+	if (!get_option(isobus::PictureGraphic::Options::Flashing))
+	{
+		stopTimer();
+	}
+}
+
+void PictureGraphicComponent::visibilityChanged()
+{
+	if (visible != isVisible())
+	{
+		visible = isVisible();
+		if (visible && get_option(isobus::PictureGraphic::Options::Flashing))
+		{
+			startTimer(500);
+		}
+		else
+		{
+			stopTimer();
+		}
+	}
+}
+
+void PictureGraphicComponent::timerCallback()
+{
+	showImage = !showImage;
+	repaint();
 }
