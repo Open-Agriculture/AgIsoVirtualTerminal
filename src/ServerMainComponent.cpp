@@ -81,10 +81,13 @@ ServerMainComponent::ServerMainComponent(
 
 	// Make sure you set the size of the component after
 	// you add any child components.
-	setSize(800, 800);
+	setSize(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width(),
+	        minimumHeight() + LoggerComponent::HEIGHT);
 
-	logger.setTopLeftPosition(0, 600);
-	logger.setSize(800, 200);
+	workingSetSelector.setTopLeftPosition(0, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
+
+	logger.setTopLeftPosition(0, get_data_mask_area_size_y_pixels());
+	logger.setSize(getWidth(), LoggerComponent::HEIGHT);
 	loggerViewport.setViewedComponent(&logger, false);
 
 	setApplicationCommandManagerToWatch(&mCommandManager);
@@ -673,18 +676,17 @@ void ServerMainComponent::resized()
 	auto lMenuBarHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight();
 	auto lBounds = getLocalBounds();
 
-	workingSetSelector.setBounds(0, lMenuBarHeight + 4, 100, 600);
-	dataMaskRenderer.setBounds(100, lMenuBarHeight + 4, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
+	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, minimumHeight());
+	dataMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH, lMenuBarHeight, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
 	vtNumberComponent.setBounds(dataMaskRenderer.getBounds().getX() + (dataMaskRenderer.getWidth() / 4.0),
 	                            dataMaskRenderer.getBounds().getY() + (dataMaskRenderer.getHeight() / 10.0),
 	                            dataMaskRenderer.getBounds().getWidth() / 2.0,
 	                            (dataMaskRenderer.getBounds().getHeight() / 10.0) * 8);
-	softKeyMaskRenderer.setBounds(100 + get_data_mask_area_size_x_pixels(),
-	                              lMenuBarHeight + 4,
+	softKeyMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels(),
+	                              lMenuBarHeight,
 	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
 	                              get_data_mask_area_size_y_pixels());
-	loggerViewport.setSize(getWidth(), getHeight() * .2f);
-	loggerViewport.setTopLeftPosition(0, getHeight() * .8f);
+	loggerViewport.setTopLeftPosition(0, minimumHeight());
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight));
 	logger.setSize(loggerViewport.getWidth(), logger.getHeight());
 
@@ -1786,6 +1788,13 @@ void ServerMainComponent::identify_vt()
 		repaint();
 		juce::Timer::callAfterDelay(3000, [this]() { vtNumberComponent.setVisible(false); });
 	});
+}
+
+int ServerMainComponent::minimumHeight() const
+{
+	if (dataMaskRenderer.getHeight() > softKeyMaskDimensions.total_height())
+		return dataMaskRenderer.getHeight();
+	return softKeyMaskDimensions.total_height();
 }
 
 void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)

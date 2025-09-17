@@ -32,6 +32,11 @@ public:
 	void redraw();
 	void updateIopLoadIndicators();
 
+	static constexpr int WIDTH = 96;
+	static constexpr int BUTTON_WIDTH = 72;
+	static constexpr int BUTTON_HEIGHT = 72;
+	static int buttonPadding();
+
 private:
 	struct SELECTOR_CHILD_OBJECTS_STRUCT
 	{
