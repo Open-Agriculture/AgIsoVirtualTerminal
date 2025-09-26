@@ -121,6 +121,12 @@ public:
 
 	void identify_vt() override;
 
+	/**
+   * @brief minimumHeight
+   * @return the height of the softkey- or the datamask size, whichever is bigger
+   */
+	int minimumHeight() const;
+
 private:
 	enum class CommandIDs : int
 	{

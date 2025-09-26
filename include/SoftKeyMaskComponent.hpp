@@ -26,6 +26,12 @@ public:
 	int total_width() const;
 
 	/**
+   * @brief total_height
+   * @return The total height of the softkeymask (including inner and outer column paddings)
+   */
+	int total_height() const;
+
+	/**
 	 * @brief key_count
 	 * @return the number of the possible key positions in the softkey mask
 	 */
