@@ -26,7 +26,7 @@ public:
 	void paint(Graphics &g) override;
 
 	void sink_CAN_stack_log(LoggingLevel level, const std::string &logText) override;
-	static const int HEIGHT = 200;
+	static constexpr int HEIGHT = 200;
 
 private:
 	struct LogData
