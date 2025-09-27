@@ -82,7 +82,7 @@ ServerMainComponent::ServerMainComponent(
 	// Make sure you set the size of the component after
 	// you add any child components.
 	setSize(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width(),
-	        minimumHeight() + LoggerComponent::HEIGHT);
+	        minimum_height() + LoggerComponent::HEIGHT);
 
 	workingSetSelector.setTopLeftPosition(0, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
 
@@ -655,7 +655,7 @@ void ServerMainComponent::timerCallback()
 
 	if (hasIopLoadInProgress)
 	{
-		workingSetSelector.updateIopLoadIndicators();
+		workingSetSelector.update_iop_load_indicators();
 	}
 }
 
@@ -676,7 +676,7 @@ void ServerMainComponent::resized()
 	auto lMenuBarHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight();
 	auto lBounds = getLocalBounds();
 
-	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, minimumHeight());
+	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, minimum_height());
 	dataMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH, lMenuBarHeight, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
 	vtNumberComponent.setBounds(dataMaskRenderer.getBounds().getX() + (dataMaskRenderer.getWidth() / 4.0),
 	                            dataMaskRenderer.getBounds().getY() + (dataMaskRenderer.getHeight() / 10.0),
@@ -686,7 +686,7 @@ void ServerMainComponent::resized()
 	                              lMenuBarHeight,
 	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
 	                              get_data_mask_area_size_y_pixels());
-	loggerViewport.setTopLeftPosition(0, minimumHeight());
+	loggerViewport.setTopLeftPosition(0, minimum_height());
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight));
 	logger.setSize(loggerViewport.getWidth(), logger.getHeight());
 
@@ -1790,7 +1790,7 @@ void ServerMainComponent::identify_vt()
 	});
 }
 
-int ServerMainComponent::minimumHeight() const
+int ServerMainComponent::minimum_height() const
 {
 	if (dataMaskRenderer.getHeight() > softKeyMaskDimensions.total_height())
 		return dataMaskRenderer.getHeight();

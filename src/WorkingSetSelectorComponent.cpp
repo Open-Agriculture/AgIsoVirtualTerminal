@@ -13,7 +13,7 @@ WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &se
   parentServer(server)
 {
 	setOpaque(false);
-	setBounds(0, 0, WIDTH, server.minimumHeight());
+	setBounds(0, 0, WIDTH, server.minimum_height());
 }
 
 void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> &managedWorkingSetList)
@@ -51,7 +51,7 @@ void WorkingSetSelectorComponent::paint(Graphics &g)
 			if (ws->workingSet->get_control_function()->get_NAME().get_full_name() == parentServer.get_active_working_set()->get_control_function()->get_NAME().get_full_name())
 			{
 				g.setColour(juce::Colours::yellow.withAlpha(0.4f));
-				g.drawRoundedRectangle(buttonPadding() - 2, buttonPadding() + (numberOfSquares * (BUTTON_HEIGHT + buttonPadding())) - 2, BUTTON_WIDTH + 4, BUTTON_HEIGHT + 4, 4, 4);
+				g.drawRoundedRectangle(button_padding() - 2, button_padding() + (numberOfSquares * (BUTTON_HEIGHT + button_padding())) - 2, BUTTON_WIDTH + 4, BUTTON_HEIGHT + 4, 4, 4);
 			}
 		}
 		numberOfSquares++;
@@ -60,7 +60,7 @@ void WorkingSetSelectorComponent::paint(Graphics &g)
 
 void WorkingSetSelectorComponent::resized()
 {
-	setBounds(0, 0, WIDTH, parentServer.minimumHeight());
+	setBounds(0, 0, WIDTH, parentServer.minimum_height());
 }
 
 void WorkingSetSelectorComponent::redraw()
@@ -75,7 +75,7 @@ void WorkingSetSelectorComponent::redraw()
 	repaint();
 }
 
-void WorkingSetSelectorComponent::updateIopLoadIndicators()
+void WorkingSetSelectorComponent::update_iop_load_indicators()
 {
 	for (auto &child : children)
 	{
@@ -90,9 +90,9 @@ void WorkingSetSelectorComponent::updateIopLoadIndicators()
 	}
 }
 
-int WorkingSetSelectorComponent::buttonPadding()
+constexpr int WorkingSetSelectorComponent::button_padding()
 {
-	return (WIDTH - BUTTON_WIDTH) / 2.0;
+	return (WIDTH - BUTTON_WIDTH) / 2;
 }
 
 std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, int workingSetIndex)
@@ -107,7 +107,7 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	{
 		workingSetComponent = std::make_shared<WorkingSetLoadingIndicatorComponent>(workingSet, BUTTON_WIDTH, BUTTON_HEIGHT);
 	}
-	workingSetComponent->setTopLeftPosition(buttonPadding(), buttonPadding() + workingSetIndex * (BUTTON_HEIGHT + buttonPadding()));
+	workingSetComponent->setTopLeftPosition(button_padding(), button_padding() + workingSetIndex * (BUTTON_HEIGHT + button_padding()));
 	addAndMakeVisible(*workingSetComponent);
 	return workingSetComponent;
 }
@@ -116,9 +116,9 @@ void WorkingSetSelectorComponent::mouseUp(const MouseEvent &event)
 {
 	auto relativeEvent = event.getEventRelativeTo(this);
 
-	if ((buttonPadding() <= relativeEvent.getMouseDownX()) && (relativeEvent.getMouseDownX() < buttonPadding() + BUTTON_WIDTH) && (buttonPadding() <= relativeEvent.getMouseDownY()) && (relativeEvent.getMouseDownY() < buttonPadding() + (buttonPadding() + BUTTON_HEIGHT) * children.size()))
+	if ((button_padding() <= relativeEvent.getMouseDownX()) && (relativeEvent.getMouseDownX() < button_padding() + BUTTON_WIDTH) && (button_padding() <= relativeEvent.getMouseDownY()) && (relativeEvent.getMouseDownY() < button_padding() + (button_padding() + BUTTON_HEIGHT) * children.size()))
 	{
-		int workingSetIndex = (relativeEvent.getMouseDownY() - buttonPadding()) / (BUTTON_HEIGHT + buttonPadding());
+		int workingSetIndex = (relativeEvent.getMouseDownY() - button_padding()) / (BUTTON_HEIGHT + button_padding());
 
 		if (workingSetIndex <= 255)
 		{
