@@ -16,6 +16,7 @@
 
 class PictureGraphicComponent : public isobus::PictureGraphic
   , public Component
+  , private juce::Timer
 {
 public:
 	PictureGraphicComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::PictureGraphic sourceObject);
@@ -24,9 +25,15 @@ public:
 
 	void paint(Graphics &g) override;
 
+	void visibilityChanged() override;
+
+	void timerCallback() override;
+
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	Image reconstructedImage;
+	bool visible = false;
+	bool showImage = true;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PictureGraphicComponent)
 };
