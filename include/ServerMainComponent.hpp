@@ -24,7 +24,8 @@ public:
 	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
 	                    std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
 	                    std::shared_ptr<ValueTree> settings,
-	                    std::uint8_t vtNumberArg = 0);
+	                    std::uint8_t vtNumberArg = 0,
+	                    std::string screenCaptureDir = "");
 	~ServerMainComponent() override;
 
 	bool get_is_enough_memory(std::uint32_t requestedMemory) const override;
@@ -121,6 +122,10 @@ public:
 
 	void identify_vt() override;
 
+	void screen_capture(std::uint8_t item, std::uint8_t path, std::shared_ptr<isobus::ControlFunction> requestor) override;
+
+	static std::string getAppDataDir();
+
 private:
 	enum class CommandIDs : int
 	{
@@ -153,7 +158,7 @@ private:
 	struct HeldButtonData
 	{
 		HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
-		bool operator==(const HeldButtonData &other);
+		bool operator==(const HeldButtonData &other) const;
 		std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> associatedWorkingSet;
 		std::uint32_t timestamp_ms;
 		std::uint16_t buttonObjectID;
@@ -175,6 +180,7 @@ private:
 	void clear_iso_data();
 
 	const std::string ISO_DATA_PATH = "iso_data";
+	std::string screenCaptureDirArgument = "";
 
 	juce::ApplicationCommandManager mCommandManager;
 	WorkingSetSelectorComponent workingSetSelector;
