@@ -38,10 +38,13 @@ out
 build
 
 # QtCreator cmake temp files
-CMakeLists.txt.user
+CMakeLists.txt.user*
 
 # KDE hidden file artifacts
 .directory
 
 # QtCreator creates this folder
 CMakeFiles
+
+*.orig
+*.rej

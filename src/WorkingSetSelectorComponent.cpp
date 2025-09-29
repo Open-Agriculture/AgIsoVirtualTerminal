@@ -42,15 +42,20 @@ void WorkingSetSelectorComponent::paint(Graphics &g)
 	g.setColour(getLookAndFeel().findColour(ResizableWindow::backgroundColourId));
 	g.fillAll();
 
-	// Not sure if this is helpful...
-	/*int numberOfSquares = 0;
-
+	// draw rounded rectangle around the active working set selector
+	int numberOfSquares = 0;
 	for (auto ws = children.begin(); ws != children.end(); ws++)
 	{
-		g.setColour(getLookAndFeel().findColour(ResizableWindow::backgroundColourId).brighter());
-		g.drawRoundedRectangle(8.0f, 8.0f + (numberOfSquares * 80), 80, 80, 6, 1);
+		if (ws->workingSet->get_control_function() && parentServer.get_active_working_set() && parentServer.get_active_working_set()->get_control_function())
+		{
+			if (ws->workingSet->get_control_function()->get_NAME().get_full_name() == parentServer.get_active_working_set()->get_control_function()->get_NAME().get_full_name())
+			{
+				g.setColour(juce::Colours::yellow.withAlpha(0.4f));
+				g.drawRoundedRectangle(4 + 15 - 2, 10 + 7 - 2 + (numberOfSquares * 80), parentServer.get_soft_key_descriptor_x_pixel_width() + 4, parentServer.get_soft_key_descriptor_y_pixel_height() + 4, 4, 4);
+			}
+		}
 		numberOfSquares++;
-	}*/
+	}
 }
 
 void WorkingSetSelectorComponent::resized()
@@ -118,5 +123,6 @@ void WorkingSetSelectorComponent::mouseUp(const MouseEvent &event)
 		{
 			parentServer.change_selected_working_set(static_cast<std::uint8_t>(workingSetIndex));
 		}
+		redraw();
 	}
 }
