@@ -37,3 +37,13 @@ void KeyComponent::paint(Graphics &g)
 
 	g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 }
+
+uint8_t KeyComponent::getKeyPosition() const
+{
+	return keyPosition;
+}
+
+void KeyComponent::setKeyPosition(std::uint8_t pos)
+{
+	keyPosition = pos;
+}
