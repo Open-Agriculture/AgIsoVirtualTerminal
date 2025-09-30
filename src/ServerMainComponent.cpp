@@ -924,14 +924,14 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 				}
 			}
 
-			auto childDirectories = userDataFolder.findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
+			auto isoDataDirectory = userDataFolder.getChildFile("iso_data").findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
 
-			for (auto &directory : childDirectories)
+			for (auto &iop_directory : isoDataDirectory)
 			{
-				auto childFiles = directory.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iop");
-				for (auto &file : childFiles)
+				auto iopFiles = iop_directory.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iop");
+				for (auto &iopFile : iopFiles)
 				{
-					diagnosticFileBuilder->addFile(file, 9);
+					diagnosticFileBuilder->addFile(iopFile, 9, "iso_data/" + iop_directory.getFileName() + "/" + iopFile.getFileName());
 					anyFilesAdded = true;
 				}
 			}
