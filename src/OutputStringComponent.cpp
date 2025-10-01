@@ -6,7 +6,6 @@
 #include "OutputStringComponent.hpp"
 
 #include "StringEncodingConversions.hpp"
-#include "isobus/isobus/can_stack_logger.hpp"
 
 OutputStringComponent::OutputStringComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputString sourceObject) :
   isobus::OutputString(sourceObject),
@@ -307,7 +306,7 @@ bool OutputStringComponent::isFlashing() const
 	{
 		auto child = get_object_by_id(fontAttrID, parentWorkingSet->get_object_tree());
 
-		if (isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type())
+		if (nullptr != child && isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type())
 		{
 			auto font = std::static_pointer_cast<isobus::FontAttributes>(child);
 			return font->get_style(isobus::FontAttributes::FontStyleBits::Flashing) || font->get_style(isobus::FontAttributes::FontStyleBits::FlashingHidden);
