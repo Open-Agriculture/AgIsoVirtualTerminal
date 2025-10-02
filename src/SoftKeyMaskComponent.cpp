@@ -76,3 +76,8 @@ int SoftKeyMaskDimensions::total_width() const
 {
 	return PADDING + (columnCount * (keyWidth + PADDING));
 }
+
+int SoftKeyMaskDimensions::total_height() const
+{
+	return PADDING + (rowCount * (keyHeight + PADDING));
+}

@@ -30,7 +30,12 @@ public:
 	void mouseUp(const MouseEvent &event) override;
 
 	void redraw();
-	void updateIopLoadIndicators();
+	void update_iop_load_indicators();
+
+	static constexpr int WIDTH = 96;
+	static constexpr int BUTTON_WIDTH = 72;
+	static constexpr int BUTTON_HEIGHT = 72;
+	static constexpr int button_padding();
 
 private:
 	struct SELECTOR_CHILD_OBJECTS_STRUCT

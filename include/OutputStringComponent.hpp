@@ -16,6 +16,7 @@
 
 class OutputStringComponent : public isobus::OutputString
   , public Component
+  , private juce::Timer
 {
 public:
 	OutputStringComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputString sourceObject);
@@ -24,7 +25,21 @@ public:
 
 	static Justification convert_justification(HorizontalJustification horizontalJustification, VerticalJustification verticalJustification);
 
+	void visibilityChanged() override;
+
+	void timerCallback() override;
+
 private:
+	/**
+   * @brief isFlashing
+   * @return true if the OutputString font attribute has any of the flashing mode set, false otherwise
+   */
+	bool isFlashing() const;
+	bool visible = false;
+	/**
+   * @brief show - a boolean idicating that the string needs to be drawn based on the flashing state
+   */
+	bool show = true;
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OutputStringComponent)

@@ -36,6 +36,7 @@
 #include "SoftKeyMaskComponent.hpp"
 #include "StringVariableComponent.hpp"
 #include "WorkingSetComponent.hpp"
+#include "WorkingSetSelectorComponent.hpp"
 
 std::vector<JuceManagedWorkingSetCache::ComponentCacheClass> JuceManagedWorkingSetCache::workingSetComponentCache;
 int JuceManagedWorkingSetCache::dataAndAlarmMaskSize = 480;
@@ -211,7 +212,7 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 
 			case isobus::VirtualTerminalObjectType::WorkingSet:
 			{
-				retVal = std::make_shared<WorkingSetComponent>(workingSet, *std::static_pointer_cast<isobus::WorkingSet>(sourceObject), softKeyDimensionInfo.keyHeight, softKeyDimensionInfo.keyWidth);
+				retVal = std::make_shared<WorkingSetComponent>(workingSet, *std::static_pointer_cast<isobus::WorkingSet>(sourceObject), WorkingSetSelectorComponent::BUTTON_WIDTH, WorkingSetSelectorComponent::BUTTON_HEIGHT);
 			}
 			break;
 
