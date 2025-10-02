@@ -37,9 +37,6 @@ ServerMainComponent::ServerMainComponent(
 
 	VirtualTerminalServer::initialize();
 
-	logger.setVisible(true);
-	loggerViewport.setVisible(true);
-
 	check_load_settings(settings);
 
 	if (languageCommandInterface.get_country_code().empty())
@@ -82,12 +79,13 @@ ServerMainComponent::ServerMainComponent(
 	// Make sure you set the size of the component after
 	// you add any child components.
 	setSize(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width(),
-	        minimum_height() + LoggerComponent::HEIGHT);
+	        minimum_height() + (logger.isVisible() ? LoggerComponent::HEIGHT : 0));
 
 	workingSetSelector.setTopLeftPosition(0, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
 
-	logger.setTopLeftPosition(0, get_data_mask_area_size_y_pixels());
+	logger.setTopLeftPosition(0, minimum_height());
 	logger.setSize(getWidth(), LoggerComponent::HEIGHT);
+	loggerViewport.setSize(getWidth(), LoggerComponent::HEIGHT);
 	loggerViewport.setViewedComponent(&logger, false);
 
 	setApplicationCommandManagerToWatch(&mCommandManager);
@@ -688,12 +686,6 @@ void ServerMainComponent::resized()
 	                              get_data_mask_area_size_y_pixels());
 	loggerViewport.setTopLeftPosition(0, minimum_height());
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight));
-	logger.setSize(loggerViewport.getWidth(), logger.getHeight());
-
-	if (logger.getHeight() < loggerViewport.getHeight())
-	{
-		logger.setSize(loggerViewport.getWidth(), loggerViewport.getHeight());
-	}
 }
 
 ApplicationCommandTarget *ServerMainComponent::getNextCommandTarget()
@@ -1308,15 +1300,21 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			isobus::CANStackLogger::set_log_level(static_cast<isobus::CANStackLogger::LoggingLevel>(mParent.popupMenu->getComboBoxComponent("Logging Level")->getSelectedItemIndex()));
 			if (mParent.popupMenu->getComboBoxComponent("Logging Window")->getSelectedItemIndex() == 1)
 			{
+				if (!mParent.logger.isVisible())
+				{
+					mParent.setSize(mParent.getWidth(), mParent.getHeight() + LoggerComponent::HEIGHT);
+				}
 				mParent.logger.setVisible(true);
 				mParent.loggerViewport.setVisible(true);
-				mParent.setSize(800, 800);
 			}
 			else
 			{
+				if (mParent.logger.isVisible())
+				{
+					mParent.setSize(mParent.getWidth(), mParent.getHeight() - LoggerComponent::HEIGHT);
+				}
 				mParent.logger.setVisible(false);
 				mParent.loggerViewport.setVisible(false);
-				mParent.setSize(800, 600);
 			}
 			mParent.save_settings();
 		}
@@ -1644,13 +1642,11 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 
 				logger.setVisible(shown);
 				loggerViewport.setVisible(shown);
-				setSize(800, 800);
 			}
 			else
 			{
 				logger.setVisible(false);
 				loggerViewport.setVisible(false);
-				setSize(800, 600);
 			}
 		}
 		else if (Identifier("Control") == child.getType())
