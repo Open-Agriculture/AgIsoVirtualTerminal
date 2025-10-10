@@ -894,6 +894,9 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu->addTextBlock("Select if the log window should be shown or hidden. Showing the log window may affect performance.");
 			popupMenu->addComboBox("Logging Window", { "Hidden", "Enabled" });
 			popupMenu->getComboBoxComponent("Logging Window")->setSelectedItemIndex(loggerViewport.isVisible() ? 1 : 0);
+			popupMenu->addTextBlock("Save IOP data before parsing. This allows providing IOP data for debugging parser crashes.");
+			popupMenu->addComboBox("Save IOP data before parsing", { "No", "Yes" });
+			popupMenu->getComboBoxComponent("Save IOP data before parsing")->setSelectedItemIndex(saveIopBeforeParse ? 1 : 0);
 			popupMenu->addButton("OK", 4, KeyPress(KeyPress::returnKey, 0, 0));
 			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
@@ -1316,6 +1319,8 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 				mParent.logger.setVisible(false);
 				mParent.loggerViewport.setVisible(false);
 			}
+
+			mParent.saveIopBeforeParse = (mParent.popupMenu->getComboBoxComponent("Save IOP data before parsing")->getSelectedItemIndex() == 1);
 			mParent.save_settings();
 		}
 		break;
@@ -1426,6 +1431,28 @@ bool ServerMainComponent::timeAndDateCallback(isobus::TimeDateInterface::TimeAnd
 	timeAndDate.localHourOffset = static_cast<std::int8_t>(localTime.tm_hour - utcTime.tm_hour);
 	timeAndDate.localMinuteOffset = static_cast<std::int8_t>(localTime.tm_min - utcTime.tm_min);
 	return true;
+}
+
+void ServerMainComponent::transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const
+{
+	if (!saveIopBeforeParse)
+	{
+		return;
+	}
+
+	auto debugIopSavePath = juce::String(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName().toStdString() +
+	                                     File::getSeparatorString() +
+	                                     "Open-Agriculture" +
+	                                     File::getSeparatorString() + "debug.iop")
+	                          .toStdString();
+
+	LOG_INFO("[WS]: Saving IOP data to  %s before parsing", debugIopSavePath.c_str());
+	std::ofstream fs(debugIopSavePath, std::ios::out | std::ios::binary);
+	for (auto i = 0; i < workingSet->get_number_iop_files(); i++)
+	{
+		fs.write(reinterpret_cast<const char *>(workingSet->get_iop_raw_data(i).data()), static_cast<std::streamsize>(workingSet->get_iop_raw_data(i).size()));
+	}
+	fs.close();
 }
 
 void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t, std::uint16_t newMask)
@@ -1648,6 +1675,15 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				logger.setVisible(false);
 				loggerViewport.setVisible(false);
 			}
+
+			if (!child.getProperty("SaveIopBeforeParse").isVoid())
+			{
+				saveIopBeforeParse = static_cast<int>(child.getProperty("SaveIopBeforeParse")) != 0;
+			}
+			else
+			{
+				saveIopBeforeParse = false;
+			}
 		}
 		else if (Identifier("Control") == child.getType())
 		{
@@ -1751,6 +1787,7 @@ void ServerMainComponent::save_settings()
 		}
 		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
 		loggingSettings.setProperty("Shown", static_cast<int>(logger.isVisible()), nullptr);
+		loggingSettings.setProperty("SaveIopBeforeParse", static_cast<int>(saveIopBeforeParse), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
