@@ -173,6 +173,7 @@ private:
 	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
 
 	bool timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDateToPopulate);
+	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
 	void repaint_data_and_soft_key_mask();
@@ -208,6 +209,7 @@ private:
 	bool autostart = false;
 	bool hasStartBeenCalled = false;
 	bool alarmAckKeyPressed = false;
+	bool saveIopBeforeParse = false;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };
