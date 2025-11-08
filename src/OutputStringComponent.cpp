@@ -18,12 +18,25 @@ OutputStringComponent::OutputStringComponent(std::shared_ptr<isobus::VirtualTerm
 void OutputStringComponent::paint(Graphics &g)
 {
 	std::string value = displayed_value(parentWorkingSet);
-
-	std::size_t pos = value.find('\0');
-	if (pos != std::string::npos)
+	std::size_t pos = 0;
+	if ((value.length() >= 2) && (0xFF == static_cast<std::uint8_t>(value.at(0))) && (0xFE == static_cast<std::uint8_t>(value.at(1))))
 	{
-		value = value.substr(0, pos);
+		// UTF16 string
+		for (std::size_t i = 2; i + 1 < value.size(); i += 2)
+		{
+			if (value[i] == 0 && value[i + 1] == 0)
+			{
+				pos = i;
+				break;
+			}
+		}
 	}
+	else
+	{
+		// non UTF16 string
+		pos = value.find('\0');
+	}
+	value = value.substr(0, pos);
 
 	std::uint8_t fontHeight = 0;
 	auto fontType = isobus::FontAttributes::FontType::ISO8859_1;
