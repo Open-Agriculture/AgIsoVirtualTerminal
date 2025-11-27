@@ -77,7 +77,9 @@ void OutputPolygonComponent::paint(Graphics &g)
 				{
 					// @ TODO support gradient fill
 				}
-				g.fillPath(polygonPath);
+
+				if (fill->get_type() != isobus::FillAttributes::FillType::NoFill)
+					g.fillPath(polygonPath);
 			}
 		}
 

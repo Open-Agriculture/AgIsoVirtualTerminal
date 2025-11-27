@@ -18,23 +18,32 @@ OutputStringComponent::OutputStringComponent(std::shared_ptr<isobus::VirtualTerm
 void OutputStringComponent::paint(Graphics &g)
 {
 	std::string value = displayed_value(parentWorkingSet);
-
-	std::size_t pos = value.find('\0');
-	if (pos != std::string::npos)
+	std::size_t pos = 0;
+	if ((value.length() >= 2) && (0xFF == static_cast<std::uint8_t>(value.at(0))) && (0xFE == static_cast<std::uint8_t>(value.at(1))))
 	{
-		value = value.substr(0, pos);
+		// UTF16 string
+		for (std::size_t i = 2; i + 1 < value.size(); i += 2)
+		{
+			if (value[i] == 0 && value[i + 1] == 0)
+			{
+				pos = i;
+				break;
+			}
+		}
 	}
+	else
+	{
+		// non UTF16 string
+		pos = value.find('\0');
+	}
+	value = value.substr(0, pos);
 
 	std::uint8_t fontHeight = 0;
 	auto fontType = isobus::FontAttributes::FontType::ISO8859_1;
 
-	if (!get_option(Options::Transparent))
-	{
-		auto vtColour = parentWorkingSet->get_colour(get_background_color());
-		g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
-	}
-
-	g.setColour(getLookAndFeel().findColour(ListBox::textColourId));
+	auto vtColour = parentWorkingSet->get_colour(get_background_color());
+	juce::Colour backgroundColor = Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
+	juce::Colour drawColor = getLookAndFeel().findColour(ListBox::textColourId);
 
 	// Get font data
 	auto fontAttrID = get_font_attributes();
@@ -46,6 +55,11 @@ void OutputStringComponent::paint(Graphics &g)
 		if (isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type())
 		{
 			auto font = std::static_pointer_cast<isobus::FontAttributes>(child);
+
+			if (font->get_style(isobus::FontAttributes::FontStyleBits::FlashingHidden) && !show && !font->get_style(isobus::FontAttributes::FontStyleBits::Flashing)) // Bit 6 (Flashing) has priority over bit 5 (FlashingHidden)
+			{
+				return;
+			}
 
 			fontType = font->get_type();
 			auto colour = parentWorkingSet->get_colour(font->get_colour());
@@ -72,8 +86,16 @@ void OutputStringComponent::paint(Graphics &g)
 			auto fontWidth = juceFont.getStringWidthFloat("a");
 			fontHeight = font->get_font_width_pixels();
 			juceFont.setHorizontalScale(static_cast<float>(font->get_font_width_pixels()) / fontWidth);
-			g.setColour(Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f));
+			drawColor = Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f);
 			g.setFont(juceFont);
+
+			// swap background and draw colors for inverted draw style
+			if (font->get_style(isobus::FontAttributes::FontStyleBits::Inverted) || (font->get_style(isobus::FontAttributes::FontStyleBits::Flashing) && !show))
+			{
+				auto tmpColor = backgroundColor;
+				backgroundColor = drawColor;
+				drawColor = tmpColor;
+			}
 		}
 	}
 
@@ -149,6 +171,12 @@ void OutputStringComponent::paint(Graphics &g)
 			break;
 		}
 	}
+
+	if (!get_option(Options::Transparent))
+	{
+		g.fillAll(backgroundColor);
+	}
+	g.setColour(drawColor);
 
 	if (get_option(Options::AutoWrap)) // TODO need to figure out proper font clipping
 	{
@@ -259,4 +287,43 @@ Justification OutputStringComponent::convert_justification(HorizontalJustificati
 		break;
 	}
 	return retVal;
+}
+
+void OutputStringComponent::visibilityChanged()
+{
+	if (visible != isVisible())
+	{
+		visible = isVisible();
+
+		if (visible && isFlashing())
+		{
+			startTimer(500);
+		}
+		else
+		{
+			stopTimer();
+		}
+	}
+}
+
+void OutputStringComponent::timerCallback()
+{
+	show = !show;
+	repaint();
+}
+
+bool OutputStringComponent::isFlashing() const
+{
+	auto fontAttrID = get_font_attributes();
+	if (isobus::NULL_OBJECT_ID != fontAttrID)
+	{
+		auto child = get_object_by_id(fontAttrID, parentWorkingSet->get_object_tree());
+
+		if (nullptr != child && isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type())
+		{
+			auto font = std::static_pointer_cast<isobus::FontAttributes>(child);
+			return font->get_style(isobus::FontAttributes::FontStyleBits::Flashing) || font->get_style(isobus::FontAttributes::FontStyleBits::FlashingHidden);
+		}
+	}
+	return false;
 }

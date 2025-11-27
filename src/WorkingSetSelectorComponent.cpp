@@ -13,7 +13,7 @@ WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &se
   parentServer(server)
 {
 	setOpaque(false);
-	setBounds(0, 0, 100, 600);
+	setBounds(0, 0, WIDTH, server.minimum_height());
 }
 
 void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> &managedWorkingSetList)
@@ -42,21 +42,25 @@ void WorkingSetSelectorComponent::paint(Graphics &g)
 	g.setColour(getLookAndFeel().findColour(ResizableWindow::backgroundColourId));
 	g.fillAll();
 
-	// Not sure if this is helpful...
-	/*int numberOfSquares = 0;
-
+	// draw rounded rectangle around the active working set selector
+	int numberOfSquares = 0;
 	for (auto ws = children.begin(); ws != children.end(); ws++)
 	{
-		g.setColour(getLookAndFeel().findColour(ResizableWindow::backgroundColourId).brighter());
-		g.drawRoundedRectangle(8.0f, 8.0f + (numberOfSquares * 80), 80, 80, 6, 1);
+		if (ws->workingSet->get_control_function() && parentServer.get_active_working_set() && parentServer.get_active_working_set()->get_control_function())
+		{
+			if (ws->workingSet->get_control_function()->get_NAME().get_full_name() == parentServer.get_active_working_set()->get_control_function()->get_NAME().get_full_name())
+			{
+				g.setColour(juce::Colours::yellow.withAlpha(0.4f));
+				g.drawRoundedRectangle(button_padding() - 2, button_padding() + (numberOfSquares * (BUTTON_HEIGHT + button_padding())) - 2, BUTTON_WIDTH + 4, BUTTON_HEIGHT + 4, 4, 4);
+			}
+		}
 		numberOfSquares++;
-	}*/
+	}
 }
 
 void WorkingSetSelectorComponent::resized()
 {
-	auto parentBounds = getLocalBounds();
-	setBounds(0, 0, 100, parentBounds.getHeight());
+	setBounds(0, 0, WIDTH, parentServer.minimum_height());
 }
 
 void WorkingSetSelectorComponent::redraw()
@@ -71,7 +75,7 @@ void WorkingSetSelectorComponent::redraw()
 	repaint();
 }
 
-void WorkingSetSelectorComponent::updateIopLoadIndicators()
+void WorkingSetSelectorComponent::update_iop_load_indicators()
 {
 	for (auto &child : children)
 	{
@@ -86,6 +90,11 @@ void WorkingSetSelectorComponent::updateIopLoadIndicators()
 	}
 }
 
+constexpr int WorkingSetSelectorComponent::button_padding()
+{
+	return (WIDTH - BUTTON_WIDTH) / 2;
+}
+
 std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, int workingSetIndex)
 {
 	auto workingSetObject = workingSet->get_working_set_object();
@@ -96,12 +105,9 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	}
 	else
 	{
-		workingSetComponent = std::make_shared<WorkingSetLoadingIndicatorComponent>(
-		  workingSet,
-		  parentServer.get_soft_key_descriptor_x_pixel_width(),
-		  parentServer.get_soft_key_descriptor_y_pixel_height());
+		workingSetComponent = std::make_shared<WorkingSetLoadingIndicatorComponent>(workingSet, BUTTON_WIDTH, BUTTON_HEIGHT);
 	}
-	workingSetComponent->setTopLeftPosition(4 + 15, workingSetIndex * 80 + 10 + 7);
+	workingSetComponent->setTopLeftPosition(button_padding(), button_padding() + workingSetIndex * (BUTTON_HEIGHT + button_padding()));
 	addAndMakeVisible(*workingSetComponent);
 	return workingSetComponent;
 }
@@ -110,13 +116,14 @@ void WorkingSetSelectorComponent::mouseUp(const MouseEvent &event)
 {
 	auto relativeEvent = event.getEventRelativeTo(this);
 
-	if ((relativeEvent.getMouseDownX() >= 19) && (relativeEvent.getMouseDownX() < 99) && (relativeEvent.getMouseDownY() > 17) && (relativeEvent.getMouseDownY() < 17 + children.size() * 80))
+	if ((button_padding() <= relativeEvent.getMouseDownX()) && (relativeEvent.getMouseDownX() < button_padding() + BUTTON_WIDTH) && (button_padding() <= relativeEvent.getMouseDownY()) && (relativeEvent.getMouseDownY() < button_padding() + (button_padding() + BUTTON_HEIGHT) * children.size()))
 	{
-		int workingSetIndex = (relativeEvent.getMouseDownY() - 17) / 80;
+		int workingSetIndex = (relativeEvent.getMouseDownY() - button_padding()) / (BUTTON_HEIGHT + button_padding());
 
 		if (workingSetIndex <= 255)
 		{
 			parentServer.change_selected_working_set(static_cast<std::uint8_t>(workingSetIndex));
 		}
+		redraw();
 	}
 }
