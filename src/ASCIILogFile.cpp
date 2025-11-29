@@ -5,6 +5,8 @@
 *******************************************************************************/
 #include "ASCIILogFile.hpp"
 
+#include "ServerMainComponent.hpp"
+
 #include "isobus/utility/system_timing.hpp"
 #include "isobus/utility/to_string.hpp"
 
@@ -16,9 +18,7 @@ ASCIILogFile::ASCIILogFile()
 	fileNameTime = currentTime.replaceCharacter(' ', '_');
 	fileNameTime = currentTime.replaceCharacter(':', '_');
 
-	logFile = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() +
-	               File::getSeparatorString() +
-	               "Open-Agriculture" +
+	logFile = File(ServerMainComponent::getAppDataDir() +
 	               File::getSeparatorString() +
 	               "CANLog_" +
 	               fileNameTime +

@@ -5,6 +5,8 @@
 *******************************************************************************/
 #include "Settings.hpp"
 
+#include "ServerMainComponent.hpp"
+
 Settings::Settings()
 {
 	m_settings = std::make_shared<ValueTree>("Settings");
@@ -16,9 +18,7 @@ Settings::~Settings()
 
 bool Settings::load_settings()
 {
-	auto lDefaultSaveLocation = File::getSpecialLocation(File::userApplicationDataDirectory);
-	String lDataDirectoryPath = (lDefaultSaveLocation.getFullPathName().toStdString() + "/Open-Agriculture");
-	File dataDirectory(lDataDirectoryPath);
+	File dataDirectory(ServerMainComponent::getAppDataDir());
 	bool lCanLoadSettings = false;
 
 	if (dataDirectory.exists() && dataDirectory.isDirectory())
@@ -32,7 +32,7 @@ bool Settings::load_settings()
 
 	if (lCanLoadSettings)
 	{
-		String lFilePath = (lDefaultSaveLocation.getFullPathName().toStdString() + "/Open-Agriculture/" + "vt_settings.xml");
+		String lFilePath = (ServerMainComponent::getAppDataDir() + File::getSeparatorString() + "vt_settings.xml");
 		File settingsFile = File(lFilePath);
 
 		if (settingsFile.existsAsFile())

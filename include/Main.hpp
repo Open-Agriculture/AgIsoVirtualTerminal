@@ -47,6 +47,7 @@ public:
 		args.addTokens(commandLineParameters, true);
 
 		std::uint8_t vtNumber = 0;
+		std::string screenCaptureDir;
 		for (const auto &arg : args)
 		{
 			if (arg.startsWith("--vt-number"))
@@ -58,9 +59,14 @@ public:
 					vtNumber = 0;
 				}
 			}
+
+			if (arg.startsWith("--screen-capture-dir="))
+			{
+				screenCaptureDir = arg.fromFirstOccurrenceOf("--screen-capture-dir=", false, false).toStdString();
+			}
 		}
 
-		mainWindow.reset(new MainWindow(getApplicationNameWithBuildInfo(), logFile.currentLogFile(), vtNumber));
+		mainWindow.reset(new MainWindow(getApplicationNameWithBuildInfo(), logFile.currentLogFile(), vtNumber, screenCaptureDir));
 	}
 
 	void shutdown() override
@@ -118,8 +124,9 @@ public:
      * @brief MainWindow
      * @param name - window name to be displayed in the window title
      * @param vtNumberCmdLineArg - in the range of 1 - 32
+     * @param screenCaptureDir - path to the directory where the screen capture results will be saved
      */
-		MainWindow(juce::String name, const std::string &canLogPath, int vtNumberCmdLineArg = 0);
+		MainWindow(juce::String name, const std::string &canLogPath, int vtNumberCmdLineArg = 0, std::string screenCaptureDir = "");
 
 		/* Note: Be careful if you override any DocumentWindow methods - the base
            class uses a lot of them, so by overriding you might break its functionality.
