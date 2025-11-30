@@ -91,6 +91,7 @@ target_sources(
           "src/OutputLinearBarGraphComponent.cpp"
           "src/OutputPolygonComponent.cpp"
           "src/InputStringComponent.cpp"
+          "src/NumberComponent.cpp"
           "src/AlarmMaskAudio.cpp"
           "src/AppImages.cpp"
           "src/ASCIILogFile.cpp"
@@ -100,7 +101,9 @@ target_sources(
           "src/InputListComponent.cpp"
           "src/ShortcutsWindow.cpp"
           "src/Settings.cpp"
-          "src/VT_NumberComponent.cpp")
+          "src/VT_NumberComponent.cpp"
+          "src/TextDrawingComponent.cpp"
+          "src/StringDrawingComponent.cpp")
 
 target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
