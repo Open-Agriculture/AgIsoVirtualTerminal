@@ -7,9 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - name: AgIsoDevelopmentChecks
-        uses: Open-Agriculture/AgIsoDevelopmentTools@v11
+        uses: Open-Agriculture/AgIsoDevelopmentTools@v12
         with:
           path: "."
