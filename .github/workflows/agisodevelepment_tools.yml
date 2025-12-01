@@ -10,6 +10,6 @@ jobs:
         with:
           fetch-depth: 0
       - name: AgIsoDevelopmentChecks
-        uses: Open-Agriculture/AgIsoDevelopmentTools@v10
+        uses: Open-Agriculture/AgIsoDevelopmentTools@v11
         with:
           path: "."
