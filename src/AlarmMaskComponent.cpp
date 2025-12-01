@@ -17,7 +17,7 @@ AlarmMaskComponent::AlarmMaskComponent(std::shared_ptr<isobus::VirtualTerminalSe
 
 void AlarmMaskComponent::on_content_changed(bool initial)
 {
-	for (std::uint16_t i = 0; i < this->get_number_children(); i++)
+	for (uint16_t i = 0; i < this->get_number_children(); i++)
 	{
 		auto child = get_object_by_id(get_child_id(i), parentWorkingSet->get_object_tree());
 
