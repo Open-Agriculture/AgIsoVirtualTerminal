@@ -9,6 +9,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: AgIsoDevelopmentChecks
-        uses: Open-Agriculture/AgIsoDevelopmentTools@v2
+        uses: Open-Agriculture/AgIsoDevelopmentTools@v3
         with:
           path: "."
