@@ -8,6 +8,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: AgIsoDevelopmentChecks
-        uses: Open-Agriculture/AgIsoDevelopmentTools@v12
+        uses: Open-Agriculture/AgIsoDevelopmentTools@v13
         with:
           path: "."
