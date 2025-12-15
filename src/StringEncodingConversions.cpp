@@ -136,9 +136,9 @@ constexpr std::uint16_t iso_8859_7_utf8[256] =
 
 // clang-format on
 
-static const uint16_t *getTable(SourceEncoding encoding)
+static const std::uint16_t *getTable(SourceEncoding encoding)
 {
-	const uint16_t *retVal = nullptr;
+	const std::uint16_t *retVal = nullptr;
 
 	switch (encoding)
 	{
@@ -181,7 +181,7 @@ static const uint16_t *getTable(SourceEncoding encoding)
 	return retVal;
 }
 
-static void add_character(uint16_t character, std::string &output)
+static void add_character(std::uint16_t character, std::string &output)
 {
 	if (character < 0x80)
 	{
@@ -208,7 +208,7 @@ void convert_string_to_utf_8(SourceEncoding encoding, const std::string &input, 
 
 	for (const unsigned char encodedChar : input)
 	{
-		uint16_t newCharacter = table[encodedChar];
+		std::uint16_t newCharacter = table[encodedChar];
 
 		if (((static_cast<std::uint8_t>(encodedChar) >= 0x7F) &&
 		     (static_cast<std::uint8_t>(encodedChar) <= 0xA0)) ||

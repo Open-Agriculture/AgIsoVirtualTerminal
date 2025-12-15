@@ -31,7 +31,7 @@ ServerMainComponent::ServerMainComponent(
   std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
   std::shared_ptr<ValueTree> settings,
   const std::string &canLogPath_,
-  uint8_t vtNumberArg,
+  std::uint8_t vtNumberArg,
   std::string screenCaptureDir) :
   VirtualTerminalServer(serverControlFunction), screenCaptureDirArgument(screenCaptureDir), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers), canLogPath(canLogPath_)
 {
@@ -186,12 +186,12 @@ std::uint8_t ServerMainComponent::get_number_of_physical_soft_keys() const
 	}
 }
 
-uint8_t ServerMainComponent::get_physical_soft_key_columns() const
+std::uint8_t ServerMainComponent::get_physical_soft_key_columns() const
 {
 	return softKeyMaskDimensions.columnCount < 1 ? 1 : softKeyMaskDimensions.columnCount;
 }
 
-uint8_t ServerMainComponent::get_physical_soft_key_rows() const
+std::uint8_t ServerMainComponent::get_physical_soft_key_rows() const
 {
 	return softKeyMaskDimensions.rowCount < 1 ? 1 : softKeyMaskDimensions.rowCount;
 }
