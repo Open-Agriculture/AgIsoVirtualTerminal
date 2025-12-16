@@ -1875,7 +1875,7 @@ void ServerMainComponent::identify_vt()
 	});
 }
 
-void ServerMainComponent::screen_capture(uint8_t item, uint8_t path, std::shared_ptr<isobus::ControlFunction> requestor)
+void ServerMainComponent::screen_capture(std::uint8_t item, std::uint8_t path, std::shared_ptr<isobus::ControlFunction> requestor)
 {
 	File saveDir;
 	if (!screenCaptureDirArgument.empty())
@@ -1889,20 +1889,20 @@ void ServerMainComponent::screen_capture(uint8_t item, uint8_t path, std::shared
 
 	int saveFileIndex = 1;
 	bool ok = true;
-	uint8_t error = 0;
+	std::uint8_t error = 0;
 
 	if (static_cast<isobus::VirtualTerminalServer::ScreenCaptureItem>(item) != isobus::VirtualTerminalServer::ScreenCaptureItem::ScreenImage)
 	{
 		LOG_WARNING("[VT Server]: Only the 'Screen Image' (0) screen capture item is supported");
 		ok = false;
-		error |= static_cast<uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::UnsupportedItemRequest);
+		error |= static_cast<std::uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::UnsupportedItemRequest);
 	}
 
 	if (static_cast<isobus::VirtualTerminalServer::ScreenCapturePath>(path) != isobus::VirtualTerminalServer::ScreenCapturePath::VT_StorageOrRemovableMedia)
 	{
 		LOG_WARNING("[VT Server]: Only 'VT accessible storage/removable media' (1) screen capture path is supported");
 		ok = false;
-		error |= static_cast<uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::UnsupportedPathRequest);
+		error |= static_cast<std::uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::UnsupportedPathRequest);
 	}
 
 	if (!saveDir.exists())
@@ -1911,7 +1911,7 @@ void ServerMainComponent::screen_capture(uint8_t item, uint8_t path, std::shared
 		{
 			LOG_ERROR("[VT Server]: Failed to create screen capture directory: %s", saveDir.getFullPathName().toStdString().c_str());
 			ok = false;
-			error |= static_cast<uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::RemovableMediaUnavailable);
+			error |= static_cast<std::uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::RemovableMediaUnavailable);
 		}
 	}
 
@@ -1919,7 +1919,7 @@ void ServerMainComponent::screen_capture(uint8_t item, uint8_t path, std::shared
 	{
 		LOG_ERROR("[VT Server]: The screen capture path is not a directory: %s", saveDir.getFullPathName().toStdString().c_str());
 		ok = false;
-		error |= static_cast<uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::RemovableMediaUnavailable);
+		error |= static_cast<std::uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::RemovableMediaUnavailable);
 	}
 
 	if (!ok)
@@ -1944,7 +1944,7 @@ void ServerMainComponent::screen_capture(uint8_t item, uint8_t path, std::shared
 
 	if (saveFileIndex >= 99999)
 	{
-		error = static_cast<uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::RemovableMediaUnavailable);
+		error = static_cast<std::uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::RemovableMediaUnavailable);
 		send_capture_screen_response(item, path, error, 0, requestor);
 		return;
 	}
@@ -1968,7 +1968,7 @@ void ServerMainComponent::screen_capture(uint8_t item, uint8_t path, std::shared
 		ok = false;
 	}
 
-	error = ok ? 0 : static_cast<uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::AnyOtherError);
+	error = ok ? 0 : static_cast<std::uint8_t>(isobus::VirtualTerminalServer::ScreenCaptureResponseErrorBit::AnyOtherError);
 	send_capture_screen_response(item, path, error, saveFileIndex, requestor);
 }
 
