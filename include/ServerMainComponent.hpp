@@ -97,6 +97,9 @@ public:
 	/// @returns True if the client's active object pool was deactivated and removed from volatile storage, otherwise false.
 	bool delete_object_pool(isobus::NAME clientNAME) override;
 
+	std::uint8_t get_user_layout_datamask_bg_color() const override;
+	std::uint8_t get_user_layout_softkeymask_bg_color() const override;
+
 	void timerCallback() override;
 
 	void paint(juce::Graphics &g) override;
