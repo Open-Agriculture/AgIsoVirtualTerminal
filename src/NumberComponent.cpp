@@ -39,6 +39,8 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 			{
 				return;
 			}
+			auto colour = parentWorkingSet->get_colour(font->get_colour());
+			drawColour = Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f);
 			strikeThrough = font->get_style(isobus::FontAttributes::FontStyleBits::CrossedOut);
 			prepare_text_painting(g, font, '1', drawColour, backgroundColour);
 		}
