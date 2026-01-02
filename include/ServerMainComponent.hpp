@@ -177,7 +177,7 @@ private:
 		std::uint16_t buttonObjectID;
 		std::uint16_t activeMaskObjectID;
 		std::uint8_t buttonKeyCode;
-		std::uint8_t keyPosition; // applicable only for softkeys
+		std::uint8_t keyPosition = KeyComponent::InvalidSoftKeyPos; // applicable only for softkeys used for release tracking
 		bool isSoftKey;
 	};
 
