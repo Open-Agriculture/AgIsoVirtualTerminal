@@ -2090,23 +2090,3 @@ std::string ServerMainComponent::getAppDataDir()
 {
 	return juce::String(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture").toStdString();
 }
-
-uint8_t ServerMainComponent::get_softkey_index_on_softkey_mask(uint16_t keyID)
-{
-	auto object = activeWorkingSet->get_object_by_id(activeWorkingSetSoftkeyMaskObjectID);
-	if (nullptr != object && isobus::VirtualTerminalObjectType::SoftKeyMask == object->get_object_type())
-	{
-		for (int i = 0; i < object->get_number_children(); i++)
-		{
-			auto child = object->get_object_by_id(object->get_child_id(i), activeWorkingSet->get_object_tree());
-			if (nullptr != child && isobus::VirtualTerminalObjectType::Key == object->get_object_type())
-			{
-				if (object->get_child_id(i) == keyID)
-				{
-					return i;
-				}
-			}
-		}
-	}
-	return KeyComponent::InvalidSoftKeyPos;
-}

@@ -2,6 +2,7 @@
 
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
+#include "KeyComponent.hpp"
 #include "LoggerComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
@@ -195,14 +196,6 @@ private:
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 
-	/**
-	 * @brief get_softkey_index_on_softkey_mask
-	 * @param keyID ID of the key to be queried
-	 * @return The 0 based child index of the key specified by the keyID in the active softkey mask or
-	 * KeyComponent::InvalidSoftKeyPos (255) if the specified key is not part of the current softkey mask
-	 */
-	std::uint8_t get_softkey_index_on_softkey_mask(std::uint16_t keyID);
-
 	const std::string ISO_DATA_PATH = "iso_data";
 	std::string screenCaptureDirArgument = "";
 	std::string canLogPath;
@@ -228,7 +221,7 @@ private:
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
-	std::uint8_t softKeyPositionReleasedByMaskChange;
+	std::uint8_t softKeyPositionReleasedByMaskChange = KeyComponent::InvalidSoftKeyPos;
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;
 	bool needToRepaint = false;
