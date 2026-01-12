@@ -6,6 +6,7 @@
 #include "DataMaskRenderAreaComponent.hpp"
 #include "AppImages.h"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "KeyComponent.hpp"
 #include "ServerMainComponent.hpp"
 
 DataMaskRenderAreaComponent::DataMaskRenderAreaComponent(ServerMainComponent &parentServer) :
@@ -79,10 +80,11 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 			auto relativeEvent = event.getEventRelativeTo(this);
 			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
 
-			std::uint8_t keyCode = 1;
-
 			if (nullptr != clickedObject)
 			{
+				std::uint8_t keyCode = 1;
+				std::uint8_t keyPos = KeyComponent::InvalidSoftKeyPos;
+
 				if (isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
 				{
 					keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
@@ -91,6 +93,7 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 				else if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type())
 				{
 					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
+					keyPos = std::static_pointer_cast<KeyComponent>(clickedObject)->getKeyPosition();
 					ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 				}
 
@@ -106,7 +109,8 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 					                            clickedObject->get_id(),
 					                            activeMask->get_id(),
 					                            keyCode,
-					                            (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()));
+					                            (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()),
+					                            keyPos);
 				}
 			}
 		}
@@ -149,7 +153,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							                                clickedObject->get_id(),
 							                                activeMask->get_id(),
 							                                keyCode,
-							                                true);
+							                                true,
+							                                KeyComponent::InvalidSoftKeyPos);
 						}
 					}
 					break;
@@ -157,6 +162,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 					case isobus::VirtualTerminalObjectType::Key:
 					{
 						keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
+						std::uint8_t keyPos = std::static_pointer_cast<KeyComponent>(clickedObject)->getKeyPosition();
 						ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 						                                           clickedObject->get_id(),
 						                                           activeMask->get_id(),
@@ -167,7 +173,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						                                clickedObject->get_id(),
 						                                activeMask->get_id(),
 						                                keyCode,
-						                                true);
+						                                true,
+						                                keyPos);
 					}
 					break;
 

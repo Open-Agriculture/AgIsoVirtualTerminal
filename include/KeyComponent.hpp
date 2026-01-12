@@ -21,8 +21,13 @@ public:
 	KeyComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::Key sourceObject, int keyWidth, int keyHeight);
 
 	void paint(Graphics &g) override;
+	void setKeyPosition(uint8_t pos);
+	std::uint8_t getKeyPosition() const;
+
+	static inline constexpr std::uint8_t InvalidSoftKeyPos = 255;
 
 private:
+	std::uint8_t keyPosition = InvalidSoftKeyPos;
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
 
