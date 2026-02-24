@@ -22,6 +22,8 @@ public:
 
 	void paint(Graphics &g) override;
 
+	void paintOverChildren(Graphics &g) override;
+
 	void paintButton(Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
 
 	void set_options(std::uint8_t value) override;
