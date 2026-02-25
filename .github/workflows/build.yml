@@ -95,6 +95,22 @@ jobs:
           cmake --build build --config Release
           cd build
           cpack -G DEB
+      - name: "Build clang-tidy plugin from the AgIsoDevelopmentChecks repo"
+        uses: Open-Agriculture/AgIsoDevelopmentTools@v29
+      - name: "Check for std:: prefixes for standard types"
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.cpp' '*.hpp')
+          if [ -n "$FILES" ]; then
+            set -e
+            clang-tidy \
+                -load=/usr/local/lib/libclangTidyStdPrefixPlugin.so \
+                -checks=-*,std-prefix-fixed-int \
+                -warnings-as-errors='*' \
+                -p build \
+                $FILES
+          else
+            echo "No cpp or hpp files changed."
+          fi
       - name: 'Upload Ubuntu 24.04 deb package'
         uses: actions/upload-artifact@v4
         with:
