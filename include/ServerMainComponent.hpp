@@ -117,6 +117,8 @@ public:
 
 	void change_selected_working_set(std::uint8_t index);
 
+	void send_alarm_ack_command(isobus::VirtualTerminalBase::KeyActivationCode activationCode);
+
 	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 
@@ -221,6 +223,7 @@ private:
 	bool autostart = false;
 	bool hasStartBeenCalled = false;
 	bool alarmAckKeyPressed = false;
+	bool showAckButton = false;
 	bool saveIopBeforeParse = false;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
