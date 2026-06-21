@@ -99,7 +99,7 @@ target_sources(
           "src/ConfigureHardwareComponent.cpp"
           "src/StringEncodingConversions.cpp"
           "src/InputListComponent.cpp"
-          "src/ShortcutsWindow.cpp"
+          "src/AckSettingsWindow.cpp"
           "src/Settings.cpp"
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
