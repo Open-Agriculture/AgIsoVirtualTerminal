@@ -631,6 +631,7 @@ void ServerMainComponent::timerCallback()
 			}
 			remove_working_set(ws);
 			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
+			update_ack_button_visibility();
 			break;
 		}
 		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state())
@@ -1244,6 +1245,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		dataMaskRenderer.on_change_active_mask(ws);
 		softKeyMaskRenderer.on_change_active_mask(ws);
 		activeWorkingSet = ws;
+		update_ack_button_visibility();
 		process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
 		ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); }));
 		ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
@@ -1410,7 +1412,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			auto *ackSettingsWindow = dynamic_cast<AckSettingsWindow *>(mParent.popupMenu.get());
 			mParent.alarmAckKeyCode = ackSettingsWindow->alarmAckKeyCode();
 			mParent.showAckButton = ackSettingsWindow->shouldShowAckButton();
-			mParent.workingSetSelector.set_ack_button_visible(mParent.showAckButton);
+			mParent.update_ack_button_visibility();
 			mParent.save_settings();
 		}
 		break;
@@ -1564,6 +1566,8 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 			}
 		}
 
+		update_ack_button_visibility();
+
 		if (nullptr != activeMask)
 		{
 			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
@@ -1615,6 +1619,26 @@ void ServerMainComponent::repaint_data_and_soft_key_mask()
 	dataMaskRenderer.on_change_active_mask(activeWorkingSet);
 	softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
 	workingSetSelector.redraw();
+}
+
+bool ServerMainComponent::is_active_alarm_mask() const
+{
+	for (const auto &ws : managedWorkingSetList)
+	{
+		if ((nullptr != ws->get_control_function()) &&
+		    (activeWorkingSetMasterAddress == ws->get_control_function()->get_address()))
+		{
+			auto activeMask = ws->get_object_by_id(activeWorkingSetDataMaskObjectID);
+			return (nullptr != activeMask) && (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type());
+		}
+	}
+
+	return false;
+}
+
+void ServerMainComponent::update_ack_button_visibility()
+{
+	workingSetSelector.set_ack_button_visible(showAckButton && is_active_alarm_mask());
 }
 
 void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> settings)
@@ -1798,7 +1822,7 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 		child = settings->getChild(index);
 	}
 
-	workingSetSelector.set_ack_button_visible(showAckButton);
+	update_ack_button_visibility();
 
 	if (!autostart)
 	{
