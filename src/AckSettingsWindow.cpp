@@ -14,7 +14,7 @@ AckSettingsWindow::AckSettingsWindow(int alarmAckKeyCode, bool showAckButton, Co
 	selectAlarmAckKeyButton.onClick = [this]() { setAlarmAckKeySelection(true); };
 	updateAlarmAckButtonLabel(alarmAckKey);
 
-	showAckButtonCheckbox.setButtonText("Show ACK button");
+	showAckButtonCheckbox.setButtonText("Show dedicated ACK button when an alarm mask is active");
 	showAckButtonCheckbox.setToggleState(showAckButton, juce::dontSendNotification);
 	addCustomComponent(&showAckButtonCheckbox);
 
