@@ -26,6 +26,20 @@
 #include <iterator>
 #include <sstream>
 
+namespace
+{
+std::string version_label_to_hex(const std::vector<std::uint8_t> &versionLabel)
+{
+	std::ostringstream result;
+	result << std::hex << std::setfill('0');
+	for (const auto byte : versionLabel)
+	{
+		result << std::setw(2) << static_cast<unsigned int>(byte);
+	}
+	return result.str();
+}
+} // namespace
+
 ServerMainComponent::ServerMainComponent(
   std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
   std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
@@ -39,6 +53,13 @@ ServerMainComponent::ServerMainComponent(
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
 
 	VirtualTerminalServer::initialize();
+	softKeyMaskChangeListener = get_on_change_active_softkey_mask_event_dispatcher().add_listener(
+	  [this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet,
+	         std::uint16_t dataOrAlarmMask,
+	         std::uint16_t newSoftKeyMask) {
+		  on_change_soft_key_mask_callback(workingSet, dataOrAlarmMask, newSoftKeyMask);
+	  });
+	softKeyMaskChangeListenerRegistered = true;
 
 	logger.setVisible(true);
 	loggerViewport.setVisible(true);
@@ -103,6 +124,10 @@ ServerMainComponent::ServerMainComponent(
 
 ServerMainComponent::~ServerMainComponent()
 {
+	if (softKeyMaskChangeListenerRegistered)
+	{
+		get_on_change_active_softkey_mask_event_dispatcher().remove_listener(softKeyMaskChangeListener);
+	}
 	setApplicationCommandManagerToWatch(nullptr);
 }
 
@@ -354,6 +379,33 @@ std::vector<std::uint8_t> ServerMainComponent::load_version(const std::vector<st
 			}
 		}
 	}
+
+	SoftKeyAssignments assignments;
+	if (!loadedIOPData.empty())
+	{
+		std::ifstream stateFile(soft_key_state_path(versionLabel, clientNAME));
+		std::uint32_t dataOrAlarmMask = 0;
+		std::uint32_t softKeyMask = 0;
+		while (stateFile >> dataOrAlarmMask >> softKeyMask)
+		{
+			if ((dataOrAlarmMask <= 0xFFFF) && (softKeyMask <= 0xFFFF))
+			{
+				assignments[static_cast<std::uint16_t>(dataOrAlarmMask)] = static_cast<std::uint16_t>(softKeyMask);
+			}
+		}
+	}
+
+	{
+		const std::lock_guard<std::mutex> lock(softKeyStateMutex);
+		if (loadedIOPData.empty())
+		{
+			pendingSoftKeyAssignments.erase(clientNAME.get_full_name());
+		}
+		else
+		{
+			pendingSoftKeyAssignments[clientNAME.get_full_name()] = std::move(assignments);
+		}
+	}
 	return loadedIOPData;
 }
 
@@ -394,6 +446,10 @@ bool ServerMainComponent::save_version(const std::vector<std::uint8_t> &objectPo
 	{
 		iopFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast<std::streamsize>(objectPool.size()));
 		iopFile.close();
+	}
+	if (retVal)
+	{
+		save_soft_key_masks(versionLabel, clientNAME);
 	}
 	return retVal;
 }
@@ -453,6 +509,8 @@ bool ServerMainComponent::delete_version(const std::vector<std::uint8_t> &versio
 		{
 			retVal &= std::filesystem::remove(entry);
 		}
+		std::error_code error;
+		std::filesystem::remove(soft_key_state_path(versionLabel, clientNAME), error);
 	}
 	return retVal;
 }
@@ -484,6 +542,15 @@ bool ServerMainComponent::delete_all_versions(isobus::NAME clientNAME)
 		for (const auto &entry : filesToRemove)
 		{
 			retVal &= std::filesystem::remove(entry);
+		}
+
+		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
+		{
+			if (entry.path().has_extension() && entry.path().extension() == ".vts")
+			{
+				std::error_code error;
+				std::filesystem::remove(entry.path(), error);
+			}
 		}
 	}
 	return retVal;
@@ -532,6 +599,16 @@ void ServerMainComponent::timerCallback()
 		if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Success == ws->get_object_pool_processing_state())
 		{
 			ws->join_parsing_thread();
+
+			if (ws->get_was_object_pool_loaded_from_non_volatile_memory())
+			{
+				restore_saved_soft_key_masks(ws);
+			}
+			else if (initializedSoftKeyStateWorkingSets.insert(ws.get()).second)
+			{
+				const std::lock_guard<std::mutex> lock(softKeyStateMutex);
+				activeSoftKeyAssignments.erase(ws->get_control_function()->get_NAME().get_full_name());
+			}
 
 			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
 
@@ -1598,6 +1675,101 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 	}
 }
 
+std::filesystem::path ServerMainComponent::soft_key_state_path(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME) const
+{
+	std::ostringstream nameString;
+	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
+	return std::filesystem::path((getAppDataDir() +
+	                              File::getSeparatorString() +
+	                              ISO_DATA_PATH +
+	                              File::getSeparatorString() +
+	                              nameString.str())
+	                               .toStdString()) /
+	  ("soft_key_state_" + version_label_to_hex(versionLabel) + ".vts");
+}
+
+void ServerMainComponent::on_change_soft_key_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet,
+                                                           std::uint16_t dataOrAlarmMask,
+                                                           std::uint16_t newSoftKeyMask)
+{
+	if ((nullptr != affectedWorkingSet) && (nullptr != affectedWorkingSet->get_control_function()))
+	{
+		const std::lock_guard<std::mutex> lock(softKeyStateMutex);
+		activeSoftKeyAssignments[affectedWorkingSet->get_control_function()->get_NAME().get_full_name()][dataOrAlarmMask] = newSoftKeyMask;
+	}
+}
+
+void ServerMainComponent::save_soft_key_masks(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
+{
+	SoftKeyAssignments assignments;
+	{
+		const std::lock_guard<std::mutex> lock(softKeyStateMutex);
+		const auto state = activeSoftKeyAssignments.find(clientNAME.get_full_name());
+		if (state != activeSoftKeyAssignments.end())
+		{
+			assignments = state->second;
+		}
+	}
+
+	const auto statePath = soft_key_state_path(versionLabel, clientNAME);
+	if (assignments.empty())
+	{
+		std::error_code error;
+		std::filesystem::remove(statePath, error);
+		return;
+	}
+
+	std::ofstream stateFile(statePath, std::ios::trunc);
+	for (const auto &[dataOrAlarmMask, softKeyMask] : assignments)
+	{
+		stateFile << dataOrAlarmMask << ' ' << softKeyMask << '\n';
+	}
+}
+
+void ServerMainComponent::restore_saved_soft_key_masks(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet)
+{
+	if ((nullptr == workingSet) || (nullptr == workingSet->get_control_function()))
+	{
+		return;
+	}
+
+	SoftKeyAssignments assignments;
+	{
+		const auto clientName = workingSet->get_control_function()->get_NAME().get_full_name();
+		const std::lock_guard<std::mutex> lock(softKeyStateMutex);
+		const auto state = pendingSoftKeyAssignments.find(clientName);
+		if (state == pendingSoftKeyAssignments.end())
+		{
+			return;
+		}
+		assignments = std::move(state->second);
+		pendingSoftKeyAssignments.erase(state);
+		activeSoftKeyAssignments[clientName] = assignments;
+	}
+
+	for (const auto &[maskID, softKeyMaskID] : assignments)
+	{
+		auto mask = workingSet->get_object_by_id(maskID);
+		const bool softKeyMaskExists =
+		  (isobus::NULL_OBJECT_ID == softKeyMaskID) ||
+		  (nullptr != workingSet->get_object_by_id(softKeyMaskID));
+
+		if ((nullptr == mask) || !softKeyMaskExists)
+		{
+			continue;
+		}
+
+		if (isobus::VirtualTerminalObjectType::DataMask == mask->get_object_type())
+		{
+			std::static_pointer_cast<isobus::DataMask>(mask)->set_soft_key_mask(softKeyMaskID);
+		}
+		else if (isobus::VirtualTerminalObjectType::AlarmMask == mask->get_object_type())
+		{
+			std::static_pointer_cast<isobus::AlarmMask>(mask)->set_soft_key_mask(softKeyMaskID);
+		}
+	}
+}
+
 void ServerMainComponent::repaint_data_and_soft_key_mask()
 {
 	dataMaskRenderer.on_change_active_mask(activeWorkingSet);
@@ -2004,6 +2176,7 @@ int ServerMainComponent::minimum_height() const
 void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
 {
 	loadVersionResponsesSent.erase(workingSetToRemove.get());
+	initializedSoftKeyStateWorkingSets.erase(workingSetToRemove.get());
 	for (auto it = managedWorkingSetList.begin(); it != managedWorkingSetList.end(); it++)
 	{
 		if (workingSetToRemove == *it)
