@@ -544,7 +544,13 @@ void ServerMainComponent::timerCallback()
 				change_selected_working_set(wsIndex);
 			}
 
-			if (ws->get_was_object_pool_loaded_from_non_volatile_memory())
+			// A Load Version response is only valid for the initial pool restored
+			// from non-volatile memory. A subsequently transferred IOP component
+			// must receive the normal End of Object Pool response.
+			const bool isInitialNonVolatileLoadResponse =
+			  ws->get_was_object_pool_loaded_from_non_volatile_memory() &&
+			  loadVersionResponsesSent.insert(ws.get()).second;
+			if (isInitialNonVolatileLoadResponse)
 			{
 				send_load_version_response(0, ws->get_control_function());
 			}
@@ -561,7 +567,10 @@ void ServerMainComponent::timerCallback()
 		{
 			ws->join_parsing_thread();
 
-			if (ws->get_was_object_pool_loaded_from_non_volatile_memory())
+			const bool isInitialNonVolatileLoadResponse =
+			  ws->get_was_object_pool_loaded_from_non_volatile_memory() &&
+			  loadVersionResponsesSent.insert(ws.get()).second;
+			if (isInitialNonVolatileLoadResponse)
 			{
 				send_load_version_response(1, ws->get_control_function());
 			}
@@ -1994,6 +2003,7 @@ int ServerMainComponent::minimum_height() const
 
 void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
 {
+	loadVersionResponsesSent.erase(workingSetToRemove.get());
 	for (auto it = managedWorkingSetList.begin(); it != managedWorkingSetList.end(); it++)
 	{
 		if (workingSetToRemove == *it)

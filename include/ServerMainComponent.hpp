@@ -12,6 +12,7 @@
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
 #include <filesystem>
+#include <set>
 
 class ServerMainComponent : public juce::Component
   , public juce::KeyListener
@@ -212,6 +213,7 @@ private:
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;
+	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
