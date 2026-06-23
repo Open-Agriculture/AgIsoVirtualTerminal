@@ -12,6 +12,9 @@
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
 #include <filesystem>
+#include <map>
+#include <mutex>
+#include <set>
 
 class ServerMainComponent : public juce::Component
   , public juce::KeyListener
@@ -185,6 +188,10 @@ private:
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
+	void on_change_soft_key_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t dataOrAlarmMask, std::uint16_t newSoftKeyMask);
+	void restore_saved_soft_key_masks(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet);
+	void save_soft_key_masks(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME);
+	std::filesystem::path soft_key_state_path(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME) const;
 	void repaint_data_and_soft_key_mask();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
@@ -212,6 +219,14 @@ private:
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;
+	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
+	using SoftKeyAssignments = std::map<std::uint16_t, std::uint16_t>;
+	std::map<std::uint64_t, SoftKeyAssignments> activeSoftKeyAssignments;
+	std::map<std::uint64_t, SoftKeyAssignments> pendingSoftKeyAssignments;
+	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> initializedSoftKeyStateWorkingSets;
+	std::mutex softKeyStateMutex;
+	isobus::EventCallbackHandle softKeyMaskChangeListener = 0;
+	bool softKeyMaskChangeListenerRegistered = false;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
