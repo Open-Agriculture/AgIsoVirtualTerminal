@@ -5,10 +5,10 @@
 *******************************************************************************/
 #include "ServerMainComponent.hpp"
 
+#include "AckSettingsWindow.hpp"
 #include "AlarmMaskAudio.h"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "Main.hpp"
-#include "ShortcutsWindow.hpp"
 #include "isobus/utility/system_timing.hpp"
 
 #include "SoftKeyMaskRenderAreaComponent.hpp"
@@ -224,17 +224,9 @@ bool ServerMainComponent::keyPressed(const KeyPress &key, Component *originating
 {
 	if (key == alarmAckKeyCode && !alarmAckKeyPressed)
 	{
-		for (auto &ws : managedWorkingSetList)
-		{
-			if (activeWorkingSetMasterAddress == ws->get_control_function()->get_address())
-			{
-				alarmAckKeyPressed = true;
-				alarmAckKeyMaskId = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask();
-				alarmAckKeyWs = ws->get_control_function();
-				send_soft_key_activation_message(KeyActivationCode::ButtonPressedOrLatched, isobus::NULL_OBJECT_ID, alarmAckKeyMaskId, 0, alarmAckKeyWs);
-				return true;
-			}
-		}
+		alarmAckKeyPressed = true;
+		send_alarm_ack_command(KeyActivationCode::ButtonPressedOrLatched);
+		return true;
 	}
 	return false;
 }
@@ -244,9 +236,34 @@ bool ServerMainComponent::keyStateChanged(bool isKeyDown, Component *originating
 	if (!isKeyDown && alarmAckKeyPressed && !juce::KeyPress::isKeyCurrentlyDown(alarmAckKeyCode))
 	{
 		alarmAckKeyPressed = false;
-		send_soft_key_activation_message(KeyActivationCode::ButtonUnlatchedOrReleased, isobus::NULL_OBJECT_ID, alarmAckKeyMaskId, 0, alarmAckKeyWs);
+		send_alarm_ack_command(KeyActivationCode::ButtonUnlatchedOrReleased);
 	}
 	return false;
+}
+
+void ServerMainComponent::send_alarm_ack_command(KeyActivationCode activationCode)
+{
+	if (KeyActivationCode::ButtonUnlatchedOrReleased == activationCode)
+	{
+		if (nullptr != alarmAckKeyWs)
+		{
+			send_soft_key_activation_message(activationCode, isobus::NULL_OBJECT_ID, alarmAckKeyMaskId, 0, alarmAckKeyWs);
+			alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
+			alarmAckKeyWs.reset();
+		}
+		return;
+	}
+
+	for (auto &ws : managedWorkingSetList)
+	{
+		if (activeWorkingSetMasterAddress == ws->get_control_function()->get_address())
+		{
+			alarmAckKeyMaskId = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask();
+			alarmAckKeyWs = ws->get_control_function();
+			send_soft_key_activation_message(activationCode, isobus::NULL_OBJECT_ID, alarmAckKeyMaskId, 0, alarmAckKeyWs);
+			return;
+		}
+	}
 }
 
 std::vector<std::array<std::uint8_t, 7>> ServerMainComponent::get_versions(isobus::NAME clientNAME)
@@ -614,6 +631,7 @@ void ServerMainComponent::timerCallback()
 			}
 			remove_working_set(ws);
 			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
+			update_ack_button_visibility();
 			break;
 		}
 		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state())
@@ -784,7 +802,7 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 
 		case CommandIDs::ConfigureShortcuts:
 		{
-			result.setInfo("Configure shortcuts", "Configure keyboard shortcuts", "Configure", 0);
+			result.setInfo("ACK button", "Configure ACK keyboard shortcut and button", "Configure", 0);
 		}
 		break;
 
@@ -922,7 +940,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 		case static_cast<int>(CommandIDs::ConfigureShortcuts):
 		{
-			popupMenu = std::make_unique<ShortcutsWindow>(alarmAckKeyCode);
+			popupMenu = std::make_unique<AckSettingsWindow>(alarmAckKeyCode, showAckButton);
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 			retVal = true;
 		}
@@ -1227,6 +1245,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		dataMaskRenderer.on_change_active_mask(ws);
 		softKeyMaskRenderer.on_change_active_mask(ws);
 		activeWorkingSet = ws;
+		update_ack_button_visibility();
 		process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
 		ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); }));
 		ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
@@ -1388,11 +1407,15 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 		}
 		break;
 
-		case 5: // Shortcuts
+		case 5: // ACK button
 		{
-			mParent.alarmAckKeyCode = dynamic_cast<ShortcutsWindow *>(mParent.popupMenu.get())->alarmAckKeyCode();
+			auto *ackSettingsWindow = dynamic_cast<AckSettingsWindow *>(mParent.popupMenu.get());
+			mParent.alarmAckKeyCode = ackSettingsWindow->alarmAckKeyCode();
+			mParent.showAckButton = ackSettingsWindow->shouldShowAckButton();
+			mParent.update_ack_button_visibility();
 			mParent.save_settings();
 		}
+		break;
 
 		default:
 		{
@@ -1543,6 +1566,8 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 			}
 		}
 
+		update_ack_button_visibility();
+
 		if (nullptr != activeMask)
 		{
 			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
@@ -1594,6 +1619,26 @@ void ServerMainComponent::repaint_data_and_soft_key_mask()
 	dataMaskRenderer.on_change_active_mask(activeWorkingSet);
 	softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
 	workingSetSelector.redraw();
+}
+
+bool ServerMainComponent::is_active_alarm_mask() const
+{
+	for (const auto &ws : managedWorkingSetList)
+	{
+		if ((nullptr != ws->get_control_function()) &&
+		    (activeWorkingSetMasterAddress == ws->get_control_function()->get_address()))
+		{
+			auto activeMask = ws->get_object_by_id(activeWorkingSetDataMaskObjectID);
+			return (nullptr != activeMask) && (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type());
+		}
+	}
+
+	return false;
+}
+
+void ServerMainComponent::update_ack_button_visibility()
+{
+	workingSetSelector.set_ack_button_visible(showAckButton && is_active_alarm_mask());
 }
 
 void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> settings)
@@ -1767,10 +1812,17 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			{
 				alarmAckKeyCode = static_cast<int>(child.getProperty("AlarmAckKey"));
 			}
+
+			if (!child.getProperty("ShowAckButton").isVoid())
+			{
+				showAckButton = static_cast<int>(child.getProperty("ShowAckButton")) != 0;
+			}
 		}
 		index++;
 		child = settings->getChild(index);
 	}
+
+	update_ack_button_visibility();
 
 	if (!autostart)
 	{
@@ -1851,6 +1903,7 @@ void ServerMainComponent::save_settings()
 		loggingSettings.setProperty("SaveIopBeforeParse", static_cast<int>(saveIopBeforeParse), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
+		controlSettings.setProperty("ShowAckButton", showAckButton, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
