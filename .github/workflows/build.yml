@@ -13,22 +13,22 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
       - name: 'Install NSIS'
-        uses: repolevedavaj/install-nsis@v1.0.3
+        uses: repolevedavaj/install-nsis@v1.2.1
         with:
-            nsis-version: '3.11'
+            nsis-version: '3.12'
       - name: Compile
         run: |
           mkdir build
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
           cmake --build build --config Release --target package
       - name: 'Upload Windows Installer'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: 'Windows Installer'
           path: build/_CPack_Packages/win64/NSIS/*.exe
@@ -37,7 +37,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-tags: true
@@ -48,7 +48,7 @@ jobs:
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
           cmake --build build --config Release --target package
       - name: 'Upload OSX Installer'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: 'OSX dmg package'
           path: build/_CPack_Packages/OSX/DragNDrop/*.dmg
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-tags: true
@@ -72,7 +72,7 @@ jobs:
           cd build
           cpack -G DEB
       - name: 'Upload Ubuntu 22.04 deb package'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: 'Ubuntu 22.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-tags: true
@@ -112,7 +112,7 @@ jobs:
             echo "No cpp or hpp files changed."
           fi
       - name: 'Upload Ubuntu 24.04 deb package'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: 'Ubuntu 24.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb

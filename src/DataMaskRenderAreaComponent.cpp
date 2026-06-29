@@ -612,6 +612,13 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 	}
 	else
 	{
+		// none of the childs of the hidden containers should send clicked events
+		if (isobus::VirtualTerminalObjectType::Container == object->get_object_type() &&
+		    std::static_pointer_cast<const isobus::Container>(object)->get_hidden())
+		{
+			return nullptr;
+		}
+
 		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
 		{
 			auto child = object->get_object_by_id(object->get_child_id(i), parentWorkingSet->get_object_tree());

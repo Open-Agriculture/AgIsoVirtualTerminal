@@ -45,10 +45,13 @@ void ButtonComponent::paint(Graphics &g)
 	{
 		g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 	}
+}
 
+void ButtonComponent::paintOverChildren(Graphics &g)
+{
 	if (false == get_option(Options::NoBorder) && false == get_option(Options::SuppressBorder))
 	{
-		vtColour = parentWorkingSet->get_colour(get_border_colour());
+		auto vtColour = parentWorkingSet->get_colour(get_border_colour());
 		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 		g.drawRect(0, 0, get_width(), get_height(), 4);
 	}
@@ -61,7 +64,7 @@ void ButtonComponent::paintButton(Graphics &, bool, bool)
 void ButtonComponent::set_options(std::uint8_t value)
 {
 	// adjust the position of the childs to the button face area if the NoBorder attribute is changed
-	if ((value & static_cast<std::uint8_t>(Options::NoBorder)) != get_option(Options::NoBorder))
+	if (((value & static_cast<std::uint8_t>(Options::NoBorder)) != 0) != get_option(Options::NoBorder))
 	{
 		auto borderOffset = (0 != (value & static_cast<std::uint8_t>(Options::NoBorder))) ? -4 : 4;
 		int i = 0;

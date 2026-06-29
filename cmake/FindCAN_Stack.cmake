@@ -3,6 +3,6 @@ if(NOT TARGET isobus::isobus)
   FetchContent_Declare(
     CAN_Stack
     GIT_REPOSITORY https://github.com/Open-Agriculture/AgIsoStack-plus-plus.git
-    GIT_TAG d5d8ff1d8769d714424b6dee2bd59e10f61c3845)
+    GIT_TAG 0c5e3d2f264270f0a750cc3fdedaaa5861d71a59)
   FetchContent_MakeAvailable(CAN_Stack)
 endif()

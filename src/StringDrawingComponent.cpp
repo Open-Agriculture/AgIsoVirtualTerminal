@@ -49,6 +49,8 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 			}
 			fontHeight = prepare_text_painting(g, font, 'a', drawColour, backgroundColour);
 			strikeThrough = font->get_style(isobus::FontAttributes::FontStyleBits::CrossedOut);
+			auto colour = parentWorkingSet->get_colour(font->get_colour());
+			drawColour = Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f);
 			fontType = font->get_type();
 		}
 	}
