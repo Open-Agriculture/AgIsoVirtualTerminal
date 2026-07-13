@@ -525,6 +525,17 @@ void ServerMainComponent::timerCallback()
 		statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
 	}
 
+	auto activeCANDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+	bool isAdapterConnected = (nullptr != activeCANDriver) && activeCANDriver->get_is_valid();
+	bool isInterfaceRunning = isobus::CANHardwareInterface::is_running();
+
+	if ((isAdapterConnected != canAdapterConnected) || (isInterfaceRunning != canInterfaceRunning))
+	{
+		canAdapterConnected = isAdapterConnected;
+		canInterfaceRunning = isInterfaceRunning;
+		repaint(getWidth() - CAN_STATUS_INDICATOR_WIDTH, 0, CAN_STATUS_INDICATOR_WIDTH, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
+	}
+
 	bool hasIopLoadInProgress = false;
 	int wsIndex = 0;
 	for (auto &ws : managedWorkingSetList)
@@ -682,8 +693,26 @@ void ServerMainComponent::paint(juce::Graphics &g)
 	// (Our component is opaque, so we must completely fill the background with a solid colour)
 	g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
 
-	// You can add your drawing code here!
-	//workingSetSelector->paint(g);
+	auto statusArea = juce::Rectangle<int>(getWidth() - CAN_STATUS_INDICATOR_WIDTH, 0, CAN_STATUS_INDICATOR_WIDTH, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
+	{
+		juce::Graphics::ScopedSaveState backgroundState(g);
+		g.setOrigin(statusArea.getPosition());
+		getLookAndFeel().drawMenuBarBackground(g, statusArea.getWidth(), statusArea.getHeight(), false, menuBar);
+	}
+
+	auto statusColour = juce::Colours::grey;
+	juce::String statusText = "CAN Stopped";
+
+	if (canInterfaceRunning)
+	{
+		statusColour = canAdapterConnected ? juce::Colours::limegreen : juce::Colours::red;
+		statusText = canAdapterConnected ? "CAN Connected" : "CAN Disconnected";
+	}
+	g.setColour(statusColour);
+	g.fillEllipse(statusArea.removeFromLeft(statusArea.getHeight()).reduced(7).toFloat());
+	g.setColour(getLookAndFeel().findColour(juce::Label::textColourId));
+	g.setFont(14.0f);
+	g.drawText(statusText, statusArea, juce::Justification::centredLeft);
 }
 
 void ServerMainComponent::resized()
@@ -705,7 +734,7 @@ void ServerMainComponent::resized()
 	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
 	                              get_data_mask_area_size_y_pixels());
 	loggerViewport.setTopLeftPosition(0, minimum_height());
-	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight));
+	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight).withTrimmedRight(CAN_STATUS_INDICATOR_WIDTH));
 	logger.setSize(loggerViewport.getWidth(), logger.getHeight());
 
 	if (logger.getHeight() < loggerViewport.getHeight())

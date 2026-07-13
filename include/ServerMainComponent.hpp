@@ -191,6 +191,7 @@ private:
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 
+	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
 	const std::string ISO_DATA_PATH = "iso_data";
 	std::string screenCaptureDirArgument = "";
 	std::string canLogPath;
@@ -220,6 +221,8 @@ private:
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;
 	bool needToRepaint = false;
+	bool canAdapterConnected = false;
+	bool canInterfaceRunning = false;
 	bool autostart = false;
 	bool hasStartBeenCalled = false;
 	bool alarmAckKeyPressed = false;
