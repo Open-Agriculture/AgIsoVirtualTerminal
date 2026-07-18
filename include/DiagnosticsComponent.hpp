@@ -52,9 +52,11 @@ private:
 
 	/// @brief Decodes a received DM1 message and updates the DTC list of its source control function
 	static void process_dm1_message(const isobus::CANMessage &message, void *parent);
+	static TextLayout source_summary_layout(const SourceEntry &entry, int width);
 	void timerCallback() override;
 
 	static constexpr int LINE_HEIGHT = 20;
+	static constexpr float FONT_HEIGHT = 17.0f;
 	static constexpr std::uint32_t STALE_TIMEOUT_MS = 7000;
 
 	std::map<std::uint64_t, SourceEntry> sources;

@@ -14,35 +14,36 @@
 #include "isobus/isobus/can_general_parameter_group_numbers.hpp"
 #include "isobus/isobus/can_network_manager.hpp"
 
-/// @brief Returns a short label for the lamps a DM1 message reports as on
+/// @brief Returns coloured labels for the lamps a DM1 message reports as on
 /// @param[in] lampStatus The first byte of the DM1 payload (lamp status)
 /// @param[in] lampFlash The second byte of the DM1 payload (lamp flash)
-static String lamp_summary(std::uint8_t lampStatus, std::uint8_t lampFlash)
+/// @param[in] font The font used to render each lamp label
+static AttributedString lamp_summary(std::uint8_t lampStatus, std::uint8_t lampFlash, const Font &font)
 {
-	String retVal;
+	AttributedString retVal;
 
 	if ((0xFF == lampStatus) && (0xFF == lampFlash))
 	{
 		// ISO 11783 mode sends 0xFF for both lamp bytes, meaning "not available"
-		retVal = " [LAMPS N/A]";
+		retVal.append(" [LAMPS N/A]", font, Colours::grey);
 	}
 	else
 	{
 		if (0x01 == ((lampStatus >> 6) & 0x03))
 		{
-			retVal += " [MIL]";
+			retVal.append(" [MIL]", font, Colours::orange);
 		}
 		if (0x01 == ((lampStatus >> 4) & 0x03))
 		{
-			retVal += " [STOP]";
+			retVal.append(" [STOP]", font, Colours::red);
 		}
 		if (0x01 == ((lampStatus >> 2) & 0x03))
 		{
-			retVal += " [WARN]";
+			retVal.append(" [WARN]", font, Colours::yellow);
 		}
 		if (0x01 == (lampStatus & 0x03))
 		{
-			retVal += " [PROTECT]";
+			retVal.append(" [PROTECT]", font, Colours::orange);
 		}
 	}
 	return retVal;
@@ -61,10 +62,24 @@ DiagnosticsComponent::~DiagnosticsComponent()
 	isobus::CANNetworkManager::CANNetwork.remove_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::DiagnosticMessage1), process_dm1_message, this);
 }
 
+TextLayout DiagnosticsComponent::source_summary_layout(const SourceEntry &entry, int width)
+{
+	const Font diagnosticsFont{ FontOptions(FONT_HEIGHT) };
+	AttributedString sourceSummary;
+	sourceSummary.setWordWrap(AttributedString::WordWrap::byWord);
+	sourceSummary.setJustification(Justification::centredLeft);
+	sourceSummary.append(String("#" + std::to_string(entry.address) + " " + entry.manufacturerName), diagnosticsFont, Colours::white);
+	sourceSummary.append(lamp_summary(entry.lampStatus, entry.lampFlash, diagnosticsFont));
+
+	TextLayout retVal;
+	retVal.createLayout(sourceSummary, static_cast<float>(jmax(1, width - 4)));
+	return retVal;
+}
+
 void DiagnosticsComponent::paint(Graphics &g)
 {
 	g.fillAll(Colours::black);
-	g.setFont(16.0f);
+	g.setFont(FONT_HEIGHT);
 
 	if (sources.empty())
 	{
@@ -79,9 +94,10 @@ void DiagnosticsComponent::paint(Graphics &g)
 	{
 		const auto &entry = source.second;
 
-		g.setColour(Colours::white);
-		g.drawFittedText(String("#" + std::to_string(entry.address) + " " + entry.manufacturerName) + lamp_summary(entry.lampStatus, entry.lampFlash), 4, line * LINE_HEIGHT, getWidth() - 4, LINE_HEIGHT, Justification::centredLeft, 1);
-		line++;
+		const auto sourceLayout = source_summary_layout(entry, getWidth());
+		const auto sourceHeight = jmax(1, sourceLayout.getNumLines()) * LINE_HEIGHT;
+		sourceLayout.draw(g, Rectangle<float>(4.0f, static_cast<float>(line * LINE_HEIGHT), static_cast<float>(getWidth() - 4), static_cast<float>(sourceHeight)));
+		line += sourceHeight / LINE_HEIGHT;
 
 		g.setColour(Colours::yellow);
 
@@ -99,7 +115,7 @@ void DiagnosticsComponent::update_content_height()
 
 	for (const auto &source : sources)
 	{
-		numberOfLines += 1 + static_cast<int>(source.second.activeDTCs.size());
+		numberOfLines += jmax(1, source_summary_layout(source.second, getWidth()).getNumLines()) + static_cast<int>(source.second.activeDTCs.size());
 	}
 
 	int newHeight = numberOfLines * LINE_HEIGHT;
