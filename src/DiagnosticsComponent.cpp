@@ -24,23 +24,26 @@ static String lamp_summary(std::uint8_t lampStatus, std::uint8_t lampFlash)
 	if ((0xFF == lampStatus) && (0xFF == lampFlash))
 	{
 		// ISO 11783 mode sends 0xFF for both lamp bytes, meaning "not available"
-		return retVal;
+		retVal = " [LAMPS N/A]";
 	}
-	if (0x01 == ((lampStatus >> 6) & 0x03))
+	else
 	{
-		retVal += " [MIL]";
-	}
-	if (0x01 == ((lampStatus >> 4) & 0x03))
-	{
-		retVal += " [STOP]";
-	}
-	if (0x01 == ((lampStatus >> 2) & 0x03))
-	{
-		retVal += " [WARN]";
-	}
-	if (0x01 == (lampStatus & 0x03))
-	{
-		retVal += " [PROTECT]";
+		if (0x01 == ((lampStatus >> 6) & 0x03))
+		{
+			retVal += " [MIL]";
+		}
+		if (0x01 == ((lampStatus >> 4) & 0x03))
+		{
+			retVal += " [STOP]";
+		}
+		if (0x01 == ((lampStatus >> 2) & 0x03))
+		{
+			retVal += " [WARN]";
+		}
+		if (0x01 == (lampStatus & 0x03))
+		{
+			retVal += " [PROTECT]";
+		}
 	}
 	return retVal;
 }
