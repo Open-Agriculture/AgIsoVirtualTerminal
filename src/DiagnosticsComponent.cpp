@@ -52,10 +52,12 @@ DiagnosticsComponent::DiagnosticsComponent()
 {
 	setSize(WIDTH, LINE_HEIGHT);
 	isobus::CANNetworkManager::CANNetwork.add_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::DiagnosticMessage1), process_dm1_message, this);
+	startTimer(1000);
 }
 
 DiagnosticsComponent::~DiagnosticsComponent()
 {
+	stopTimer();
 	isobus::CANNetworkManager::CANNetwork.remove_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::DiagnosticMessage1), process_dm1_message, this);
 }
 
@@ -130,6 +132,7 @@ void DiagnosticsComponent::process_dm1_message(const isobus::CANMessage &message
 	entry.address = source->get_address();
 	entry.lampStatus = data.at(0);
 	entry.lampFlash = data.at(1);
+	entry.lastSeenTimestamp = Time::getMillisecondCounter();
 
 	if (manufacturerMap.find(source->get_NAME().get_manufacturer_code()) != manufacturerMap.end())
 	{
@@ -165,4 +168,28 @@ void DiagnosticsComponent::process_dm1_message(const isobus::CANMessage &message
 		component->sources[source->get_NAME().get_full_name()] = std::move(entry);
 	}
 	component->update_content_height();
+}
+
+void DiagnosticsComponent::timerCallback()
+{
+	const auto currentTimestamp = Time::getMillisecondCounter();
+	bool removedSource = false;
+
+	for (auto source = sources.begin(); source != sources.end();)
+	{
+		if ((currentTimestamp - source->second.lastSeenTimestamp) >= STALE_TIMEOUT_MS)
+		{
+			source = sources.erase(source);
+			removedSource = true;
+		}
+		else
+		{
+			++source;
+		}
+	}
+
+	if (removedSource)
+	{
+		update_content_height();
+	}
 }
