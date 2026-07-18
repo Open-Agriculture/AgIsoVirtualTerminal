@@ -22,9 +22,9 @@ class DiagnosticsComponent : public Component
 {
 public:
 	DiagnosticsComponent();
-	~DiagnosticsComponent() override;
 
 	void paint(Graphics &g) override;
+	void update_content_height();
 
 	static constexpr int WIDTH = 260;
 
@@ -50,7 +50,7 @@ private:
 	/// @brief Decodes a received DM1 message and updates the DTC list of its source control function
 	static void process_dm1_message(const isobus::CANMessage &message, void *parent);
 
-	static constexpr int LINE_HEIGHT = 14;
+	static constexpr int LINE_HEIGHT = 20;
 
 	std::map<std::uint64_t, SourceEntry> sources;
 

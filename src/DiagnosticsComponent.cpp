@@ -62,7 +62,7 @@ DiagnosticsComponent::~DiagnosticsComponent()
 void DiagnosticsComponent::paint(Graphics &g)
 {
 	g.fillAll(Colours::black);
-	g.setFont(14.0f);
+	g.setFont(16.0f);
 
 	if (sources.empty())
 	{
@@ -89,6 +89,26 @@ void DiagnosticsComponent::paint(Graphics &g)
 			line++;
 		}
 	}
+}
+
+void DiagnosticsComponent::update_content_height()
+{
+	int numberOfLines = sources.empty() ? 1 : 0;
+
+	for (const auto &source : sources)
+	{
+		numberOfLines += 1 + static_cast<int>(source.second.activeDTCs.size());
+	}
+
+	int newHeight = numberOfLines * LINE_HEIGHT;
+	auto *parentViewport = findParentComponentOfClass<Viewport>();
+
+	if (nullptr != parentViewport)
+	{
+		newHeight = jmax(newHeight, parentViewport->getMaximumVisibleHeight());
+	}
+	setSize(getWidth(), newHeight);
+	repaint();
 }
 
 void DiagnosticsComponent::process_dm1_message(const isobus::CANMessage &message, void *parent)
@@ -135,7 +155,6 @@ void DiagnosticsComponent::process_dm1_message(const isobus::CANMessage &message
 	}
 
 	const auto mmLock = MessageManagerLock();
-	auto bounds = component->getLocalBounds();
 
 	if (entry.activeDTCs.empty())
 	{
@@ -145,20 +164,5 @@ void DiagnosticsComponent::process_dm1_message(const isobus::CANMessage &message
 	{
 		component->sources[source->get_NAME().get_full_name()] = std::move(entry);
 	}
-
-	int numberOfLines = 0;
-
-	for (const auto &existingSource : component->sources)
-	{
-		numberOfLines += 1 + static_cast<int>(existingSource.second.activeDTCs.size());
-	}
-
-	int newSize = numberOfLines * LINE_HEIGHT;
-
-	if (newSize < component->getHeight())
-	{
-		newSize = component->getHeight();
-	}
-	component->setSize(bounds.getWidth(), newSize);
-	component->repaint();
+	component->update_content_height();
 }

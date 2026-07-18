@@ -20,6 +20,7 @@ public:
 	explicit DiagnosticsWindow(ServerMainComponent &parentComponent);
 
 	void closeButtonPressed() override;
+	void resized() override;
 
 	ServerMainComponent &parentServer;
 

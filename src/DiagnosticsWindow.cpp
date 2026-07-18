@@ -25,3 +25,10 @@ void DiagnosticsWindow::closeButtonPressed()
 {
 	setVisible(false);
 }
+
+void DiagnosticsWindow::resized()
+{
+	DocumentWindow::resized();
+	content.setSize(viewport.getMaximumVisibleWidth(), content.getHeight());
+	content.update_content_height();
+}
