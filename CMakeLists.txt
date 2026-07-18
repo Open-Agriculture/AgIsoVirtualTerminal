@@ -85,6 +85,7 @@ target_sources(
           "src/OutputMeterComponent.cpp"
           "src/InputBooleanComponent.cpp"
           "src/LoggerComponent.cpp"
+          "src/DiagnosticsComponent.cpp"
           "src/InputNumberComponent.cpp"
           "src/OutputEllipseComponent.cpp"
           "src/OutputLineComponent.cpp"
