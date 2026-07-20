@@ -57,6 +57,9 @@ private:
 
 	static constexpr int LINE_HEIGHT = 20;
 	static constexpr float FONT_HEIGHT = 17.0f;
+	static constexpr int SPN_COLUMN_X = 16;
+	static constexpr int FMI_COLUMN_X = 120;
+	static constexpr int COUNT_COLUMN_X = 190;
 	static constexpr std::uint32_t STALE_TIMEOUT_MS = 7000;
 
 	std::map<std::uint64_t, SourceEntry> sources;

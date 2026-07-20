@@ -99,11 +99,19 @@ void DiagnosticsComponent::paint(Graphics &g)
 		sourceLayout.draw(g, Rectangle<float>(4.0f, static_cast<float>(line * LINE_HEIGHT), static_cast<float>(getWidth() - 4), static_cast<float>(sourceHeight)));
 		line += sourceHeight / LINE_HEIGHT;
 
+		g.setColour(Colours::grey);
+		g.drawText("SPN", SPN_COLUMN_X, line * LINE_HEIGHT, FMI_COLUMN_X - SPN_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
+		g.drawText("FMI", FMI_COLUMN_X, line * LINE_HEIGHT, COUNT_COLUMN_X - FMI_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
+		g.drawText("Count", COUNT_COLUMN_X, line * LINE_HEIGHT, getWidth() - COUNT_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
+		line++;
+
 		g.setColour(Colours::yellow);
 
 		for (const auto &dtc : entry.activeDTCs)
 		{
-			g.drawFittedText("SPN " + std::to_string(dtc.suspectParameterNumber) + "  FMI " + std::to_string(dtc.failureModeIdentifier) + "  Count " + std::to_string(dtc.occurrenceCount), 16, line * LINE_HEIGHT, getWidth() - 16, LINE_HEIGHT, Justification::centredLeft, 1);
+			g.drawText(String(std::to_string(dtc.suspectParameterNumber)), SPN_COLUMN_X, line * LINE_HEIGHT, FMI_COLUMN_X - SPN_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
+			g.drawText(String(std::to_string(dtc.failureModeIdentifier)), FMI_COLUMN_X, line * LINE_HEIGHT, COUNT_COLUMN_X - FMI_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
+			g.drawText(String(std::to_string(dtc.occurrenceCount)), COUNT_COLUMN_X, line * LINE_HEIGHT, getWidth() - COUNT_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
 			line++;
 		}
 	}
@@ -115,7 +123,7 @@ void DiagnosticsComponent::update_content_height()
 
 	for (const auto &source : sources)
 	{
-		numberOfLines += jmax(1, source_summary_layout(source.second, getWidth()).getNumLines()) + static_cast<int>(source.second.activeDTCs.size());
+		numberOfLines += jmax(1, source_summary_layout(source.second, getWidth()).getNumLines()) + 1 + static_cast<int>(source.second.activeDTCs.size());
 	}
 
 	int newHeight = numberOfLines * LINE_HEIGHT;
