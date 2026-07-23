@@ -48,7 +48,7 @@ juce_add_gui_app(
   PRODUCT_NAME
   "AgISOVirtualTerminal"
   NEEDS_CURL
-  FALSE
+  TRUE
   NEEDS_WEB_BROWSER
   FALSE
   DESCRIPTION
@@ -56,7 +56,7 @@ juce_add_gui_app(
 
 set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 17)
 
-target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=0
+target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
                                                         JUCE_WEB_BROWSER=0)
 
 juce_generate_juce_header(AgISOVirtualTerminal)
@@ -101,6 +101,7 @@ target_sources(
           "src/InputListComponent.cpp"
           "src/ShortcutsWindow.cpp"
           "src/Settings.cpp"
+          "src/UpdateChecker.cpp"
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
           "src/StringDrawingComponent.cpp")
