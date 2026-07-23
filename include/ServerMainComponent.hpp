@@ -5,6 +5,7 @@
 #include "LoggerComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
+#include "UpdateChecker.hpp"
 #include "VT_NumberComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_diagnostic_protocol.hpp"
@@ -151,7 +152,9 @@ private:
 		ClearISOData,
 		ConfigureCANHardware,
 		StartStop,
-		AutoStart
+		AutoStart,
+		CheckForUpdates,
+		AutoCheckForUpdates
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -188,6 +191,11 @@ private:
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
 	void repaint_data_and_soft_key_mask();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
+
+	/// @brief Asks GitHub if a newer release is available and tells the user if there is one
+	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
+	void check_for_update(bool reportWhenUpToDate);
+
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 
@@ -197,6 +205,7 @@ private:
 	std::string canLogPath;
 
 	juce::ApplicationCommandManager mCommandManager;
+	UpdateChecker updateChecker;
 	WorkingSetSelectorComponent workingSetSelector;
 	DataMaskRenderAreaComponent dataMaskRenderer;
 	SoftKeyMaskRenderAreaComponent softKeyMaskRenderer;
@@ -227,6 +236,7 @@ private:
 	bool hasStartBeenCalled = false;
 	bool alarmAckKeyPressed = false;
 	bool saveIopBeforeParse = false;
+	bool checkForUpdatesOnStartup = true;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };
