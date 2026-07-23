@@ -5,6 +5,7 @@
 #include "LoggerComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
+#include "UpdateChecker.hpp"
 #include "VT_NumberComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_diagnostic_protocol.hpp"
@@ -154,6 +155,8 @@ private:
 		ConfigureCANHardware,
 		StartStop,
 		AutoStart,
+		CheckForUpdates,
+		AutoCheckForUpdates,
 		AlwaysOnTop
 	};
 
@@ -210,6 +213,11 @@ private:
 	bool is_active_alarm_mask() const;
 	void update_ack_button_visibility();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
+
+	/// @brief Asks GitHub if a newer release is available and tells the user if there is one
+	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
+	void check_for_update(bool reportWhenUpToDate);
+
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 
@@ -219,6 +227,7 @@ private:
 	std::string canLogPath;
 
 	juce::ApplicationCommandManager mCommandManager;
+	UpdateChecker updateChecker;
 	WorkingSetSelectorComponent workingSetSelector;
 	DataMaskRenderAreaComponent dataMaskRenderer;
 	SoftKeyMaskRenderAreaComponent softKeyMaskRenderer;
@@ -250,6 +259,7 @@ private:
 	bool alarmAckKeyPressed = false;
 	bool showAckButton = false;
 	bool saveIopBeforeParse = false;
+	bool checkForUpdatesOnStartup = true;
 	bool alwaysOnTop = false;
 	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
 	juce::String savedWindowState; ///< The window geometry loaded from the settings file
