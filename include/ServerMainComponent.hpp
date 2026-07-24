@@ -200,6 +200,7 @@ private:
 	void clear_iso_data();
 
 	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
+	static constexpr juce::int64 UPDATE_CHECK_INTERVAL_MS = 60LL * 60LL * 1000LL;
 	const std::string ISO_DATA_PATH = "iso_data";
 	std::string screenCaptureDirArgument = "";
 	std::string canLogPath;
@@ -226,6 +227,7 @@ private:
 	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
+	juce::int64 lastUpdateCheck = 0;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;

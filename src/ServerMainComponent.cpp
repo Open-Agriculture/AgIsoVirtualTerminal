@@ -100,7 +100,12 @@ ServerMainComponent::ServerMainComponent(
 	setWantsKeyboardFocus(true);
 	addKeyListener(this);
 
-	if (checkForUpdatesOnStartup)
+	const auto millisecondsSinceLastUpdateCheck = Time::getCurrentTime().toMilliseconds() - lastUpdateCheck;
+	const bool hasRecentUpdateCheck = (lastUpdateCheck > 0) &&
+	  (millisecondsSinceLastUpdateCheck >= 0) &&
+	  (millisecondsSinceLastUpdateCheck < UPDATE_CHECK_INTERVAL_MS);
+
+	if (checkForUpdatesOnStartup && !hasRecentUpdateCheck)
 	{
 		check_for_update(false);
 	}
@@ -1847,6 +1852,11 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			{
 				checkForUpdatesOnStartup = static_cast<bool>(static_cast<int>(child.getProperty("CheckForUpdates")));
 			}
+
+			if (!child.getProperty("LastUpdateCheck").isVoid())
+			{
+				lastUpdateCheck = static_cast<juce::int64>(child.getProperty("LastUpdateCheck"));
+			}
 		}
 		index++;
 		child = settings->getChild(index);
@@ -1867,6 +1877,12 @@ void ServerMainComponent::check_for_update(bool reportWhenUpToDate)
 		}
 
 		safeThis->mCommandManager.commandStatusChanged();
+
+		if (result.checkSucceeded && !result.updateAvailable)
+		{
+			safeThis->lastUpdateCheck = Time::getCurrentTime().toMilliseconds();
+			safeThis->save_settings();
+		}
 
 		if (result.updateAvailable)
 		{
@@ -2019,6 +2035,7 @@ void ServerMainComponent::save_settings()
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("CheckForUpdates", checkForUpdatesOnStartup, nullptr);
+		controlSettings.setProperty("LastUpdateCheck", lastUpdateCheck, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
