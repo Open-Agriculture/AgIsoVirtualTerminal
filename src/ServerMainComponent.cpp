@@ -21,10 +21,55 @@
 #include "isobus/isobus/can_stack_logger.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
 #include <sstream>
+
+namespace
+{
+	class IndentedToggleButton : public juce::Component
+	{
+	public:
+		IndentedToggleButton()
+		{
+			addAndMakeVisible(toggle);
+		}
+
+		juce::ToggleButton toggle;
+
+	private:
+		void moved() override
+		{
+			layout_toggle();
+		}
+
+		void resized() override
+		{
+			layout_toggle();
+		}
+
+		void layout_toggle()
+		{
+			int tickLeft = 90;
+			if (auto *alert = getParentComponent())
+			{
+				const int iconSize = juce::jmin(130, alert->getHeight() + 18);
+				const float centre = static_cast<float>(iconSize / -10 + iconSize / 2);
+				const float radius = iconSize * 0.5f;
+				const float y = static_cast<float>(juce::jlimit(getY() + 4, getY() + getHeight() - 4, static_cast<int>(centre)));
+				const float dy = y - centre;
+				const float circleRight = (std::abs(dy) < radius) ? centre + std::sqrt(radius * radius - dy * dy) : centre;
+				tickLeft = static_cast<int>(std::ceil(circleRight)) + 6;
+			}
+
+			const int tickInset = 4; // LookAndFeel_V4 draws the tick box this far inside the button
+			const int indent = juce::jmax(0, tickLeft - getX() - tickInset);
+			toggle.setBounds(indent, 0, juce::jmax(0, getWidth() - indent), getHeight());
+		}
+	};
+}
 
 ServerMainComponent::ServerMainComponent(
   std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
@@ -1857,6 +1902,11 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			{
 				lastUpdateCheck = static_cast<juce::int64>(child.getProperty("LastUpdateCheck"));
 			}
+
+			if (!child.getProperty("SkippedUpdateVersion").isVoid())
+			{
+				skippedUpdateVersion = child.getProperty("SkippedUpdateVersion").toString();
+			}
 		}
 		index++;
 		child = settings->getChild(index);
@@ -1877,8 +1927,9 @@ void ServerMainComponent::check_for_update(bool reportWhenUpToDate)
 		}
 
 		safeThis->mCommandManager.commandStatusChanged();
+		const bool updateIsSkipped = result.updateAvailable && (safeThis->skippedUpdateVersion == result.latestVersion);
 
-		if (result.checkSucceeded && !result.updateAvailable)
+		if (result.checkSucceeded && (!result.updateAvailable || updateIsSkipped))
 		{
 			safeThis->lastUpdateCheck = Time::getCurrentTime().toMilliseconds();
 			safeThis->save_settings();
@@ -1887,18 +1938,45 @@ void ServerMainComponent::check_for_update(bool reportWhenUpToDate)
 		if (result.updateAvailable)
 		{
 			isobus::CANStackLogger::info("Version " + result.latestVersion.toStdString() + " of this application is available at " + result.releaseUrl.toStdString());
-			AlertWindow::showOkCancelBox(MessageBoxIconType::InfoIcon,
-			                             "Update Available",
-			                             "Version " + result.latestVersion + " is available. You are running " + String(ProjectInfo::versionString) + ".",
-			                             "Download",
-			                             "Not Now",
-			                             nullptr,
-			                             ModalCallbackFunction::create([releaseUrl = result.releaseUrl](int result) {
-				                             if (1 == result)
-				                             {
-					                             URL(releaseUrl).launchInDefaultBrowser();
-				                             }
-			                             }));
+
+			// On startup we stay quiet about a version the user chose to skip. A manual check still
+			// shows the dialog with the box ticked, so they can un-skip it from there.
+			if (updateIsSkipped && !reportWhenUpToDate)
+			{
+				return;
+			}
+
+			auto skipToggle = std::make_shared<IndentedToggleButton>();
+			skipToggle->toggle.setButtonText("Don't notify me about version " + result.latestVersion + " again");
+			skipToggle->setSize(360, 24);
+			skipToggle->toggle.setToggleState(updateIsSkipped, NotificationType::dontSendNotification);
+
+			auto *updateBox = new AlertWindow("Update Available",
+			                                  "Version " + result.latestVersion + " is available. You are running " + String(ProjectInfo::versionString) + ".",
+			                                  MessageBoxIconType::InfoIcon);
+			updateBox->addCustomComponent(skipToggle.get());
+			updateBox->addButton("Download", 1, KeyPress(KeyPress::returnKey));
+			updateBox->addButton("Not Now", 0, KeyPress(KeyPress::escapeKey));
+			updateBox->enterModalState(true,
+			                           ModalCallbackFunction::create([safeThis, latestVersion = result.latestVersion, releaseUrl = result.releaseUrl, skipToggle](int choice) {
+				                           if (nullptr != safeThis.getComponent())
+				                           {
+					                           const String newSkippedVersion = skipToggle->toggle.getToggleState() ? latestVersion : String();
+
+					                           if (newSkippedVersion != safeThis->skippedUpdateVersion)
+					                           {
+						                           safeThis->skippedUpdateVersion = newSkippedVersion;
+						                           safeThis->lastUpdateCheck = 0;
+						                           safeThis->save_settings();
+					                           }
+				                           }
+
+				                           if (1 == choice)
+				                           {
+					                           URL(releaseUrl).launchInDefaultBrowser();
+				                           }
+			                           }),
+			                           true);
 		}
 		else if (result.checkSucceeded)
 		{
@@ -2036,6 +2114,7 @@ void ServerMainComponent::save_settings()
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("CheckForUpdates", checkForUpdatesOnStartup, nullptr);
 		controlSettings.setProperty("LastUpdateCheck", lastUpdateCheck, nullptr);
+		controlSettings.setProperty("SkippedUpdateVersion", skippedUpdateVersion, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
