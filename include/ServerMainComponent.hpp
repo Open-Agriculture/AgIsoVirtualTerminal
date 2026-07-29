@@ -196,6 +196,11 @@ private:
 	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
 	void check_for_update(bool reportWhenUpToDate);
 
+	/// @brief Handles the result of a check started by check_for_update(), on the message thread
+	/// @param[in] result The outcome of the check
+	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
+	void on_update_check_complete(const UpdateChecker::Result &result, bool reportWhenUpToDate);
+
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 

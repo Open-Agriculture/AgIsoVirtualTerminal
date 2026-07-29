@@ -102,6 +102,7 @@ target_sources(
           "src/ShortcutsWindow.cpp"
           "src/Settings.cpp"
           "src/UpdateChecker.cpp"
+          "src/IndentedToggleButton.cpp"
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
           "src/StringDrawingComponent.cpp")

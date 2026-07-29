@@ -5,12 +5,9 @@
 *******************************************************************************/
 #include "UpdateChecker.hpp"
 
-namespace
-{
-	constexpr char LATEST_RELEASE_URL[] = "https://api.github.com/repos/Open-Agriculture/AgIsoVirtualTerminal/releases/latest";
-	constexpr int REQUEST_TIMEOUT_MS = 5000;
-	constexpr int NUMBER_OF_VERSION_FIELDS = 3; // Major, minor and patch, the same fields ProjectInfo::versionNumber packs
-}
+constexpr char LATEST_RELEASE_URL[] = "https://api.github.com/repos/Open-Agriculture/AgIsoVirtualTerminal/releases/latest";
+constexpr int REQUEST_TIMEOUT_MS = 5000;
+constexpr int NUMBER_OF_VERSION_FIELDS = 3; // Major, minor and patch, the same fields ProjectInfo::versionNumber packs
 
 UpdateChecker::UpdateChecker() :
   Thread("Update Checker")
