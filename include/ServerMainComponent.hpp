@@ -119,6 +119,8 @@ public:
 
 	void change_selected_working_set(std::uint8_t index);
 
+	void send_alarm_ack_command(isobus::VirtualTerminalBase::KeyActivationCode activationCode);
+
 	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 
@@ -190,6 +192,8 @@ private:
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
 	void repaint_data_and_soft_key_mask();
+	bool is_active_alarm_mask() const;
+	void update_ack_button_visibility();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
 
 	/// @brief Asks GitHub if a newer release is available and tells the user if there is one
@@ -243,6 +247,7 @@ private:
 	bool autostart = false;
 	bool hasStartBeenCalled = false;
 	bool alarmAckKeyPressed = false;
+	bool showAckButton = false;
 	bool saveIopBeforeParse = false;
 	bool checkForUpdatesOnStartup = true;
 

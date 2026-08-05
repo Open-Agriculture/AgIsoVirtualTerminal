@@ -31,6 +31,7 @@ public:
 
 	void redraw();
 	void update_iop_load_indicators();
+	void set_ack_button_visible(bool shouldBeVisible);
 
 	static constexpr int WIDTH = 96;
 	static constexpr int BUTTON_WIDTH = 72;
@@ -38,6 +39,17 @@ public:
 	static constexpr int button_padding();
 
 private:
+	class AckButton : public juce::TextButton
+	{
+	public:
+		AckButton();
+
+		void paintButton(juce::Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+
+	private:
+		static constexpr float LABEL_WIDTH_RATIO = 0.8f;
+	};
+
 	struct SELECTOR_CHILD_OBJECTS_STRUCT
 	{
 		std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet;
@@ -45,10 +57,13 @@ private:
 	};
 	std::vector<SELECTOR_CHILD_OBJECTS_STRUCT> children;
 	ServerMainComponent &parentServer;
+	AckButton ackButton;
+	bool ackButtonPressed = false;
 
 	std::shared_ptr<Component> getWorkingSetChildComponent(
 	  std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet,
 	  int workingSetIndex);
+	void update_ack_button_bounds();
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetSelectorComponent)
 };
