@@ -5,6 +5,7 @@
 #include "LoggerComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
+#include "UpdateChecker.hpp"
 #include "VT_NumberComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_diagnostic_protocol.hpp"
@@ -153,7 +154,9 @@ private:
 		ClearISOData,
 		ConfigureCANHardware,
 		StartStop,
-		AutoStart
+		AutoStart,
+		CheckForUpdates,
+		AutoCheckForUpdates
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -192,15 +195,27 @@ private:
 	bool is_active_alarm_mask() const;
 	void update_ack_button_visibility();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
+
+	/// @brief Asks GitHub if a newer release is available and tells the user if there is one
+	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
+	void check_for_update(bool reportWhenUpToDate);
+
+	/// @brief Handles the result of a check started by check_for_update(), on the message thread
+	/// @param[in] result The outcome of the check
+	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
+	void on_update_check_complete(const UpdateChecker::Result &result, bool reportWhenUpToDate);
+
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 
 	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
+	static constexpr juce::int64 UPDATE_CHECK_INTERVAL_MS = 60LL * 60LL * 1000LL;
 	const std::string ISO_DATA_PATH = "iso_data";
 	std::string screenCaptureDirArgument = "";
 	std::string canLogPath;
 
 	juce::ApplicationCommandManager mCommandManager;
+	UpdateChecker updateChecker;
 	WorkingSetSelectorComponent workingSetSelector;
 	DataMaskRenderAreaComponent dataMaskRenderer;
 	SoftKeyMaskRenderAreaComponent softKeyMaskRenderer;
@@ -221,6 +236,8 @@ private:
 	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
+	juce::int64 lastUpdateCheck = 0;
+	juce::String skippedUpdateVersion;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;
@@ -232,6 +249,7 @@ private:
 	bool alarmAckKeyPressed = false;
 	bool showAckButton = false;
 	bool saveIopBeforeParse = false;
+	bool checkForUpdatesOnStartup = true;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };
