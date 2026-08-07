@@ -1411,7 +1411,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 
 			mParent.softKeyMaskRenderer.setSize(mParent.softKeyMaskDimensions.total_width(), dataMaskSize.getIntValue());
 
-			mParent.vtNumber = mParent.popupMenu->getTextEditorContents("VT Number").getIntValue();
+			mParent.vtNumber = mParent.popupMenu->getTextEditorContents("VT number").getIntValue();
 			if (mParent.vtNumber > 32)
 			{
 				mParent.vtNumber = 32;
