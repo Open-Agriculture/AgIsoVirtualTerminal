@@ -159,7 +159,7 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	}
 	else
 	{
-		workingSetComponent = std::make_shared<WorkingSetLoadingIndicatorComponent>(workingSet, BUTTON_WIDTH, BUTTON_HEIGHT);
+		workingSetComponent = std::make_shared<WorkingSetLoadingIndicatorComponent>(workingSet, BUTTON_HEIGHT, BUTTON_WIDTH);
 	}
 	workingSetComponent->setTopLeftPosition(button_padding(), button_padding() + workingSetIndex * (BUTTON_HEIGHT + button_padding()));
 	addAndMakeVisible(*workingSetComponent);
