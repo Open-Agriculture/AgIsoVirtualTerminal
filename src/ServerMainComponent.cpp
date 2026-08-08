@@ -777,6 +777,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackage));
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
+	allCommands.add(static_cast<int>(CommandIDs::ShowDiagnostics));
 	allCommands.add(static_cast<int>(CommandIDs::StartStop));
 	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
 #ifdef JUCE_WINDOWS
@@ -835,6 +836,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::ClearISOData:
 		{
 			result.setInfo("Clear ISO Data", "Clears all saved ISO data", "Troubleshooting", 0);
+		}
+		break;
+
+		case CommandIDs::ShowDiagnostics:
+		{
+			result.setInfo("Diagnostics", "Show active diagnostic trouble codes from devices on the bus", "Troubleshooting", 0);
 		}
 		break;
 
@@ -1109,6 +1116,13 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::ShowDiagnostics):
+		{
+			show_diagnostics_window();
+			retVal = true;
+		}
+		break;
+
 		case static_cast<int>(CommandIDs::StartStop):
 		{
 			if (hasStartBeenCalled)
@@ -1214,6 +1228,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackage));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ClearISOData));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ShowDiagnostics));
 		}
 		break;
 
@@ -1232,6 +1247,22 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 void ServerMainComponent::menuItemSelected(int, int)
 {
 	// Do nothing
+}
+
+void ServerMainComponent::show_diagnostics_window()
+{
+	if (nullptr == diagnosticsWindow)
+	{
+		diagnosticsWindow = std::make_unique<DiagnosticsWindow>(*this);
+		diagnosticsWindow->addToDesktop();
+		Rectangle<int> area(0, 0, DiagnosticsComponent::WIDTH + 40, 400);
+		RectanglePlacement placement(RectanglePlacement::centred |
+		                             RectanglePlacement::doNotResize);
+		auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
+		diagnosticsWindow->setBounds(result);
+	}
+	diagnosticsWindow->setVisible(true);
+	diagnosticsWindow->toFront(true);
 }
 
 std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control_function_for_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) const
