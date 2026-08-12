@@ -163,6 +163,15 @@ if(APPLE)
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION . COMPONENT applications)
 else()
+  if(UNIX AND NOT APPLE)
+    install(FILES "${CMAKE_SOURCE_DIR}/res/AgISOVirtualTerminal.desktop"
+            DESTINATION share/applications)
+
+    install(
+      FILES "${CMAKE_SOURCE_DIR}/res/AgIsoVT.svg"
+      DESTINATION share/icons/hicolor/scalable/apps
+      RENAME AgIsoVT.svg)
+  endif()
   install(TARGETS AgISOVirtualTerminal RUNTIME DESTINATION bin
                                                COMPONENT applications)
 endif()
