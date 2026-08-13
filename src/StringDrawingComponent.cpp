@@ -87,13 +87,21 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 	}
 	g.setColour(drawColour);
 
+	// JUCE Graphics::drawFittedText will throw an exception if the font's horizontal width multiplied by
+	// the texts minimumHorizontalScale is larger or equal to 1.0
+	float drawTextHorizontalScale = 0.8f;
+	if ((drawTextHorizontalScale * g.getCurrentFont().getHorizontalScale()) > 1.0f)
+	{
+		drawTextHorizontalScale = 0.999999f / g.getCurrentFont().getHorizontalScale();
+	}
+
 	if (sourceString->get_option(isobus::StringVTObject::Options::AutoWrap)) // TODO need to figure out proper font clipping
 	{
-		g.drawFittedText(decodedValue, 0, 0, sourceString->get_width(), sourceString->get_height(), convert_justification(sourceString->get_horizontal_justification(), sourceString->get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(sourceString->get_height()) + 0.1f) / fontHeight)), 0.8f);
+		g.drawFittedText(decodedValue, 0, 0, sourceString->get_width(), sourceString->get_height(), convert_justification(sourceString->get_horizontal_justification(), sourceString->get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(sourceString->get_height()) + 0.1f) / fontHeight)), drawTextHorizontalScale);
 	}
 	else
 	{
-		g.drawFittedText(decodedValue, 0, 0, sourceString->get_width(), sourceString->get_height(), convert_justification(sourceString->get_horizontal_justification(), sourceString->get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(sourceString->get_height()) + 0.1f) / fontHeight)), 0.8f);
+		g.drawFittedText(decodedValue, 0, 0, sourceString->get_width(), sourceString->get_height(), convert_justification(sourceString->get_horizontal_justification(), sourceString->get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(sourceString->get_height()) + 0.1f) / fontHeight)), drawTextHorizontalScale);
 	}
 
 	if (strikeThrough)
