@@ -163,7 +163,7 @@ if(APPLE)
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION . COMPONENT applications)
 else()
-  if(UNIX AND NOT APPLE)
+  if(UNIX)
     install(FILES "${CMAKE_SOURCE_DIR}/res/AgISOVirtualTerminal.desktop"
             DESTINATION share/applications)
 
