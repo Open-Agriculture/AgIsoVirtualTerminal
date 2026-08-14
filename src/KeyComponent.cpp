@@ -15,6 +15,28 @@
 /// to be clipped, so only a gross overhang is treated as evidence of a different designator size.
 constexpr float MAXIMUM_UNSCALED_OVERHANG = 1.5f;
 
+constexpr std::uint8_t MAXIMUM_POINTER_DEPTH = 4;
+
+/// @brief Resolves an object pointer to the object it ultimately points at
+/// @details A designator's artwork is usually reached through an object pointer, and a pointer
+/// carries no size of its own, so measuring the pointer reports the designator as empty.
+/// @param[in] workingSet The working set to resolve against
+/// @param[in] object The object to resolve
+/// @returns The pointed-at object, or the object itself if it is not a pointer
+static std::shared_ptr<isobus::VTObject> resolve_object_pointer(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, std::shared_ptr<isobus::VTObject> object)
+{
+	// Bounded rather than recursive, because a malformed pool can point a chain back at itself.
+	for (std::uint8_t depth = 0;
+	     (nullptr != object) &&
+	     (isobus::VirtualTerminalObjectType::ObjectPointer == object->get_object_type()) &&
+	     (depth < MAXIMUM_POINTER_DEPTH);
+	     depth++)
+	{
+		object = workingSet->get_object_by_id(std::static_pointer_cast<isobus::ObjectPointer>(object)->get_value());
+	}
+	return object;
+}
+
 /// @brief Estimates how much a pool's soft key designators need to be scaled to fit this VT's designators
 /// @details A Key has no size of its own in ISO 11783-6 - the VT supplies it - so a pool authored
 /// for larger designators just draws off the edge of ours and we clip it down to an unreadable
@@ -44,7 +66,7 @@ static float detect_designator_content_scale(const std::shared_ptr<isobus::Virtu
 
 		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
 		{
-			auto child = object->get_object_by_id(object->get_child_id(i), workingSet->get_object_tree());
+			auto child = resolve_object_pointer(workingSet, object->get_object_by_id(object->get_child_id(i), workingSet->get_object_tree()));
 
 			if (nullptr == child)
 			{

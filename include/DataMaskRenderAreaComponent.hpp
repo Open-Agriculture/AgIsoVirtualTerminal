@@ -55,6 +55,11 @@ private:
 		std::uint32_t lastValue = 0;
 	};
 
+	/// @brief Takes a coordinate in this component's space back into the object pool's coordinates
+	/// @param[in] renderedCoordinate The coordinate as rendered, relative to this component
+	/// @returns The equivalent coordinate in the object pool's own coordinate space
+	int to_pool_coordinate(int renderedCoordinate) const;
+
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
@@ -69,6 +74,7 @@ private:
 	ServerMainComponent &ownerServer;
 	InputNumberListener inputNumberListener;
 	float renderScale = 1.0f;
+	int designedMaskSize = 0;
 	bool needToRepaintActiveArea = false;
 	bool hasStarted = false;
 

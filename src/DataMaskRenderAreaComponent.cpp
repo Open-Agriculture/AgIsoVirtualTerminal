@@ -20,8 +20,9 @@ constexpr int DESIGNED_MASK_SIZES[] = { 200, 240, 480 };
 /// park objects far outside the mask and wrap children in oversized containers, which makes the
 /// largest mask over-report the designed size by more than 4x.
 /// @param[in] workingSet The working set whose object pool should be measured
+/// @param[in] renderAreaSize The size in pixels of this VT's data mask render area
 /// @returns The estimated size in pixels of the data mask the pool was designed for
-static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet)
+static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, int renderAreaSize)
 {
 	std::vector<int> maskExtents;
 
@@ -58,12 +59,18 @@ static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTermin
 		}
 	}
 
-	auto retVal = DESIGNED_MASK_SIZES[std::size(DESIGNED_MASK_SIZES) - 1];
+	// With nothing measurable there is no evidence of a smaller design size, and reporting anything
+	// below the render area would scale the pool on a guess.
+	auto retVal = renderAreaSize;
 
 	if (!maskExtents.empty())
 	{
 		auto medianPosition = maskExtents.begin() + (maskExtents.size() / 2);
 		std::nth_element(maskExtents.begin(), medianPosition, maskExtents.end());
+
+		// A pool measuring past the end of the ladder is already full size. Reporting the last rung
+		// instead would scale it up on a VT whose render area is larger than that rung.
+		retVal = *medianPosition;
 
 		for (auto designedSize : DESIGNED_MASK_SIZES)
 		{
@@ -82,12 +89,27 @@ DataMaskRenderAreaComponent::DataMaskRenderAreaComponent(ServerMainComponent &pa
 {
 }
 
+int DataMaskRenderAreaComponent::to_pool_coordinate(int renderedCoordinate) const
+{
+	auto retVal = renderedCoordinate;
+
+	if (0 != designedMaskSize)
+	{
+		// The ratio is applied in integers rather than by dividing by renderScale, because a scale
+		// like 480/200 has no exact float representation and rounds an object's own boundary pixel
+		// into its neighbour.
+		retVal = (renderedCoordinate * designedMaskSize) / ownerServer.get_data_mask_area_size_x_pixels();
+	}
+	return retVal;
+}
+
 void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
 	needToRepaintActiveArea = false;
 	childComponents.clear();
 	parentWorkingSet = workingSet;
 	renderScale = 1.0f;
+	designedMaskSize = 0;
 
 	if (parentWorkingSet)
 	{
@@ -95,12 +117,13 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 
 		if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 		{
-			auto designedMaskSize = detect_designed_mask_size(parentWorkingSet);
+			auto detectedMaskSize = detect_designed_mask_size(parentWorkingSet, ownerServer.get_data_mask_area_size_x_pixels());
 
 			// Only ever scale up. Plenty of full size pools deliberately overhang the mask and rely on
 			// the VT clipping them, and shrinking those to fit would break pools that render fine today.
-			if (designedMaskSize < ownerServer.get_data_mask_area_size_x_pixels())
+			if (detectedMaskSize < ownerServer.get_data_mask_area_size_x_pixels())
 			{
+				designedMaskSize = detectedMaskSize;
 				renderScale = static_cast<float>(ownerServer.get_data_mask_area_size_x_pixels()) / designedMaskSize;
 			}
 
@@ -158,8 +181,8 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 			auto relativeEvent = event.getEventRelativeTo(this);
 			auto clickedObject = getClickedChildRecursive(activeMask,
-			                                              static_cast<int>(relativeEvent.getMouseDownX() / renderScale),
-			                                              static_cast<int>(relativeEvent.getMouseDownY() / renderScale));
+			                                              to_pool_coordinate(relativeEvent.getMouseDownX()),
+			                                              to_pool_coordinate(relativeEvent.getMouseDownY()));
 
 			std::uint8_t keyCode = 1;
 
@@ -209,8 +232,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 			auto relativeEvent = event.getEventRelativeTo(this);
 			auto clickedObject = getClickedChildRecursive(activeMask,
-			                                              static_cast<int>(relativeEvent.getMouseDownX() / renderScale),
-			                                              static_cast<int>(relativeEvent.getMouseDownY() / renderScale));
+			                                              to_pool_coordinate(relativeEvent.getMouseDownX()),
+			                                              to_pool_coordinate(relativeEvent.getMouseDownY()));
 
 			std::uint8_t keyCode = 1;
 
