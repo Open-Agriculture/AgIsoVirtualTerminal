@@ -68,6 +68,7 @@ private:
 	std::vector<std::shared_ptr<Component>> currentModalComponentCache;
 	ServerMainComponent &ownerServer;
 	InputNumberListener inputNumberListener;
+	float renderScale = 1.0f;
 	bool needToRepaintActiveArea = false;
 	bool hasStarted = false;
 
