@@ -1097,14 +1097,13 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		case static_cast<int>(CommandIDs::ConfigureCANHardware):
 		{
 			configureHardwareWindow = std::make_unique<ConfigureHardwareWindow>(*this, parentCANDrivers);
-			configureHardwareWindow->addToDesktop();
 			Rectangle<int> area(0, 0, 400, 280);
 			RectanglePlacement placement(RectanglePlacement::centred |
 			                             RectanglePlacement::doNotResize);
 			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
 			configureHardwareWindow->setBounds(result);
 
-			configureHardwareWindow->setVisible(true);
+			configureHardwareWindow->enterModalState(true);
 			retVal = true;
 		}
 		break;
