@@ -8,12 +8,18 @@
 #include "JuceManagedWorkingSetCache.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <vector>
 
 /// How far a designator's artwork may overhang the designator before it is scaled to fit. Pools
 /// authored against a slightly different designator size overhang by a few percent and are meant
-/// to be clipped, so only a gross overhang is treated as evidence of a different designator size.
-constexpr float MAXIMUM_UNSCALED_OVERHANG = 1.5f;
+/// to be clipped.
+constexpr float MAXIMUM_UNSCALED_OVERHANG = 1.1f;
+
+/// What share of a pool's designators must measure the same to read that measurement as the size
+/// the pool was authored for. A pool that merely overhangs scatters its measurements; a pool
+/// authored for a larger designator repeats the same one.
+constexpr float MINIMUM_DESIGNATOR_AGREEMENT = 0.5f;
 
 constexpr std::uint8_t MAXIMUM_POINTER_DEPTH = 4;
 
@@ -37,12 +43,43 @@ static std::shared_ptr<isobus::VTObject> resolve_object_pointer(const std::share
 	return object;
 }
 
+/// @brief Finds the value that most of a set of measurements agree on
+/// @param[in] values The measurements to look through
+/// @param[in] minimumAgreement The share of the measurements that must share a value
+/// @returns The agreed value, or 0 if too few of the measurements agree
+static int find_agreed_value(std::vector<int> values, float minimumAgreement)
+{
+	int retVal = 0;
+	std::size_t bestCount = 0;
+
+	std::sort(values.begin(), values.end());
+
+	for (auto runStart = values.begin(); runStart != values.end();)
+	{
+		auto runEnd = std::upper_bound(runStart, values.end(), *runStart);
+		auto count = static_cast<std::size_t>(std::distance(runStart, runEnd));
+
+		if (count > bestCount)
+		{
+			bestCount = count;
+			retVal = *runStart;
+		}
+		runStart = runEnd;
+	}
+
+	if (static_cast<float>(bestCount) < (static_cast<float>(values.size()) * minimumAgreement))
+	{
+		retVal = 0;
+	}
+	return retVal;
+}
+
 /// @brief Estimates how much a pool's soft key designators need to be scaled to fit this VT's designators
 /// @details A Key has no size of its own in ISO 11783-6 - the VT supplies it - so a pool authored
 /// for larger designators just draws off the edge of ours and we clip it down to an unreadable
-/// fragment. The whole pool is measured rather than this one Key, and the median is taken rather
-/// than the largest, because individual designators legitimately park a shared background outside
-/// the designator and rely on the VT clipping it.
+/// fragment. The whole pool is measured rather than this one Key, and the size the designators
+/// agree on is taken rather than the largest or the middle one, because individual designators
+/// legitimately park a shared background outside the designator and rely on the VT clipping it.
 /// @param[in] workingSet The working set whose object pool should be measured
 /// @param[in] keyWidth The width in pixels of a soft key designator on this VT
 /// @param[in] keyHeight The height in pixels of a soft key designator on this VT
@@ -85,20 +122,15 @@ static float detect_designator_content_scale(const std::shared_ptr<isobus::Virtu
 	}
 
 	auto retVal = 1.0f;
+	auto agreedX = find_agreed_value(extentsX, MINIMUM_DESIGNATOR_AGREEMENT);
+	auto agreedY = find_agreed_value(extentsY, MINIMUM_DESIGNATOR_AGREEMENT);
 
-	if (!extentsX.empty())
+	if ((0 != agreedX) &&
+	    (0 != agreedY) &&
+	    ((agreedX > (keyWidth * MAXIMUM_UNSCALED_OVERHANG)) ||
+	     (agreedY > (keyHeight * MAXIMUM_UNSCALED_OVERHANG))))
 	{
-		auto medianX = extentsX.begin() + (extentsX.size() / 2);
-		auto medianY = extentsY.begin() + (extentsY.size() / 2);
-
-		std::nth_element(extentsX.begin(), medianX, extentsX.end());
-		std::nth_element(extentsY.begin(), medianY, extentsY.end());
-
-		if ((*medianX > (keyWidth * MAXIMUM_UNSCALED_OVERHANG)) ||
-		    (*medianY > (keyHeight * MAXIMUM_UNSCALED_OVERHANG)))
-		{
-			retVal = std::min(keyWidth / static_cast<float>(*medianX), keyHeight / static_cast<float>(*medianY));
-		}
+		retVal = std::min(keyWidth / static_cast<float>(agreedX), keyHeight / static_cast<float>(agreedY));
 	}
 	return retVal;
 }
