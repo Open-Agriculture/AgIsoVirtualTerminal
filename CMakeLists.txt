@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   "AgISOVirtualTerminal"
   LANGUAGES CXX C
-  VERSION 1.5.0)
+  VERSION 1.5.1)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
@@ -165,6 +165,15 @@ if(APPLE)
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION . COMPONENT applications)
 else()
+  if(UNIX)
+    install(FILES "${CMAKE_SOURCE_DIR}/res/AgISOVirtualTerminal.desktop"
+            DESTINATION share/applications)
+
+    install(
+      FILES "${CMAKE_SOURCE_DIR}/res/AgIsoVT.svg"
+      DESTINATION share/icons/hicolor/scalable/apps
+      RENAME AgIsoVT.svg)
+  endif()
   install(TARGETS AgISOVirtualTerminal RUNTIME DESTINATION bin
                                                COMPONENT applications)
 endif()

@@ -18,6 +18,7 @@ jobs:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: 'Install NSIS'
         uses: repolevedavaj/install-nsis@v1.2.1
         with:
@@ -42,6 +43,7 @@ jobs:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Compile
         run: |
           mkdir build
@@ -62,6 +64,7 @@ jobs:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Compile
         run: |
           mkdir build
@@ -86,6 +89,7 @@ jobs:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Compile
         run: |
           mkdir build
@@ -110,6 +114,7 @@ jobs:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Compile
         run: |
           mkdir build
