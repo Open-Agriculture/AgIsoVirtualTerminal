@@ -9,6 +9,34 @@
 #include "WorkingSetLoadingIndicatorComponent.hpp"
 #include "isobus/utility/system_timing.hpp"
 
+// Clients author designators against whatever soft key size they assume, which across real pools runs from
+// 28x26 up to 240x192, so the designator is scaled to fit the button rather than clipped to it. getUnion
+// ignores empty rectangles, so children that resolved to nothing drop out of the measurement on their own.
+static void fit_designator_to_button(juce::Component &designator, juce::Rectangle<int> button)
+{
+	auto children = designator.getChildren();
+	juce::Rectangle<int> drawnArea;
+
+	for (auto *child : children)
+	{
+		drawnArea = drawnArea.getUnion(child->getBounds());
+	}
+
+	if (drawnArea.isEmpty())
+	{
+		// nothing to measure, so leave the component at the button-sized bounds it was built with
+		return;
+	}
+
+	for (auto *child : children)
+	{
+		child->setTopLeftPosition(child->getPosition() - drawnArea.getPosition());
+	}
+	designator.setSize(drawnArea.getWidth(), drawnArea.getHeight());
+	designator.setTransform(juce::RectanglePlacement(juce::RectanglePlacement::centred)
+	                          .getTransformToFit(designator.getBounds().toFloat(), button.toFloat()));
+}
+
 WorkingSetSelectorComponent::AckButton::AckButton() :
   juce::TextButton("ACK")
 {
@@ -81,19 +109,44 @@ void WorkingSetSelectorComponent::paint(Graphics &g)
 	g.setColour(getLookAndFeel().findColour(ResizableWindow::backgroundColourId));
 	g.fillAll();
 
-	// draw rounded rectangle around the active working set selector
-	int numberOfSquares = 0;
-	for (auto ws = children.begin(); ws != children.end(); ws++)
+	// a designator rarely matches the button's aspect ratio, so fill the letterboxing with its own
+	// background colour instead of leaving the app's default panel colour showing through
+	for (std::size_t i = 0; i < children.size(); i++)
 	{
-		if (ws->workingSet->get_control_function() && parentServer.get_active_working_set() && parentServer.get_active_working_set()->get_control_function())
+		const auto &workingSet = children.at(i).workingSet;
+		auto workingSetObject = workingSet->get_working_set_object();
+
+		if (nullptr != workingSetObject)
 		{
-			if (ws->workingSet->get_control_function()->get_NAME().get_full_name() == parentServer.get_active_working_set()->get_control_function()->get_NAME().get_full_name())
-			{
-				g.setColour(juce::Colours::yellow.withAlpha(0.4f));
-				g.drawRoundedRectangle(button_padding() - 2, button_padding() + (numberOfSquares * (BUTTON_HEIGHT + button_padding())) - 2, BUTTON_WIDTH + 4, BUTTON_HEIGHT + 4, 4, 4);
-			}
+			auto vtColour = workingSet->get_colour(workingSetObject->get_background_color());
+			g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+			g.fillRect(button_bounds(static_cast<int>(i)));
 		}
-		numberOfSquares++;
+	}
+}
+
+// the active highlight straddles the button edge, and a designator scaled to fill the button is a child
+// component, so JUCE paints it after paint() and would cover the highlight's inner half
+void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
+{
+	auto activeWorkingSet = parentServer.get_active_working_set();
+
+	if ((nullptr == activeWorkingSet) || (nullptr == activeWorkingSet->get_control_function()))
+	{
+		return;
+	}
+	const auto activeName = activeWorkingSet->get_control_function()->get_NAME().get_full_name();
+
+	g.setColour(juce::Colours::yellow.withAlpha(0.4f));
+
+	for (std::size_t i = 0; i < children.size(); i++)
+	{
+		auto controlFunction = children.at(i).workingSet->get_control_function();
+
+		if ((nullptr != controlFunction) && (activeName == controlFunction->get_NAME().get_full_name()))
+		{
+			g.drawRoundedRectangle(button_bounds(static_cast<int>(i)).toFloat().expanded(2.0f), 4.0f, 4.0f);
+		}
 	}
 }
 
@@ -149,6 +202,11 @@ constexpr int WorkingSetSelectorComponent::button_padding()
 	return (WIDTH - BUTTON_WIDTH) / 2;
 }
 
+juce::Rectangle<int> WorkingSetSelectorComponent::button_bounds(int index)
+{
+	return { button_padding(), button_padding() + index * (BUTTON_HEIGHT + button_padding()), BUTTON_WIDTH, BUTTON_HEIGHT };
+}
+
 std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, int workingSetIndex)
 {
 	auto workingSetObject = workingSet->get_working_set_object();
@@ -161,7 +219,10 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	{
 		workingSetComponent = std::make_shared<WorkingSetLoadingIndicatorComponent>(workingSet, BUTTON_HEIGHT, BUTTON_WIDTH);
 	}
-	workingSetComponent->setTopLeftPosition(button_padding(), button_padding() + workingSetIndex * (BUTTON_HEIGHT + button_padding()));
+	const auto bounds = button_bounds(workingSetIndex);
+
+	workingSetComponent->setTopLeftPosition(bounds.getPosition());
+	fit_designator_to_button(*workingSetComponent, bounds);
 	addAndMakeVisible(*workingSetComponent);
 	return workingSetComponent;
 }

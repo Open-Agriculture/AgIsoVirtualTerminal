@@ -26,6 +26,7 @@ public:
 	void update_drawn_working_sets(std::vector<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> &managedWorkingSetList);
 
 	void paint(Graphics &g) override;
+	void paintOverChildren(Graphics &g) override;
 	void resized() override;
 	void mouseUp(const MouseEvent &event) override;
 
@@ -63,6 +64,7 @@ private:
 	std::shared_ptr<Component> getWorkingSetChildComponent(
 	  std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet,
 	  int workingSetIndex);
+	static juce::Rectangle<int> button_bounds(int index);
 	void update_ack_button_bounds();
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetSelectorComponent)
