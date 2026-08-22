@@ -7,6 +7,7 @@
 
 #include "AckSettingsWindow.hpp"
 #include "AlarmMaskAudio.h"
+#include "IndentedToggleButton.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "Main.hpp"
 #include "isobus/utility/system_timing.hpp"
@@ -21,6 +22,7 @@
 #include "isobus/isobus/can_stack_logger.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
@@ -99,6 +101,16 @@ ServerMainComponent::ServerMainComponent(
 
 	setWantsKeyboardFocus(true);
 	addKeyListener(this);
+
+	const auto millisecondsSinceLastUpdateCheck = Time::getCurrentTime().toMilliseconds() - lastUpdateCheck;
+	const bool hasRecentUpdateCheck = (lastUpdateCheck > 0) &&
+	  (millisecondsSinceLastUpdateCheck >= 0) &&
+	  (millisecondsSinceLastUpdateCheck < UPDATE_CHECK_INTERVAL_MS);
+
+	if (checkForUpdatesOnStartup && !hasRecentUpdateCheck)
+	{
+		check_for_update(false);
+	}
 }
 
 ServerMainComponent::~ServerMainComponent()
@@ -779,6 +791,8 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
 	allCommands.add(static_cast<int>(CommandIDs::StartStop));
 	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
+	allCommands.add(static_cast<int>(CommandIDs::CheckForUpdates));
+	allCommands.add(static_cast<int>(CommandIDs::AutoCheckForUpdates));
 #ifdef JUCE_WINDOWS
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
 #elif JUCE_LINUX
@@ -859,6 +873,18 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::AutoStart:
 		{
 			result.setInfo("Auto-Start VT on launch", "Controls whether or not the VT automatically starts when the program is launched", "Control", autostart ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::CheckForUpdates:
+		{
+			result.setInfo("Check for Updates", "Checks GitHub for a newer version of this application", "About", updateChecker.is_check_in_progress() ? ApplicationCommandInfo::CommandFlags::isDisabled : 0);
+		}
+		break;
+
+		case CommandIDs::AutoCheckForUpdates:
+		{
+			result.setInfo("Check for Updates on launch", "Controls whether or not GitHub is checked for a newer version when the program is launched", "About", checkForUpdatesOnStartup ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -1168,6 +1194,22 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::CheckForUpdates):
+		{
+			check_for_update(true);
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::AutoCheckForUpdates):
+		{
+			checkForUpdatesOnStartup = !checkForUpdatesOnStartup;
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -1219,6 +1261,8 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 		case 3:
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::About));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::CheckForUpdates));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoCheckForUpdates));
 		}
 		break;
 
@@ -1854,6 +1898,21 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			{
 				showAckButton = static_cast<int>(child.getProperty("ShowAckButton")) != 0;
 			}
+
+			if (!child.getProperty("CheckForUpdates").isVoid())
+			{
+				checkForUpdatesOnStartup = static_cast<bool>(static_cast<int>(child.getProperty("CheckForUpdates")));
+			}
+
+			if (!child.getProperty("LastUpdateCheck").isVoid())
+			{
+				lastUpdateCheck = static_cast<juce::int64>(child.getProperty("LastUpdateCheck"));
+			}
+
+			if (!child.getProperty("SkippedUpdateVersion").isVoid())
+			{
+				skippedUpdateVersion = child.getProperty("SkippedUpdateVersion").toString();
+			}
 		}
 		index++;
 		child = settings->getChild(index);
@@ -1864,6 +1923,130 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 	if (!autostart)
 	{
 		isobus::CANStackLogger::info("AutoStart is disabled. Waiting for user to start the CAN hardware interface.");
+	}
+}
+
+void ServerMainComponent::check_for_update(bool reportWhenUpToDate)
+{
+	auto checkStarted = updateChecker.start([safeThis = Component::SafePointer<ServerMainComponent>(this), reportWhenUpToDate](const UpdateChecker::Result &result) {
+		if (nullptr != safeThis.getComponent())
+		{
+			safeThis->on_update_check_complete(result, reportWhenUpToDate);
+		}
+	});
+
+	if (checkStarted)
+	{
+		mCommandManager.commandStatusChanged();
+	}
+	else if (updateChecker.is_check_in_progress())
+	{
+		isobus::CANStackLogger::info("An update check is already in progress.");
+	}
+	else
+	{
+		isobus::CANStackLogger::warn("Could not start a background thread to check for updates.");
+
+		if (reportWhenUpToDate)
+		{
+			AlertWindow::showAsync(MessageBoxOptions()
+			                         .withIconType(MessageBoxIconType::WarningIcon)
+			                         .withTitle("Update Check Failed")
+			                         .withMessage("Could not start the update check.")
+			                         .withButton("OK"),
+			                       nullptr);
+		}
+	}
+}
+
+void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &result, bool reportWhenUpToDate)
+{
+	mCommandManager.commandStatusChanged();
+	const bool updateIsSkipped = result.updateAvailable && (skippedUpdateVersion == result.latestVersion);
+
+	if (result.checkSucceeded && (!result.updateAvailable || updateIsSkipped))
+	{
+		lastUpdateCheck = Time::getCurrentTime().toMilliseconds();
+		save_settings();
+	}
+
+	if (result.updateAvailable)
+	{
+		isobus::CANStackLogger::info("Version " + result.latestVersion.toStdString() + " of this application is available at " + result.releaseUrl.toStdString());
+
+		// On startup we stay quiet about a version the user chose to skip. A manual check still
+		// shows the dialog with the box ticked, so they can un-skip it from there.
+		if (updateIsSkipped && !reportWhenUpToDate)
+		{
+			return;
+		}
+
+		auto skipToggle = std::make_shared<IndentedToggleButton>();
+		skipToggle->toggle.setButtonText("Don't notify me about version " + result.latestVersion + " again");
+		skipToggle->setSize(360, 24);
+		skipToggle->toggle.setToggleState(updateIsSkipped, NotificationType::dontSendNotification);
+
+		auto *updateBox = new AlertWindow("Update Available",
+		                                  "Version " + result.latestVersion + " is available. You are running " + String(ProjectInfo::versionString) + ".",
+		                                  MessageBoxIconType::InfoIcon);
+		updateBox->addCustomComponent(skipToggle.get());
+		updateBox->addButton("Download", 1, KeyPress(KeyPress::returnKey));
+		updateBox->addButton("Not Now", 0, KeyPress(KeyPress::escapeKey));
+		updateBox->enterModalState(true,
+		                           ModalCallbackFunction::create([safeThis = Component::SafePointer<ServerMainComponent>(this), latestVersion = result.latestVersion, releaseUrl = result.releaseUrl, skipToggle](int choice) {
+			                           if (nullptr != safeThis.getComponent())
+			                           {
+				                           const String newSkippedVersion = skipToggle->toggle.getToggleState() ? latestVersion : String();
+
+				                           if (newSkippedVersion != safeThis->skippedUpdateVersion)
+				                           {
+					                           safeThis->skippedUpdateVersion = newSkippedVersion;
+					                           safeThis->lastUpdateCheck = 0;
+					                           safeThis->save_settings();
+				                           }
+			                           }
+
+			                           if (1 == choice)
+			                           {
+				                           URL(releaseUrl).launchInDefaultBrowser();
+			                           }
+		                           }),
+		                           true);
+	}
+	else if (result.checkSucceeded)
+	{
+		isobus::CANStackLogger::info("This application is up to date.");
+
+		if (reportWhenUpToDate)
+		{
+			AlertWindow::showAsync(MessageBoxOptions()
+			                         .withIconType(MessageBoxIconType::InfoIcon)
+			                         .withTitle("No Updates Available")
+			                         .withMessage("You are running the latest version, " + String(ProjectInfo::versionString) + ".")
+			                         .withButton("OK"),
+			                       nullptr);
+		}
+	}
+	else
+	{
+		auto failureMessage = std::string("Could not check GitHub for a newer version of this application.");
+
+		if (0 != result.statusCode)
+		{
+			failureMessage += " HTTP status code: " + std::to_string(result.statusCode) + ".";
+		}
+
+		isobus::CANStackLogger::warn(failureMessage);
+
+		if (reportWhenUpToDate)
+		{
+			AlertWindow::showAsync(MessageBoxOptions()
+			                         .withIconType(MessageBoxIconType::WarningIcon)
+			                         .withTitle("Update Check Failed")
+			                         .withMessage("Could not reach GitHub to check for a newer version.")
+			                         .withButton("OK"),
+			                       nullptr);
+		}
 	}
 }
 
@@ -1941,6 +2124,9 @@ void ServerMainComponent::save_settings()
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("ShowAckButton", showAckButton, nullptr);
+		controlSettings.setProperty("CheckForUpdates", checkForUpdatesOnStartup, nullptr);
+		controlSettings.setProperty("LastUpdateCheck", lastUpdateCheck, nullptr);
+		controlSettings.setProperty("SkippedUpdateVersion", skippedUpdateVersion, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
