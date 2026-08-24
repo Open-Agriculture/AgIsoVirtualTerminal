@@ -188,6 +188,7 @@ private:
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
+	void play_alarm_mask_audio(const std::shared_ptr<isobus::VTObject> &mask);
 	void repaint_data_and_soft_key_mask();
 	bool is_active_alarm_mask() const;
 	void update_ack_button_visibility();

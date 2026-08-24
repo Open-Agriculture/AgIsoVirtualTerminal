@@ -1574,75 +1574,130 @@ void ServerMainComponent::transferred_object_pool_parse_start(std::shared_ptr<is
 	fs.close();
 }
 
+// ISO 11783-6: an alarm mask raised by a working set that is not the displayed one takes over the
+// display when the displayed mask is a data mask, or when it outranks the displayed alarm. Priority
+// runs High = 0 to Low = 2, so outranking means a numerically smaller value.
+static bool alarm_outranks_displayed_mask(const std::shared_ptr<isobus::VTObject> &candidate,
+                                          const std::shared_ptr<isobus::VTObject> &displayed)
+{
+	if ((nullptr == candidate) || (isobus::VirtualTerminalObjectType::AlarmMask != candidate->get_object_type()))
+	{
+		return false;
+	}
+
+	if ((nullptr == displayed) || (isobus::VirtualTerminalObjectType::AlarmMask != displayed->get_object_type()))
+	{
+		return true;
+	}
+
+	return std::static_pointer_cast<isobus::AlarmMask>(candidate)->get_mask_priority() <
+	  std::static_pointer_cast<isobus::AlarmMask>(displayed)->get_mask_priority();
+}
+
+void ServerMainComponent::play_alarm_mask_audio(const std::shared_ptr<isobus::VTObject> &mask)
+{
+	if ((nullptr == mask) || (isobus::VirtualTerminalObjectType::AlarmMask != mask->get_object_type()))
+	{
+		return;
+	}
+
+	auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(mask);
+	switch (alarmMask->get_signal_priority())
+	{
+		case isobus::AlarmMask::AcousticSignal::Highest:
+		{
+			mSoundPlayer.play(AlarmMaskAudio::alarmMaskHigh_mp3, AlarmMaskAudio::alarmMaskHigh_mp3Size);
+		}
+		break;
+
+		case isobus::AlarmMask::AcousticSignal::Medium:
+		{
+			mSoundPlayer.play(AlarmMaskAudio::alarmMaskMedium_mp3, AlarmMaskAudio::alarmMaskMedium_mp3Size);
+		}
+		break;
+
+		case isobus::AlarmMask::AcousticSignal::Lowest:
+		{
+			mSoundPlayer.play(AlarmMaskAudio::alarmMaskLow_mp3, AlarmMaskAudio::alarmMaskLow_mp3Size);
+		}
+		break;
+
+		case isobus::AlarmMask::AcousticSignal::None:
+		default:
+			break;
+	}
+}
+
 void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t, std::uint16_t newMask)
 {
-	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
+	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined != affectedWorkingSet->get_object_pool_processing_state())
 	{
-		const MessageManagerLock mmLock;
+		return;
+	}
 
-		dataMaskRenderer.on_change_active_mask(activeWorkingSet);
-		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
+	const MessageManagerLock mmLock;
+	auto newActiveMask = affectedWorkingSet->get_object_by_id(newMask);
 
-		auto activeMask = affectedWorkingSet->get_object_by_id(newMask);
-
-		if (activeWorkingSetDataMaskObjectID != newMask)
+	if (affectedWorkingSet != activeWorkingSet)
+	{
+		std::shared_ptr<isobus::VTObject> displayedMask = nullptr;
+		if (nullptr != activeWorkingSet)
 		{
-			activeWorkingSetDataMaskObjectID = newMask;
+			displayedMask = activeWorkingSet->get_object_by_id(activeWorkingSetDataMaskObjectID);
+		}
 
-			if (send_status_message())
+		if (alarm_outranks_displayed_mask(newActiveMask, displayedMask))
+		{
+			auto affectedWorkingSetLocation = std::find(managedWorkingSetList.begin(), managedWorkingSetList.end(), affectedWorkingSet);
+			if (managedWorkingSetList.end() != affectedWorkingSetLocation)
 			{
-				statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
-			}
-			else
-			{
-				statusMessageTimestamp_ms = 0;
+				change_selected_working_set(static_cast<std::uint8_t>(std::distance(managedWorkingSetList.begin(), affectedWorkingSetLocation)));
+				activeWorkingSetSoftkeyMaskObjectID = std::static_pointer_cast<isobus::AlarmMask>(newActiveMask)->get_soft_key_mask();
+				process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
 			}
 		}
 
-		update_ack_button_visibility();
+		play_alarm_mask_audio(newActiveMask);
+		return;
+	}
 
-		if (nullptr != activeMask)
+	dataMaskRenderer.on_change_active_mask(activeWorkingSet);
+	softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
+
+	if (activeWorkingSetDataMaskObjectID != newMask)
+	{
+		activeWorkingSetDataMaskObjectID = newMask;
+
+		if (send_status_message())
 		{
-			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
-			{
-				auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(activeMask);
-				activeWorkingSetSoftkeyMaskObjectID = alarmMask->get_soft_key_mask();
+			statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+		}
+		else
+		{
+			statusMessageTimestamp_ms = 0;
+		}
+	}
 
-				switch (alarmMask->get_signal_priority())
-				{
-					case isobus::AlarmMask::AcousticSignal::Highest:
-					{
-						mSoundPlayer.play(AlarmMaskAudio::alarmMaskHigh_mp3, AlarmMaskAudio::alarmMaskHigh_mp3Size);
-					}
-					break;
+	update_ack_button_visibility();
 
-					case isobus::AlarmMask::AcousticSignal::Medium:
-					{
-						mSoundPlayer.play(AlarmMaskAudio::alarmMaskMedium_mp3, AlarmMaskAudio::alarmMaskMedium_mp3Size);
-					}
-					break;
+	if (nullptr != newActiveMask)
+	{
+		if (isobus::VirtualTerminalObjectType::AlarmMask == newActiveMask->get_object_type())
+		{
+			auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(newActiveMask);
+			activeWorkingSetSoftkeyMaskObjectID = alarmMask->get_soft_key_mask();
 
-					case isobus::AlarmMask::AcousticSignal::Lowest:
-					{
-						mSoundPlayer.play(AlarmMaskAudio::alarmMaskLow_mp3, AlarmMaskAudio::alarmMaskLow_mp3Size);
-					}
-					break;
-
-					case isobus::AlarmMask::AcousticSignal::None:
-					default:
-						break;
-				}
-				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
-				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
-			}
-			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
-			{
-				auto dataMask = std::static_pointer_cast<isobus::DataMask>(activeMask);
-				activeWorkingSetSoftkeyMaskObjectID = dataMask->get_soft_key_mask();
-				// Also process macros for the actual datamask (container) show event
-				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
-				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
-			}
+			play_alarm_mask_audio(newActiveMask);
+			process_macro(newActiveMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+			process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+		}
+		else if (isobus::VirtualTerminalObjectType::DataMask == newActiveMask->get_object_type())
+		{
+			auto dataMask = std::static_pointer_cast<isobus::DataMask>(newActiveMask);
+			activeWorkingSetSoftkeyMaskObjectID = dataMask->get_soft_key_mask();
+			// Also process macros for the actual datamask (container) show event
+			process_macro(newActiveMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+			process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
 		}
 	}
 }
