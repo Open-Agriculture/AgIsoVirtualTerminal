@@ -221,6 +221,7 @@ private:
 	std::set<std::string> loadedNames;
 	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
+	std::uint8_t displacedWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
