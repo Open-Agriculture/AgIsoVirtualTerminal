@@ -70,6 +70,8 @@ ServerMainComponent::ServerMainComponent(
 	isobus::CANHardwareInterface::get_periodic_update_event_dispatcher().add_listener([this]() {
 		diagnosticProtocol->update();
 	});
+	get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); });
+	get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); });
 
 	mAudioDeviceManager.initialise(0, 1, nullptr, true);
 	mAudioDeviceManager.addAudioCallback(&mSoundPlayer);
@@ -1256,10 +1258,6 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 	{
 		bool lProcessActivateDeactivateMacros = false;
 
-		for (auto &ws : managedWorkingSetList)
-		{
-			ws->clear_callback_handles();
-		}
 		auto &ws = managedWorkingSetList.at(index);
 
 		if (activeWorkingSetMasterAddress != ws->get_control_function()->get_address())
@@ -1284,8 +1282,6 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		activeWorkingSet = ws;
 		update_ack_button_visibility();
 		process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
-		ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); }));
-		ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
 
 		if (send_status_message())
 		{
