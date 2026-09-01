@@ -91,6 +91,7 @@ target_sources(
           "src/OutputNumberComponent.cpp"
           "src/SoftkeyMaskRenderArea.cpp"
           "src/KeyComponent.cpp"
+          "src/DesignatorFit.cpp"
           "src/SoftKeyMaskComponent.cpp"
           "src/OutputMeterComponent.cpp"
           "src/InputBooleanComponent.cpp"
