@@ -4,38 +4,11 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "WorkingSetSelectorComponent.hpp"
+#include "DesignatorFit.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 #include "WorkingSetLoadingIndicatorComponent.hpp"
 #include "isobus/utility/system_timing.hpp"
-
-// Clients author designators against whatever soft key size they assume, which across real pools runs from
-// 28x26 up to 240x192, so the designator is scaled to fit the button rather than clipped to it. getUnion
-// ignores empty rectangles, so children that resolved to nothing drop out of the measurement on their own.
-static void fit_designator_to_button(juce::Component &designator, juce::Rectangle<int> button)
-{
-	auto children = designator.getChildren();
-	juce::Rectangle<int> drawnArea;
-
-	for (auto *child : children)
-	{
-		drawnArea = drawnArea.getUnion(child->getBounds());
-	}
-
-	if (drawnArea.isEmpty())
-	{
-		// nothing to measure, so leave the component at the button-sized bounds it was built with
-		return;
-	}
-
-	for (auto *child : children)
-	{
-		child->setTopLeftPosition(child->getPosition() - drawnArea.getPosition());
-	}
-	designator.setSize(drawnArea.getWidth(), drawnArea.getHeight());
-	designator.setTransform(juce::RectanglePlacement(juce::RectanglePlacement::centred)
-	                          .getTransformToFit(designator.getBounds().toFloat(), button.toFloat()));
-}
 
 WorkingSetSelectorComponent::AckButton::AckButton() :
   juce::TextButton("ACK")
@@ -222,7 +195,9 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	const auto bounds = button_bounds(workingSetIndex);
 
 	workingSetComponent->setTopLeftPosition(bounds.getPosition());
-	fit_designator_to_button(*workingSetComponent, bounds);
+	// Unlike a soft key, a working set designator is the only thing in its button, so artwork
+	// smaller than the button is enlarged to fill it.
+	fit_designator_to_button(*workingSetComponent, bounds, juce::RectanglePlacement::centred);
 	addAndMakeVisible(*workingSetComponent);
 	return workingSetComponent;
 }
