@@ -84,7 +84,7 @@ ServerMainComponent::ServerMainComponent(
 
 	// Make sure you set the size of the component after
 	// you add any child components.
-	setSize(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width(),
+	setSize(juce::roundToInt(WorkingSetSelectorComponent::WIDTH * working_set_selector_scale()) + juce::roundToInt((get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width()) * display_scale()),
 	        minimum_height() + LoggerComponent::HEIGHT);
 
 	workingSetSelector.setTopLeftPosition(0, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
@@ -741,16 +741,37 @@ void ServerMainComponent::resized()
 	auto lMenuBarHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight();
 	auto lBounds = getLocalBounds();
 
-	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, minimum_height());
-	dataMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH, lMenuBarHeight, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
-	vtNumberComponent.setBounds(dataMaskRenderer.getBounds().getX() + (dataMaskRenderer.getWidth() / 4.0),
-	                            dataMaskRenderer.getBounds().getY() + (dataMaskRenderer.getHeight() / 10.0),
-	                            dataMaskRenderer.getBounds().getWidth() / 2.0,
-	                            (dataMaskRenderer.getBounds().getHeight() / 10.0) * 8);
-	softKeyMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels(),
-	                              lMenuBarHeight,
-	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
-	                              get_data_mask_area_size_y_pixels());
+	// The working-set picker and the two ISO areas keep the size they are natively laid out at,
+	// and are magnified with a transform. The pivot is each area's own top left corner so it
+	// grows down and to the right from where it is placed, instead of the scale also moving it
+	// across the window.
+	const auto scale = static_cast<float>(display_scale());
+	const auto pickerScale = static_cast<float>(working_set_selector_scale());
+	const int dataMaskWidth = get_data_mask_area_size_x_pixels();
+	const int dataMaskHeight = get_data_mask_area_size_y_pixels();
+	const int softKeyWidth = 2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height());
+	const int pickerLeft = juce::roundToInt(WorkingSetSelectorComponent::WIDTH * pickerScale);
+	const int dataMaskLeft = pickerLeft;
+	const int softKeyLeft = dataMaskLeft + juce::roundToInt(dataMaskWidth * scale);
+
+	// The picker's own native height is derived from the scaled height it has to fill, rather
+	// than the other way around, so that it lines up with the mask areas beside it regardless of
+	// how far its own scale has been floored relative to theirs.
+	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, juce::roundToInt((dataMaskHeight * scale) / pickerScale));
+	workingSetSelector.setTransform(juce::AffineTransform::scale(pickerScale, pickerScale, 0.0f, static_cast<float>(lMenuBarHeight)));
+
+	dataMaskRenderer.setBounds(dataMaskLeft, lMenuBarHeight, dataMaskWidth, dataMaskHeight);
+	dataMaskRenderer.setTransform(juce::AffineTransform::scale(scale, scale, static_cast<float>(dataMaskLeft), static_cast<float>(lMenuBarHeight)));
+
+	softKeyMaskRenderer.setBounds(softKeyLeft, lMenuBarHeight, softKeyWidth, dataMaskHeight);
+	softKeyMaskRenderer.setTransform(juce::AffineTransform::scale(scale, scale, static_cast<float>(softKeyLeft), static_cast<float>(lMenuBarHeight)));
+
+	// This one is not part of a pool, so it is positioned against the magnified rectangle directly
+	const auto scaledDataMask = juce::Rectangle<int>(dataMaskLeft, lMenuBarHeight, juce::roundToInt(dataMaskWidth * scale), juce::roundToInt(dataMaskHeight * scale));
+	vtNumberComponent.setBounds(scaledDataMask.getX() + (scaledDataMask.getWidth() / 4),
+	                            scaledDataMask.getY() + (scaledDataMask.getHeight() / 10),
+	                            scaledDataMask.getWidth() / 2,
+	                            (scaledDataMask.getHeight() / 10) * 8);
 	loggerViewport.setTopLeftPosition(0, minimum_height());
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight).withTrimmedRight(CAN_STATUS_INDICATOR_WIDTH));
 	logger.setSize(loggerViewport.getWidth(), logger.getHeight());
@@ -938,6 +959,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Capabilities", "You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients.", MessageBoxIconType::NoIcon);
 			popupMenu->addTextEditor("VT number", String(vtNumber), "VT number (1-32, only applied on restart)");
 			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), "Data Mask Size (height and width)");
+			popupMenu->addComboBox("Screen Scale", { "Automatic (fit to window)", "100 %", "125 %", "150 %", "200 %", "250 %", "300 %", "400 %" });
 			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_height()), "Soft Key Designator Height (min 60)");
 			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), "Soft Key Designator Width (min 60)");
 			popupMenu->addTextEditor("Number of Physical Soft Key columns", String(get_physical_soft_key_columns()), "Number of Physical Soft Key columns (min 1)");
@@ -945,6 +967,8 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 			popupMenu->getTextEditor("VT number")->setInputRestrictions(2, "1234567890");
 			popupMenu->getTextEditor("Data Mask Size (height and width)")->setInputRestrictions(4, "1234567890");
+			// The scale magnifies the display only, so the item order has to match SCREEN_SCALE_CHOICES
+			popupMenu->getComboBoxComponent("Screen Scale")->setSelectedItemIndex(get_screen_scale_choice_index());
 			popupMenu->getTextEditor("Soft Key Designator Height")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Soft Key Designator Width")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Number of Physical Soft Key columns")->setInputRestrictions(1, "1234567890");
@@ -1420,7 +1444,17 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 				mParent.vtNumber = 1;
 			}
 
+			const int scaleChoice = mParent.popupMenu->getComboBoxComponent("Screen Scale")->getSelectedItemIndex();
+
+			mParent.automaticDisplayScale = (0 >= scaleChoice);
+
+			if (!mParent.automaticDisplayScale)
+			{
+				mParent.displayScalePercent = SCREEN_SCALE_CHOICES[scaleChoice];
+			}
+
 			mParent.save_settings();
+			mParent.apply_display_size();
 			mParent.repaint_data_and_soft_key_mask();
 		}
 		break;
@@ -1771,6 +1805,18 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				softKeyMaskRenderer.setSize(2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
 				                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
 			}
+
+			if (!child.getProperty("ScreenScale").isVoid())
+			{
+				const int savedScale = static_cast<int>(child.getProperty("ScreenScale"));
+
+				automaticDisplayScale = (0 == savedScale);
+
+				if (!automaticDisplayScale)
+				{
+					displayScalePercent = juce::jlimit(100, 400, savedScale);
+				}
+			}
 #ifdef JUCE_WINDOWS
 			if (!child.getProperty("TouCANSerial").isVoid())
 			{
@@ -1919,6 +1965,7 @@ void ServerMainComponent::save_settings()
 		languageCommandSettings.setProperty("LanguageCode", String(languageCommandInterface.get_language_code()), nullptr);
 		compatibilitySettings.setProperty("Version", get_vt_version_byte(versionToReport), nullptr);
 		hardwareSettings.setProperty("DataMaskRenderAreaSize", dataMaskRenderer.getWidth(), nullptr);
+		hardwareSettings.setProperty("ScreenScale", automaticDisplayScale ? 0 : displayScalePercent, nullptr);
 		hardwareSettings.setProperty("VT_Number", vtNumber, nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorWidth", softKeyMaskDimensions.keyWidth, nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorHeight", softKeyMaskDimensions.keyHeight, nullptr);
@@ -2077,9 +2124,100 @@ void ServerMainComponent::screen_capture(std::uint8_t item, std::uint8_t path, s
 
 int ServerMainComponent::minimum_height() const
 {
-	if (dataMaskRenderer.getHeight() > softKeyMaskDimensions.total_height())
-		return dataMaskRenderer.getHeight();
-	return softKeyMaskDimensions.total_height();
+	// Both render areas are laid out at the data mask's height, so that is what gets reserved.
+	// Reserving the soft key column's own nominal height instead only ever added an empty band
+	// below the masks, because rows which do not fit the data mask height are clipped either way,
+	// and when fitting to the window it stopped the masks from ever filling it.
+	//
+	// Scaled, because every caller of this is laying out screen space rather than talking to a
+	// client. What gets reported to clients comes from get_data_mask_area_size_y_pixels instead.
+	return juce::roundToInt(get_data_mask_area_size_y_pixels() * display_scale());
+}
+
+void ServerMainComponent::apply_display_size()
+{
+	setSize(juce::roundToInt(WorkingSetSelectorComponent::WIDTH * working_set_selector_scale()) + juce::roundToInt((get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width()) * display_scale()),
+	        minimum_height() + LoggerComponent::HEIGHT);
+
+	// When fitting to the window, the window is the input rather than the output, so it is left
+	// exactly as the operator sized it
+	if (automaticDisplayScale)
+	{
+		resized();
+		return;
+	}
+
+	// The window has to follow, otherwise the magnified areas are simply clipped by it
+	auto *topLevelComponent = getTopLevelComponent();
+
+	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
+	{
+		if (auto *window = dynamic_cast<juce::ResizableWindow *>(topLevelComponent))
+		{
+			window->setContentComponentSize(getWidth(), getHeight());
+		}
+	}
+	resized();
+}
+
+int ServerMainComponent::get_screen_scale_choice_index() const
+{
+	if (automaticDisplayScale)
+	{
+		return 0;
+	}
+
+	for (int i = 1; i < static_cast<int>(std::size(SCREEN_SCALE_CHOICES)); i++)
+	{
+		if (SCREEN_SCALE_CHOICES[i] == displayScalePercent)
+		{
+			return i;
+		}
+	}
+	return 1; // Anything unrecognised shows as 100 %
+}
+
+double ServerMainComponent::display_scale() const
+{
+	if (!automaticDisplayScale)
+	{
+		return static_cast<double>(displayScalePercent) / 100.0;
+	}
+
+	// Fit the ISO areas to whatever room this component has. Recomputed on every layout pass, so
+	// dragging the window edge rescales as it goes. The room the working-set picker itself takes
+	// is not accounted for here (its own scale is a floor applied afterwards, not an input to
+	// this fit), so at very small window sizes the picker can end up slightly wider than the
+	// space this assumed, trading a little mask precision to keep the picker touch usable.
+	const int isoWidth = get_data_mask_area_size_x_pixels() +
+	  (2 * SoftKeyMaskDimensions::PADDING) +
+	  (get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()));
+	const int isoHeight = get_data_mask_area_size_y_pixels();
+
+	if ((isoWidth <= 0) || (isoHeight <= 0) || (getWidth() <= 0) || (getHeight() <= 0))
+	{
+		return 1.0; // Before the component has been given a size there is nothing to fit to
+	}
+
+	const int availableWidth = getWidth() - WorkingSetSelectorComponent::WIDTH;
+	const int availableHeight = getHeight() -
+	  juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() -
+	  (loggerViewport.isVisible() ? LoggerComponent::HEIGHT : 0);
+
+	if ((availableWidth <= 0) || (availableHeight <= 0))
+	{
+		return MINIMUM_AUTOMATIC_SCALE;
+	}
+
+	return juce::jlimit(MINIMUM_AUTOMATIC_SCALE,
+	                    MAXIMUM_AUTOMATIC_SCALE,
+	                    juce::jmin(static_cast<double>(availableWidth) / isoWidth,
+	                               static_cast<double>(availableHeight) / isoHeight));
+}
+
+double ServerMainComponent::working_set_selector_scale() const
+{
+	return juce::jmax(MINIMUM_WORKING_SET_SELECTOR_SCALE, display_scale());
 }
 
 void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
