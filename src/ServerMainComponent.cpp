@@ -704,6 +704,17 @@ void ServerMainComponent::timerCallback()
 	{
 		workingSetSelector.update_iop_load_indicators();
 	}
+
+	// By the time the timer first runs, this component is inside its window
+	if (needToApplyWindowState)
+	{
+		apply_window_state();
+	}
+
+	if (needToApplyAlwaysOnTop)
+	{
+		apply_always_on_top();
+	}
 }
 
 void ServerMainComponent::paint(juce::Graphics &g)
@@ -779,6 +790,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
 	allCommands.add(static_cast<int>(CommandIDs::StartStop));
 	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
+	allCommands.add(static_cast<int>(CommandIDs::AlwaysOnTop));
 #ifdef JUCE_WINDOWS
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
 #elif JUCE_LINUX
@@ -859,6 +871,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::AutoStart:
 		{
 			result.setInfo("Auto-Start VT on launch", "Controls whether or not the VT automatically starts when the program is launched", "Control", autostart ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::AlwaysOnTop:
+		{
+			result.setInfo("Always on top", "Keeps the VT window in front of other windows", "Control", alwaysOnTop ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -1103,6 +1121,9 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
 			configureHardwareWindow->setBounds(result);
 
+			// A modal dialog is still its own window, so it has to be raised too when the main
+			// window is pinned on top, or it would open behind it.
+			configureHardwareWindow->setAlwaysOnTop(alwaysOnTop);
 			configureHardwareWindow->enterModalState(true);
 			retVal = true;
 		}
@@ -1168,6 +1189,16 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::AlwaysOnTop):
+		{
+			alwaysOnTop = !alwaysOnTop;
+			apply_always_on_top();
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -1189,6 +1220,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::StartStop));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoStart));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AlwaysOnTop));
 		}
 		break;
 
@@ -1246,6 +1278,55 @@ std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control
 		}
 	}
 	return retVal;
+}
+
+juce::String ServerMainComponent::get_window_state() const
+{
+	auto *topLevelComponent = getTopLevelComponent();
+
+	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
+	{
+		if (auto *window = dynamic_cast<juce::ResizableWindow *>(topLevelComponent))
+		{
+			return window->getWindowStateAsString();
+		}
+	}
+	return {};
+}
+
+void ServerMainComponent::apply_window_state()
+{
+	auto *topLevelComponent = getTopLevelComponent();
+
+	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
+	{
+		// Even with nothing saved there is nothing left to wait for, so the flag is cleared
+		// either way. Otherwise the window would be moved back on every timer tick.
+		needToApplyWindowState = false;
+
+		if (savedWindowState.isNotEmpty())
+		{
+			if (auto *window = dynamic_cast<juce::ResizableWindow *>(topLevelComponent))
+			{
+				// This keeps the window on a screen which actually exists, which matters when
+				// the saved position was on a display that is no longer connected.
+				window->restoreWindowStateFromString(savedWindowState);
+			}
+		}
+	}
+}
+
+void ServerMainComponent::apply_always_on_top()
+{
+	auto *topLevelComponent = getTopLevelComponent();
+
+	// While this component is being constructed it is not in a window yet, so it is its own top
+	// level component. Setting the flag on itself would do nothing.
+	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
+	{
+		topLevelComponent->setAlwaysOnTop(alwaysOnTop);
+		needToApplyAlwaysOnTop = false;
+	}
 }
 
 void ServerMainComponent::change_selected_working_set(std::uint8_t index)
@@ -1830,6 +1911,11 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				saveIopBeforeParse = false;
 			}
 		}
+		else if (Identifier("Window") == child.getType())
+		{
+			// The window does not exist yet at this point, so this is applied by the timer
+			savedWindowState = child.getProperty("State").toString();
+		}
 		else if (Identifier("Control") == child.getType())
 		{
 			if (!child.getProperty("AutoStart").isVoid())
@@ -1853,6 +1939,12 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			if (!child.getProperty("ShowAckButton").isVoid())
 			{
 				showAckButton = static_cast<int>(child.getProperty("ShowAckButton")) != 0;
+			}
+
+			if (!child.getProperty("AlwaysOnTop").isVoid())
+			{
+				// The window does not exist yet at this point, so this is applied by the timer
+				alwaysOnTop = static_cast<bool>(static_cast<int>(child.getProperty("AlwaysOnTop")));
 			}
 		}
 		index++;
@@ -1939,6 +2031,7 @@ void ServerMainComponent::save_settings()
 		loggingSettings.setProperty("Shown", static_cast<int>(logger.isVisible()), nullptr);
 		loggingSettings.setProperty("SaveIopBeforeParse", static_cast<int>(saveIopBeforeParse), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
+		controlSettings.setProperty("AlwaysOnTop", alwaysOnTop, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("ShowAckButton", showAckButton, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
@@ -1946,6 +2039,22 @@ void ServerMainComponent::save_settings()
 		settings.appendChild(hardwareSettings, nullptr);
 		settings.appendChild(loggingSettings, nullptr);
 		settings.appendChild(controlSettings, nullptr);
+
+		// An empty state means there is no window yet, and overwriting a good saved geometry
+		// with nothing would lose it.
+		auto windowState = get_window_state();
+
+		if (windowState.isEmpty())
+		{
+			windowState = savedWindowState;
+		}
+
+		if (windowState.isNotEmpty())
+		{
+			ValueTree windowSettings("Window");
+			windowSettings.setProperty("State", windowState, nullptr);
+			settings.appendChild(windowSettings, nullptr);
+		}
 		std::unique_ptr<XmlElement> xml(settings.createXml());
 
 		if (nullptr != xml)
