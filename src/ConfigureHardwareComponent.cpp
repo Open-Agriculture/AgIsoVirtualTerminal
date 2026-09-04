@@ -29,11 +29,22 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 	hardwareInterfaceSelector.setName("Hardware Interface");
 	hardwareInterfaceSelector.setTextWhenNothingSelected("Select Hardware Interface");
 
+	// The item IDs are the index into the CAN driver list plus one, which is why the PEAK channels
+	// are not contiguous here. They are listed together so the menu still reads sensibly.
+	hardwareInterfaceSelector.addItem("PEAK PCAN USB (Bus 1)", 1);
+
+	for (int peakBus = 2; peakBus <= NUMBER_OF_PEAK_CHANNELS; peakBus++)
+	{
+		hardwareInterfaceSelector.addItem("PEAK PCAN USB (Bus " + String(peakBus) + ")", FIRST_ADDITIONAL_PEAK_ID + peakBus - 2);
+	}
+
 #ifdef ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE
-	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec" }, 1);
+	hardwareInterfaceSelector.addItem("Innomaker2CAN", 2);
 #else
-	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN (not supported with mingw)", "TouCAN", "SysTec" }, 1);
+	hardwareInterfaceSelector.addItem("Innomaker2CAN (not supported with mingw)", 2);
 #endif
+	hardwareInterfaceSelector.addItem("TouCAN", 3);
+	hardwareInterfaceSelector.addItem("SysTec", 4);
 	int selectedID = 1;
 
 	for (std::uint8_t i = 0; i < parentCANDrivers.size(); i++)
@@ -88,6 +99,10 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 			isobus::CANHardwareInterface::unassign_can_channel_frame_handler(0);
 		}
 		isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, parentCANDrivers.at(hardwareInterfaceSelector.getSelectedId() - 1));
+
+		// This is the user making a deliberate choice, so it becomes the preference which any
+		// later fallback to a different adapter must not overwrite.
+		parent.parentServer.set_preferred_can_driver(parentCANDrivers.at(hardwareInterfaceSelector.getSelectedId() - 1));
 		isobus::CANStackLogger::info("Updated assigned CAN driver.");
 #elif JUCE_LINUX
 		std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->set_name(socketCANNameEditor.getText().toStdString());

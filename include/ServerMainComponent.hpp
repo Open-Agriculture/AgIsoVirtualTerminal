@@ -120,6 +120,12 @@ public:
 
 	void send_alarm_ack_command(isobus::VirtualTerminalBase::KeyActivationCode activationCode);
 
+	/// @brief Records which CAN adapter the user actually chose. The adapter in use can differ
+	/// from it, because starting the interface falls back to another adapter when the chosen one
+	/// is busy, and that fallback must not overwrite the user's choice when settings are saved.
+	/// @param[in] driver The adapter the user selected
+	void set_preferred_can_driver(std::shared_ptr<isobus::CANHardwarePlugin> driver);
+
 	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 
@@ -188,6 +194,21 @@ private:
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
+
+	/// @brief Makes sure the CAN channel is assigned to an adapter which can actually be opened.
+	/// The configured adapter is tried first. If it cannot be opened, because it is in use by
+	/// another application or another instance of this program, the other known adapters are
+	/// tried in turn and the first one which opens is assigned instead.
+	/// @attention Must be called before the hardware interface is started, as the assignment
+	/// cannot be changed afterwards.
+	/// @returns True if an adapter was opened successfully, otherwise false
+	bool select_available_can_adapter();
+
+	/// @brief Describes an adapter for logging, including its position in the driver list
+	/// @param[in] driver The driver to describe
+	/// @returns A human readable description of the adapter
+	std::string describe_can_adapter(const std::shared_ptr<isobus::CANHardwarePlugin> &driver) const;
+
 	void repaint_data_and_soft_key_mask();
 	bool is_active_alarm_mask() const;
 	void update_ack_button_visibility();
@@ -215,6 +236,7 @@ private:
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::unique_ptr<ConfigureHardwareWindow> configureHardwareWindow;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
+	std::shared_ptr<isobus::CANHardwarePlugin> preferredCANDriver; ///< The adapter the user chose, which may not be the one in use
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;

@@ -1150,6 +1150,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			else
 			{
 				isobus::CANStackLogger::info("Starting CAN interface");
+				select_available_can_adapter();
 				isobus::CANHardwareInterface::start();
 				dataMaskRenderer.set_has_started(true);
 				hasStartBeenCalled = true;
@@ -1246,6 +1247,92 @@ std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control
 		}
 	}
 	return retVal;
+}
+
+std::string ServerMainComponent::describe_can_adapter(const std::shared_ptr<isobus::CANHardwarePlugin> &driver) const
+{
+	std::string retVal = (nullptr != driver) ? driver->get_name() : "(none)";
+
+	for (std::size_t i = 0; i < parentCANDrivers.size(); i++)
+	{
+		if (parentCANDrivers.at(i) == driver)
+		{
+			retVal += " (adapter " + std::to_string(i + 1) + ")";
+			break;
+		}
+	}
+	return retVal;
+}
+
+bool ServerMainComponent::select_available_can_adapter()
+{
+	auto configuredDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> candidates;
+
+	// The configured adapter always gets the first try, so that a working configuration
+	// keeps behaving exactly as it did before.
+	if (nullptr != configuredDriver)
+	{
+		candidates.push_back(configuredDriver);
+	}
+
+	// Another channel of the same kind of adapter is the closest thing to what was configured,
+	// so those are tried before adapters of a different make.
+	auto appendCandidates = [this, &candidates, &configuredDriver](bool sameFamily) {
+		for (auto &driver : parentCANDrivers)
+		{
+			if ((nullptr == driver) || (driver == configuredDriver))
+			{
+				continue;
+			}
+
+			if (sameFamily == ((nullptr != configuredDriver) && (driver->get_name() == configuredDriver->get_name())))
+			{
+				candidates.push_back(driver);
+			}
+		}
+	};
+	appendCandidates(true);
+	appendCandidates(false);
+
+	for (auto &candidate : candidates)
+	{
+		// Opening the adapter is the only way to find out whether it is free. It is closed
+		// again right away, because the hardware interface opens it itself when it is started.
+		candidate->open();
+		const bool isAvailable = candidate->get_is_valid();
+		candidate->close();
+
+		if (isAvailable)
+		{
+			if (candidate != configuredDriver)
+			{
+				if (nullptr != isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
+				{
+					isobus::CANHardwareInterface::unassign_can_channel_frame_handler(0);
+				}
+
+				if (!isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, candidate))
+				{
+					LOG_ERROR("[VT Server]: Failed to assign the fallback CAN adapter %s.", describe_can_adapter(candidate).c_str());
+					return false;
+				}
+				LOG_WARNING("[VT Server]: The configured CAN adapter %s is not available, using %s instead.",
+				            describe_can_adapter(configuredDriver).c_str(),
+				            describe_can_adapter(candidate).c_str());
+			}
+			return true;
+		}
+		LOG_INFO("[VT Server]: CAN adapter %s is not available.", describe_can_adapter(candidate).c_str());
+	}
+
+	LOG_ERROR("[VT Server]: No CAN adapter could be opened. Check that an adapter is connected, and that it is not in use by another application.");
+	return false;
+}
+
+void ServerMainComponent::set_preferred_can_driver(std::shared_ptr<isobus::CANHardwarePlugin> driver)
+{
+	preferredCANDriver = driver;
 }
 
 void ServerMainComponent::change_selected_working_set(std::uint8_t index)
@@ -1784,6 +1871,7 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				if (index < parentCANDrivers.size())
 				{
 					isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, parentCANDrivers.at(index));
+					preferredCANDriver = parentCANDrivers.at(index);
 					isobus::CANStackLogger::debug("CAN Driver selection loaded from config file.");
 				}
 			}
@@ -1838,6 +1926,7 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 
 				if (autostart)
 				{
+					select_available_can_adapter();
 					isobus::CANHardwareInterface::start();
 					dataMaskRenderer.set_has_started(true);
 					hasStartBeenCalled = true;
@@ -1895,9 +1984,14 @@ void ServerMainComponent::save_settings()
 
 		std::uint32_t hardwareDriverIndex = 0xFFFFFFFF;
 
+		// What gets saved is the adapter the user chose, not necessarily the one in use. Starting
+		// the interface falls back to another adapter when the chosen one is busy, and that
+		// fallback must not quietly become the saved preference.
+		auto driverToSave = (nullptr != preferredCANDriver) ? preferredCANDriver : isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+
 		for (std::uint32_t i = 0; i < parentCANDrivers.size(); i++)
 		{
-			if (parentCANDrivers.at(i) == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
+			if (parentCANDrivers.at(i) == driverToSave)
 			{
 				hardwareDriverIndex = i;
 				break;
