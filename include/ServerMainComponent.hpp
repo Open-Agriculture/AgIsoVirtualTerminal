@@ -132,6 +132,16 @@ public:
 	void screen_capture(std::uint8_t item, std::uint8_t path, std::shared_ptr<isobus::ControlFunction> requestor) override;
 
 	static std::string getAppDataDir();
+
+	/// @brief Gives up the keyboard focus and destroys the text caret which goes with it.
+	/// @details Windows shows its touch keyboard whenever the thread owns a caret. JUCE creates
+	/// one when a text field takes the focus, and destroys it when the focus goes away, but that
+	/// clean up is deferred to an asynchronous callback and only runs while the field's window
+	/// still has a peer. A dialog which is closed and destroyed before that callback runs
+	/// therefore leaves the caret behind, and a caret belongs to the thread rather than to a
+	/// window, so the touch keyboard then appears on any tap anywhere in the program until it is
+	/// restarted. Call this whenever a dialog holding a text field goes away.
+	static void release_text_input_focus();
 	/**
    * @brief minimum_height
    * @return the height of the softkey- or the datamask size, whichever is bigger
