@@ -7,6 +7,16 @@ project(
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
+if(MSVC)
+  # Link the C++ runtime into the executable instead of relying on MSVCP140.dll
+  # and VCRUNTIME140*.dll being present. Those ship with Visual Studio and with
+  # the Visual C++ redistributable, so without this the build folder cannot
+  # simply be copied to a machine which has never had either installed: the
+  # program fails to start with no useful message. This has to be set before any
+  # target is created for it to take effect on all of them.
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 set(JUCE_WEB_BROWSER OFF)
 set(BUILD_TESTING OFF)
 
