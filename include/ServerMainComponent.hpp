@@ -195,7 +195,9 @@ private:
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 
-	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
+	/// @brief The width reserved for the CAN status indicator at the right hand end of the menu
+	/// bar. It only has to fit the word "CAN" now, not a full sentence.
+	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 60;
 	const std::string ISO_DATA_PATH = "iso_data";
 	std::string screenCaptureDirArgument = "";
 	std::string canLogPath;

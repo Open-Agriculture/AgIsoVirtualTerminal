@@ -718,19 +718,17 @@ void ServerMainComponent::paint(juce::Graphics &g)
 		getLookAndFeel().drawMenuBarBackground(g, statusArea.getWidth(), statusArea.getHeight(), false, menuBar);
 	}
 
+	// Grey while stopped, red while running without an adapter, green while connected. The word
+	// itself carries the status, so there is no separate dot or longer sentence to make room for.
 	auto statusColour = juce::Colours::grey;
-	juce::String statusText = "CAN Stopped";
 
 	if (canInterfaceRunning)
 	{
 		statusColour = canAdapterConnected ? juce::Colours::limegreen : juce::Colours::red;
-		statusText = canAdapterConnected ? "CAN Connected" : "CAN Disconnected";
 	}
 	g.setColour(statusColour);
-	g.fillEllipse(statusArea.removeFromLeft(statusArea.getHeight()).reduced(7).toFloat());
-	g.setColour(getLookAndFeel().findColour(juce::Label::textColourId));
-	g.setFont(14.0f);
-	g.drawText(statusText, statusArea, juce::Justification::centredLeft);
+	g.setFont(juce::Font(14.0f, juce::Font::bold));
+	g.drawText("CAN", statusArea, juce::Justification::centred);
 }
 
 void ServerMainComponent::resized()
