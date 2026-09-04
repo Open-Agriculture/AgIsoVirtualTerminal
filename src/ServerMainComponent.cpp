@@ -89,7 +89,6 @@ ServerMainComponent::ServerMainComponent(
 
 	workingSetSelector.setTopLeftPosition(0, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
 
-	logger.setTopLeftPosition(0, get_data_mask_area_size_y_pixels());
 	logger.setSize(getWidth(), LoggerComponent::HEIGHT);
 	loggerViewport.setViewedComponent(&logger, false);
 
@@ -751,13 +750,19 @@ void ServerMainComponent::resized()
 	                              lMenuBarHeight,
 	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
 	                              get_data_mask_area_size_y_pixels());
-	loggerViewport.setTopLeftPosition(0, minimum_height());
+	// The logging area occupies everything below the mask render areas. The viewport needs an
+	// explicit size, otherwise it stays 0 x 0 and nothing is drawn even when it is made visible.
+	const int loggerTop = lMenuBarHeight + minimum_height();
+	loggerViewport.setBounds(0, loggerTop, getWidth(), juce::jmax(0, getHeight() - loggerTop));
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight).withTrimmedRight(CAN_STATUS_INDICATOR_WIDTH));
-	logger.setSize(loggerViewport.getWidth(), logger.getHeight());
 
-	if (logger.getHeight() < loggerViewport.getHeight())
+	// The visible sizes exclude any scroll bars, which keeps the log text from triggering a
+	// horizontal scroll bar of its own.
+	logger.setSize(loggerViewport.getMaximumVisibleWidth(), logger.getHeight());
+
+	if (logger.getHeight() < loggerViewport.getMaximumVisibleHeight())
 	{
-		logger.setSize(loggerViewport.getWidth(), loggerViewport.getHeight());
+		logger.setSize(loggerViewport.getMaximumVisibleWidth(), loggerViewport.getMaximumVisibleHeight());
 	}
 }
 
