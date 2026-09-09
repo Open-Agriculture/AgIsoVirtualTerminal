@@ -27,7 +27,11 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 		{
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 			childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, activeMask));
-			addAndMakeVisible(*childComponents.back());
+
+			if (nullptr != childComponents.back())
+			{
+				addAndMakeVisible(*childComponents.back());
+			}
 		}
 	}
 	repaint();
@@ -215,13 +219,17 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								if (nullptr != child)
 								{
 									currentModalComponentCache.push_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
-									auto text = "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i)));
-									if (child && child->get_object_type() == isobus::VirtualTerminalObjectType::OutputString)
-									{
-										text = std::static_pointer_cast<isobus::OutputString>(child)->displayed_value(parentWorkingSet->get_object_tree());
-									}
 
-									comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, text);
+									if (nullptr != currentModalComponentCache.back())
+									{
+										auto text = "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i)));
+										if (child->get_object_type() == isobus::VirtualTerminalObjectType::OutputString)
+										{
+											text = std::static_pointer_cast<isobus::OutputString>(child)->displayed_value(parentWorkingSet->get_object_tree());
+										}
+
+										comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, text);
+									}
 								}
 							}
 
