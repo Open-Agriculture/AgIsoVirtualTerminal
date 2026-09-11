@@ -134,9 +134,40 @@ public:
 	static std::string getAppDataDir();
 	/**
    * @brief minimum_height
-   * @return the height of the softkey- or the datamask size, whichever is bigger
+   * @return the height reserved on screen for the mask render areas, at the current display scale
    */
 	int minimum_height() const;
+
+	/// @brief Resizes this component, and the window around it, for the current display scale
+	void apply_display_size();
+
+	/// @brief The percentages offered in the settings dialog. Index 0 is the automatic entry,
+	/// which has no percentage of its own, so it is only a placeholder.
+	static constexpr int SCREEN_SCALE_CHOICES[] = { 0, 100, 125, 150, 200, 250, 300, 400 };
+
+	/// @brief Returns which entry of the screen scale list matches the current setting
+	/// @returns The index to select in the dialog's screen scale box
+	int get_screen_scale_choice_index() const;
+
+	static constexpr double MINIMUM_AUTOMATIC_SCALE = 0.25; ///< Lower bound when fitting to the window
+	static constexpr double MAXIMUM_AUTOMATIC_SCALE = 6.0; ///< Upper bound when fitting to the window
+
+	/// @brief Returns the factor the data mask and soft key mask are magnified by on screen.
+	/// @details This is a display zoom only. The size reported to clients is unchanged, because
+	/// that is what their object pools are designed against; the same pool is simply drawn
+	/// larger, which is what makes a 480 pixel mask usable on a big screen. When the automatic
+	/// setting is on, this is instead recomputed on every layout pass to fit the window.
+	/// @returns The display scale, where 1.0 is the reported size
+	double display_scale() const;
+
+	static constexpr double MINIMUM_WORKING_SET_SELECTOR_SCALE = 0.75; ///< Floor for the picker column's own scale
+
+	/// @brief Returns the factor the working-set picker column is magnified by on screen.
+	/// @details Tracks display_scale(), but is never allowed to shrink the picker below
+	/// MINIMUM_WORKING_SET_SELECTOR_SCALE, so it stays usable on a touch screen even when the
+	/// rest of the display is scaled down further to fit a small window.
+	/// @returns The working-set picker's display scale
+	double working_set_selector_scale() const;
 
 private:
 	enum class CommandIDs : int
@@ -239,6 +270,8 @@ private:
 	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
+	int displayScalePercent = 100; ///< How much the ISO render areas are magnified on screen, when not automatic
+	bool automaticDisplayScale = false; ///< True to recompute the scale from the window size instead
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;
