@@ -87,30 +87,43 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 			if (nullptr != clickedObject)
 			{
+				const bool isKey = (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type());
+				bool isButton = false;
+
 				if (isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
 				{
-					keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
-					ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
+					// A disabled button is ignored here, the same way the release below ignores
+					// it, so that a press can never be sent without its matching release
+					isButton = (false == std::static_pointer_cast<isobus::Button>(clickedObject)->get_option(isobus::Button::Options::Disabled));
+
+					if (isButton)
+					{
+						keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+						ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
+					}
 				}
-				else if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type())
+				else if (isKey)
 				{
 					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
 					ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 				}
 
-				ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
-				                                           clickedObject->get_id(),
-				                                           activeMask->get_id(),
-				                                           keyCode,
-				                                           ownerServer.get_active_working_set()->get_control_function());
-				if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type() ||
-				    isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
+				// Only buttons and keys produce button activation messages. Input objects (number,
+				// string, list, boolean) have no key code, so sending one here made it go out with
+				// the default of 1, and the client acted on whichever of its buttons owns key code
+				// 1 -- touching an input number could therefore also trip that button.
+				if (isButton || isKey)
 				{
+					ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
+					                                           clickedObject->get_id(),
+					                                           activeMask->get_id(),
+					                                           keyCode,
+					                                           ownerServer.get_active_working_set()->get_control_function());
 					ownerServer.set_button_held(ownerServer.get_active_working_set(),
 					                            clickedObject->get_id(),
 					                            activeMask->get_id(),
 					                            keyCode,
-					                            (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()));
+					                            isKey);
 				}
 			}
 		}
