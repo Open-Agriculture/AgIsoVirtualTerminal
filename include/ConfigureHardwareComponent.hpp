@@ -25,6 +25,13 @@ public:
 	void resized() override;
 
 private:
+	/// @brief The number of PEAK USB channels offered in the hardware list
+	static constexpr int NUMBER_OF_PEAK_CHANNELS = 8;
+
+	/// @brief The combo box ID of "PEAK PCAN USB (Bus 2)". Bus 1 keeps ID 1, and the extra PEAK
+	/// channels live after the other drivers in the CAN driver list, so their IDs start here.
+	static constexpr int FIRST_ADDITIONAL_PEAK_ID = 5;
+
 	ComboBox hardwareInterfaceSelector;
 	TextEditor socketCANNameEditor;
 	TextEditor touCANSerialEditor;
