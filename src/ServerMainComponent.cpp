@@ -5,6 +5,10 @@
 *******************************************************************************/
 #include "ServerMainComponent.hpp"
 
+#if JUCE_WINDOWS
+extern "C" __declspec(dllimport) int __stdcall DestroyCaret(void);
+#endif
+
 #include "AckSettingsWindow.hpp"
 #include "AlarmMaskAudio.h"
 #include "JuceManagedWorkingSetCache.hpp"
@@ -1543,6 +1547,9 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 	}
 	mParent.exitModalState(result);
 	mParent.popupMenu.reset();
+
+	// These dialogs carry text fields, so the caret has to be dealt with explicitly
+	ServerMainComponent::release_text_input_focus();
 }
 
 ServerMainComponent::HeldButtonData::HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey) :
@@ -2203,6 +2210,18 @@ void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerm
 			break;
 		}
 	}
+}
+
+void ServerMainComponent::release_text_input_focus()
+{
+	juce::Component::unfocusAllComponents();
+
+#if JUCE_WINDOWS
+	// Declared here rather than pulling in windows.h, which does not mix well with the JUCE
+	// headers. DestroyCaret works on the calling thread's caret and harmlessly reports failure
+	// when there is none.
+	DestroyCaret();
+#endif
 }
 
 void ServerMainComponent::clear_iso_data()

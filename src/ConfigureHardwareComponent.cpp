@@ -96,6 +96,8 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 		parent.parentServer.save_settings();
 		parent.exitModalState(1);
 		parent.setVisible(false);
+		// The dialog is hidden rather than destroyed, so its text caret would otherwise outlive it
+		parent.parentServer.release_text_input_focus();
 	};
 }
 

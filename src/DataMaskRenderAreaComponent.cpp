@@ -539,6 +539,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 								inputStringModal->exitModalState();
 								inputStringModal.reset();
+
+								// Make sure no text caret survives the dialog, otherwise Windows
+								// keeps re-invoking the touch keyboard on every later tap
+								ServerMainComponent::release_text_input_focus();
 								if (parentWorkingSet)
 								{
 									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
