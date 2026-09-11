@@ -159,7 +159,8 @@ private:
 		ClearISOData,
 		ConfigureCANHardware,
 		StartStop,
-		AutoStart
+		AutoStart,
+		AlwaysOnTop
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -208,6 +209,21 @@ private:
 	/// @param[in] driver The driver to describe
 	/// @returns A human readable description of the adapter
 	std::string describe_can_adapter(const std::shared_ptr<isobus::CANHardwarePlugin> &driver) const;
+	/// @brief Restores the window position, size and maximised state which were saved the last
+	/// time the program ran.
+	/// @attention Like the always on top setting, this cannot be done during construction,
+	/// because this component is not inside its window yet at that point.
+	void apply_window_state();
+
+	/// @brief Returns the position, size and maximised state of the window containing this
+	/// component, in the form used by the settings file.
+	/// @returns The window state, or an empty string if there is no window yet
+	juce::String get_window_state() const;
+
+	/// @brief Applies the always on top setting to the window which contains this component.
+	/// @attention This cannot be done while this component is being constructed, because it is
+	/// not inside its window yet at that point.
+	void apply_always_on_top();
 
 	void repaint_data_and_soft_key_mask();
 	bool is_active_alarm_mask() const;
@@ -254,6 +270,10 @@ private:
 	bool alarmAckKeyPressed = false;
 	bool showAckButton = false;
 	bool saveIopBeforeParse = false;
+	bool alwaysOnTop = false;
+	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
+	juce::String savedWindowState; ///< The window geometry loaded from the settings file
+	bool needToApplyWindowState = true; ///< Set until the saved geometry has been given to the window
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };
