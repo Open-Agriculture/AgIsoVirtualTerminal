@@ -5,6 +5,8 @@
 *******************************************************************************/
 #include "ServerMainComponent.hpp"
 
+#include "ASCIILogFile.hpp"
+
 #include "AckSettingsWindow.hpp"
 #include "AlarmMaskAudio.h"
 #include "JuceManagedWorkingSetCache.hpp"
@@ -984,6 +986,9 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu->addTextBlock("Select if the log window should be shown or hidden. Showing the log window may affect performance.");
 			popupMenu->addComboBox("Logging Window", { "Hidden", "Enabled" });
 			popupMenu->getComboBoxComponent("Logging Window")->setSelectedItemIndex(loggerViewport.isVisible() ? 1 : 0);
+			popupMenu->addTextBlock("Log all CAN traffic to a .asc file. This costs performance on every frame, and can be slow enough to break object pool transfers, so leave it off unless you are diagnosing bus traffic.");
+			popupMenu->addComboBox("CAN Traffic Log", { "Disabled", "Enabled" });
+			popupMenu->getComboBoxComponent("CAN Traffic Log")->setSelectedItemIndex(ASCIILogFile::is_logging_enabled() ? 1 : 0);
 			popupMenu->addTextBlock("Save IOP data before parsing. This allows providing IOP data for debugging parser crashes.");
 			popupMenu->addComboBox("Save IOP data before parsing", { "No", "Yes" });
 			popupMenu->getComboBoxComponent("Save IOP data before parsing")->setSelectedItemIndex(saveIopBeforeParse ? 1 : 0);
@@ -1520,6 +1525,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 				mParent.loggerViewport.setVisible(false);
 			}
 
+			ASCIILogFile::set_logging_enabled(1 == mParent.popupMenu->getComboBoxComponent("CAN Traffic Log")->getSelectedItemIndex());
 			mParent.saveIopBeforeParse = (mParent.popupMenu->getComboBoxComponent("Save IOP data before parsing")->getSelectedItemIndex() == 1);
 			mParent.save_settings();
 		}
@@ -1902,6 +1908,10 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				loggerViewport.setVisible(false);
 			}
 
+			// Off unless the settings say otherwise, because logging every frame is expensive
+			ASCIILogFile::set_logging_enabled((!child.getProperty("LogCANTraffic").isVoid()) &&
+			                                  (0 != static_cast<int>(child.getProperty("LogCANTraffic"))));
+
 			if (!child.getProperty("SaveIopBeforeParse").isVoid())
 			{
 				saveIopBeforeParse = static_cast<int>(child.getProperty("SaveIopBeforeParse")) != 0;
@@ -2030,6 +2040,7 @@ void ServerMainComponent::save_settings()
 		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
 		loggingSettings.setProperty("Shown", static_cast<int>(logger.isVisible()), nullptr);
 		loggingSettings.setProperty("SaveIopBeforeParse", static_cast<int>(saveIopBeforeParse), nullptr);
+		loggingSettings.setProperty("LogCANTraffic", static_cast<int>(ASCIILogFile::is_logging_enabled()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlwaysOnTop", alwaysOnTop, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
