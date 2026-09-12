@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   "AgISOVirtualTerminal"
   LANGUAGES CXX C
-  VERSION 1.4.0)
+  VERSION 1.5.1)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
@@ -99,7 +99,7 @@ target_sources(
           "src/ConfigureHardwareComponent.cpp"
           "src/StringEncodingConversions.cpp"
           "src/InputListComponent.cpp"
-          "src/ShortcutsWindow.cpp"
+          "src/AckSettingsWindow.cpp"
           "src/Settings.cpp"
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
@@ -163,6 +163,15 @@ if(APPLE)
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION . COMPONENT applications)
 else()
+  if(UNIX)
+    install(FILES "${CMAKE_SOURCE_DIR}/res/AgISOVirtualTerminal.desktop"
+            DESTINATION share/applications)
+
+    install(
+      FILES "${CMAKE_SOURCE_DIR}/res/AgIsoVT.svg"
+      DESTINATION share/icons/hicolor/scalable/apps
+      RENAME AgIsoVT.svg)
+  endif()
   install(TARGETS AgISOVirtualTerminal RUNTIME DESTINATION bin
                                                COMPONENT applications)
 endif()
@@ -189,10 +198,10 @@ endif()
 set(CPACK_PACKAGE_NAME "AgISOVirtualTerminal")
 set(CPACK_PACKAGE_VENDOR "Open-Agriculture")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "An ISO11783-6 Server")
-set(CPACK_PACKAGE_VERSION "1.4.0")
+set(CPACK_PACKAGE_VERSION "1.5.1")
 set(CPACK_PACKAGE_VERSION_MAJOR "1")
-set(CPACK_PACKAGE_VERSION_MINOR "4")
-set(CPACK_PACKAGE_VERSION_PATCH "0")
+set(CPACK_PACKAGE_VERSION_MINOR "5")
+set(CPACK_PACKAGE_VERSION_PATCH "1")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "AgISOVirtualTerminal")
 set(CPACK_COMPONENTS_ALL applications)
 set(CPACK_COMPONENT_APPLICATIONS_DISPLAY_NAME "AgISOVirtualTerminal")

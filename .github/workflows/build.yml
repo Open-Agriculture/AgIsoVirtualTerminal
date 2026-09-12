@@ -18,6 +18,7 @@ jobs:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: 'Install NSIS'
         uses: repolevedavaj/install-nsis@v1.2.1
         with:
@@ -42,6 +43,7 @@ jobs:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Compile
         run: |
           mkdir build
@@ -62,6 +64,7 @@ jobs:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Compile
         run: |
           mkdir build
@@ -86,6 +89,7 @@ jobs:
           submodules: recursive
           fetch-tags: true
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Compile
         run: |
           mkdir build
@@ -99,4 +103,29 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: 'Ubuntu 24.04 deb package'
+          path: build/_CPack_Packages/Linux/DEB/*.deb
+  ubuntu_26_04_build:
+    name: Ubuntu 26.04 Build
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-tags: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Compile
+        run: |
+          mkdir build
+          sudo apt update
+          sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev git cmake
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
+          cmake --build build --config Release
+          cd build
+          cpack -G DEB
+      - name: 'Upload Ubuntu 26.04 deb package'
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'Ubuntu 26.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb

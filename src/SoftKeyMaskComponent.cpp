@@ -41,7 +41,7 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 			{
 				addAndMakeVisible(*childComponents.back());
 				childComponents.back()->setTopLeftPosition(x, y);
-				y += (dimensionInfo.PADDING + dimensionInfo.keyWidth);
+				y += (dimensionInfo.PADDING + dimensionInfo.keyHeight);
 
 				row++;
 				if (row >= dimensionInfo.rowCount)

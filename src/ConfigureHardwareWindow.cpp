@@ -19,5 +19,6 @@ ConfigureHardwareWindow::ConfigureHardwareWindow(ServerMainComponent &parentComp
 
 void ConfigureHardwareWindow::closeButtonPressed()
 {
+	exitModalState(0);
 	setVisible(false);
 }

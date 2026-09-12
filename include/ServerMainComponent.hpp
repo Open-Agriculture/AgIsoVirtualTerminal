@@ -12,6 +12,7 @@
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
 #include <filesystem>
+#include <set>
 
 class ServerMainComponent : public juce::Component
   , public juce::KeyListener
@@ -117,6 +118,8 @@ public:
 
 	void change_selected_working_set(std::uint8_t index);
 
+	void send_alarm_ack_command(isobus::VirtualTerminalBase::KeyActivationCode activationCode);
+
 	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 
@@ -150,7 +153,8 @@ private:
 		ClearISOData,
 		ConfigureCANHardware,
 		StartStop,
-		AutoStart
+		AutoStart,
+		AlwaysOnTop
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -185,11 +189,31 @@ private:
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
+
+	/// @brief Restores the window position, size and maximised state which were saved the last
+	/// time the program ran.
+	/// @attention Like the always on top setting, this cannot be done during construction,
+	/// because this component is not inside its window yet at that point.
+	void apply_window_state();
+
+	/// @brief Returns the position, size and maximised state of the window containing this
+	/// component, in the form used by the settings file.
+	/// @returns The window state, or an empty string if there is no window yet
+	juce::String get_window_state() const;
+
+	/// @brief Applies the always on top setting to the window which contains this component.
+	/// @attention This cannot be done while this component is being constructed, because it is
+	/// not inside its window yet at that point.
+	void apply_always_on_top();
+
 	void repaint_data_and_soft_key_mask();
+	bool is_active_alarm_mask() const;
+	void update_ack_button_visibility();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 
+	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
 	const std::string ISO_DATA_PATH = "iso_data";
 	std::string screenCaptureDirArgument = "";
 	std::string canLogPath;
@@ -212,16 +236,24 @@ private:
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;
+	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;
 	bool needToRepaint = false;
+	bool canAdapterConnected = false;
+	bool canInterfaceRunning = false;
 	bool autostart = false;
 	bool hasStartBeenCalled = false;
 	bool alarmAckKeyPressed = false;
+	bool showAckButton = false;
 	bool saveIopBeforeParse = false;
+	bool alwaysOnTop = false;
+	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
+	juce::String savedWindowState; ///< The window geometry loaded from the settings file
+	bool needToApplyWindowState = true; ///< Set until the saved geometry has been given to the window
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };

@@ -27,7 +27,11 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 		{
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 			childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, activeMask));
-			addAndMakeVisible(*childComponents.back());
+
+			if (nullptr != childComponents.back())
+			{
+				addAndMakeVisible(*childComponents.back());
+			}
 		}
 	}
 	repaint();
@@ -83,30 +87,43 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 			if (nullptr != clickedObject)
 			{
+				const bool isKey = (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type());
+				bool isButton = false;
+
 				if (isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
 				{
-					keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
-					ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
+					// A disabled button is ignored here, the same way the release below ignores
+					// it, so that a press can never be sent without its matching release
+					isButton = (false == std::static_pointer_cast<isobus::Button>(clickedObject)->get_option(isobus::Button::Options::Disabled));
+
+					if (isButton)
+					{
+						keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+						ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
+					}
 				}
-				else if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type())
+				else if (isKey)
 				{
 					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
 					ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 				}
 
-				ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
-				                                           clickedObject->get_id(),
-				                                           activeMask->get_id(),
-				                                           keyCode,
-				                                           ownerServer.get_active_working_set()->get_control_function());
-				if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type() ||
-				    isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
+				// Only buttons and keys produce button activation messages. Input objects (number,
+				// string, list, boolean) have no key code, so sending one here made it go out with
+				// the default of 1, and the client acted on whichever of its buttons owns key code
+				// 1 -- touching an input number could therefore also trip that button.
+				if (isButton || isKey)
 				{
+					ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
+					                                           clickedObject->get_id(),
+					                                           activeMask->get_id(),
+					                                           keyCode,
+					                                           ownerServer.get_active_working_set()->get_control_function());
 					ownerServer.set_button_held(ownerServer.get_active_working_set(),
 					                            clickedObject->get_id(),
 					                            activeMask->get_id(),
 					                            keyCode,
-					                            (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()));
+					                            isKey);
 				}
 			}
 		}
@@ -215,13 +232,17 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								if (nullptr != child)
 								{
 									currentModalComponentCache.push_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
-									auto text = "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i)));
-									if (child && child->get_object_type() == isobus::VirtualTerminalObjectType::OutputString)
-									{
-										text = std::static_pointer_cast<isobus::OutputString>(child)->displayed_value(parentWorkingSet->get_object_tree());
-									}
 
-									comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, text);
+									if (nullptr != currentModalComponentCache.back())
+									{
+										auto text = "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i)));
+										if (child->get_object_type() == isobus::VirtualTerminalObjectType::OutputString)
+										{
+											text = std::static_pointer_cast<isobus::OutputString>(child)->displayed_value(parentWorkingSet->get_object_tree());
+										}
+
+										comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, text);
+									}
 								}
 							}
 

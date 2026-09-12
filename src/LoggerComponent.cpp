@@ -17,9 +17,8 @@ LoggerComponent::LoggerComponent() :
              "Starting " + AgISOVirtualTerminalApplication::getApplicationNameWithBuildInfo(),
              1024000)
 {
-	auto bounds = getLocalBounds();
-	setBounds(10, 10, bounds.getWidth() - 10, bounds.getHeight() - 10);
-
+	// Note: no bounds are set here on purpose. This component is hosted by a Viewport, which
+	// owns its position, and the owner sizes it once the log area is laid out.
 	startPos = getLogFile().getSize();
 }
 

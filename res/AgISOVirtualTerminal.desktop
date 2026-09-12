@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=AgISOVirtualTerminal
+Comment=ISO11783-6 Virtual Terminal (VT) server GUI based on AgIsoStack++
+Exec=AgISOVirtualTerminal
+Icon=AgIsoVT
+Terminal=false
+Categories=Development
