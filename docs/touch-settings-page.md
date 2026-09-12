@@ -114,6 +114,9 @@ capability regression — the protocol permits pairs no curated list will cover.
 of common locales, plus a **Custom…** entry at the bottom that reveals the two raw code fields.
 Custom uses the `xx` placeholder flag.
 
+This means the curated list does not have to be exhaustive and is not worth agonising over: a
+locale we miss is either raised as a ticket and added, or entered through Custom in the meantime.
+
 Note the protocol does *not* define a subset of valid countries. AgIsoStack documents the field as
 "alpha-2 country codes in accordance with ISO 3166-1", so any country code is legal — the curation
 is ours. Reasonable starting set, taken from the languages a real commercial implement pool ships:
