@@ -6,6 +6,29 @@
 #include "ObjectPointerComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 
+namespace
+{
+	/// @brief A Key object carries no width/height in the pool at all - ISO 11783-6 leaves soft key
+	/// sizing entirely up to the terminal, and JuceManagedWorkingSetCache::create_component() already
+	/// builds KeyComponent at the terminal's configured size rather than the object's (always zero)
+	/// reported size. An ObjectPointer chain that terminates at a Key must size itself the same way,
+	/// or it clips away the KeyComponent it wraps regardless of that component's own correct size.
+	void get_resolved_size(const isobus::VTObject &object, int &w, int &h)
+	{
+		if (isobus::VirtualTerminalObjectType::Key == object.get_object_type())
+		{
+			const auto &dimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
+			w = dimensions.keyWidth;
+			h = dimensions.keyHeight;
+		}
+		else
+		{
+			w = object.get_width();
+			h = object.get_height();
+		}
+	}
+}
+
 ObjectPointerComponent::ObjectPointerComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::ObjectPointer sourceObject) :
   isobus::ObjectPointer(sourceObject),
   parentWorkingSet(workingSet)
@@ -33,8 +56,7 @@ void ObjectPointerComponent::on_content_changed(bool initial)
 			}
 			else
 			{
-				w = child->get_width();
-				h = child->get_height();
+				get_resolved_size(*child, w, h);
 			}
 
 			setSize(w, h);
@@ -66,8 +88,7 @@ void ObjectPointerComponent::getChildSizeRecursive(int &w, int &h) const
 		}
 		else
 		{
-			w = child->get_width();
-			h = child->get_height();
+			get_resolved_size(*child, w, h);
 		}
 	}
 }
