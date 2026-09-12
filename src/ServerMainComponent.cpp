@@ -27,6 +27,7 @@
 #include <iomanip>
 #include <iterator>
 #include <sstream>
+#include <thread>
 
 ServerMainComponent::ServerMainComponent(
   std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
@@ -35,7 +36,7 @@ ServerMainComponent::ServerMainComponent(
   const std::string &canLogPath_,
   std::uint8_t vtNumberArg,
   std::string screenCaptureDir) :
-  VirtualTerminalServer(serverControlFunction), screenCaptureDirArgument(screenCaptureDir), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers), canLogPath(canLogPath_)
+  VirtualTerminalServer(serverControlFunction), screenCaptureDirArgument(screenCaptureDir), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), settingsPage(*this), parentCANDrivers(canDrivers), canLogPath(canLogPath_)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
@@ -80,6 +81,8 @@ ServerMainComponent::ServerMainComponent(
 	addAndMakeVisible(softKeyMaskRenderer);
 	addChildComponent(loggerViewport);
 	addChildComponent(vtNumberComponent);
+	addChildComponent(settingsPage);
+	workingSetSelector.set_on_settings_clicked([this]() { open_settings_page(); });
 	vtNumber = vtNumberArg;
 	menuBar.setModel(this);
 	addAndMakeVisible(menuBar);
@@ -537,6 +540,8 @@ std::uint8_t ServerMainComponent::get_user_layout_softkeymask_bg_color() const
 
 void ServerMainComponent::timerCallback()
 {
+	logger.pump_pending_messages();
+
 	if ((isobus::SystemTiming::time_expired_ms(statusMessageTimestamp_ms, 1000)) &&
 	    (send_status_message()))
 	{
@@ -552,6 +557,7 @@ void ServerMainComponent::timerCallback()
 		canAdapterConnected = isAdapterConnected;
 		canInterfaceRunning = isInterfaceRunning;
 		repaint(getWidth() - CAN_STATUS_INDICATOR_WIDTH, 0, CAN_STATUS_INDICATOR_WIDTH, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
+		workingSetSelector.set_can_status(canInterfaceRunning, canAdapterConnected);
 	}
 
 	bool hasIopLoadInProgress = false;
@@ -565,10 +571,20 @@ void ServerMainComponent::timerCallback()
 			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
 
 			auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
-			if ((isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress) &&
-			    (nullptr != workingSetObject) &&
-			    (workingSetObject->get_selectable()))
+			if ((nullptr != workingSetObject) &&
+			    (workingSetObject->get_selectable()) &&
+			    ((isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress) ||
+			     (activeWorkingSetMasterAddress == ws->get_control_function()->get_address())))
 			{
+				// The second condition above catches a client reconnecting (e.g. after a power
+				// cycle) at the address that was already recorded as the active master. Nothing
+				// resets activeWorkingSetMasterAddress to NULL_CAN_ADDRESS when a working set goes
+				// silent without a clean disconnect, so without this, a reconnecting client gets a
+				// brand new VirtualTerminalServerManagedWorkingSet object that never has
+				// change_selected_working_set() (and therefore never has the repaint listener
+				// re-registered via save_callback_handle) called on it again - the screen then
+				// silently stops repainting for that client's mask entirely, frozen at whatever was
+				// last drawn, until the working set is manually reselected.
 				ws->set_working_set_maintenance_message_timestamp_ms(isobus::SystemTiming::get_timestamp_ms());
 				change_selected_working_set(wsIndex);
 			}
@@ -628,18 +644,26 @@ void ServerMainComponent::timerCallback()
 				{
 					if (nextWorkingSet->get_control_function()->get_address() != activeWorkingSetMasterAddress)
 					{
-						activeWorkingSetMasterAddress = nextWorkingSet->get_control_function()->get_address();
 						auto nextWorkingSetObject = nextWorkingSet->get_working_set_object();
-						if (nextWorkingSetObject)
+						auto nextWorkingSetObjectTyped = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSetObject);
+
+						// A working set that declared itself non-selectable (e.g. an AUX-N-only
+						// input device with just a placeholder bench-test mask) must never be
+						// promoted to the active/displayed master - it was never a candidate to
+						// begin with. Without this check, disconnecting the real selectable
+						// master left it as the sole fallback here, silently making it "master"
+						// with no repaint listener ever wired up for it via
+						// change_selected_working_set() (nothing here calls that), so the real
+						// master's own reconnect later could never reclaim the role either -
+						// the screen just froze on whatever was last drawn.
+						if ((nullptr == nextWorkingSetObject) || !nextWorkingSetObjectTyped->get_selectable())
 						{
-							activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSetObject)->get_active_mask();
-							newWorkingSetFound = true;
+							continue;
 						}
-						else
-						{
-							activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
-							newWorkingSetFound = false;
-						}
+
+						activeWorkingSetMasterAddress = nextWorkingSet->get_control_function()->get_address();
+						activeWorkingSetDataMaskObjectID = nextWorkingSetObjectTyped->get_active_mask();
+						newWorkingSetFound = true;
 						break;
 					}
 				}
@@ -716,12 +740,25 @@ void ServerMainComponent::timerCallback()
 	{
 		apply_always_on_top();
 	}
+
+	if (needToSetupTouchResizeCorner)
+	{
+		setup_touch_resize_corner();
+	}
 }
 
 void ServerMainComponent::paint(juce::Graphics &g)
 {
 	// (Our component is opaque, so we must completely fill the background with a solid colour)
 	g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+
+	if (menuBarHidden)
+	{
+		// This indicator lives in the menu bar's row - the settings cogwheel carries the same
+		// information (see WorkingSetSelectorComponent::set_can_status()) once the menu bar is
+		// hidden.
+		return;
+	}
 
 	auto statusArea = juce::Rectangle<int>(getWidth() - CAN_STATUS_INDICATOR_WIDTH, 0, CAN_STATUS_INDICATOR_WIDTH, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
 	{
@@ -750,8 +787,12 @@ void ServerMainComponent::resized()
 	// This is called when the MainContentComponent is resized.
 	// If you add any child components, this is where you should
 	// update their positions.
-	auto lMenuBarHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight();
+	auto lMenuBarHeight = menuBarHidden ? 0 : juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight();
 	auto lBounds = getLocalBounds();
+
+	// Kept in sync with the window size regardless of whether it is currently shown, so its
+	// layout is already correct the next time open_settings_page() makes it visible.
+	settingsPage.setBounds(getLocalBounds());
 
 	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, minimum_height());
 	dataMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH, lMenuBarHeight, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
@@ -776,6 +817,15 @@ void ServerMainComponent::resized()
 	if (logger.getHeight() < loggerViewport.getMaximumVisibleHeight())
 	{
 		logger.setSize(loggerViewport.getMaximumVisibleWidth(), loggerViewport.getMaximumVisibleHeight());
+	}
+
+	if (nullptr != touchResizeCorner)
+	{
+		// Parented to workingSetSelector, so these bounds are relative to its column, not the
+		// window - bottom-left of that column, slightly overlapping the settings cogwheel's own
+		// bottom-left corner rather than the rendered data mask/soft key mask.
+		constexpr int TOUCH_RESIZE_CORNER_SIZE = 32;
+		touchResizeCorner->setBounds(0, workingSetSelector.getHeight() - TOUCH_RESIZE_CORNER_SIZE, TOUCH_RESIZE_CORNER_SIZE, TOUCH_RESIZE_CORNER_SIZE);
 	}
 }
 
@@ -1014,103 +1064,122 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 		case static_cast<int>(CommandIDs::GenerateLogPackage):
 		{
-			auto diagnosticFileBuilder = std::make_unique<ZipFile::Builder>();
-			bool anyFilesAdded = false;
+			// Building the zip can take a while once the CAN log has grown large - real hardware
+			// sessions can produce traffic logs in the hundreds of MB - so this runs off the
+			// message thread instead of freezing the UI for however long that takes.
+			const auto appDataDir = getAppDataDir();
+			std::thread([appDataDir]() {
+				auto diagnosticFileBuilder = std::make_unique<ZipFile::Builder>();
+				bool anyFilesAdded = false;
 
-			auto userDataFolder = File(getAppDataDir() + File::getSeparatorString());
-			auto userDataFiles = userDataFolder.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*");
-			for (auto &file : userDataFiles)
-			{
-				auto fileExtension = file.getFileExtension();
-				if (fileExtension != ".zip")
+				auto userDataFolder = File(appDataDir + File::getSeparatorString());
+				auto userDataFiles = userDataFolder.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*");
+				for (auto &file : userDataFiles)
 				{
-					diagnosticFileBuilder->addFile(file, 9);
-					anyFilesAdded = true;
+					auto fileExtension = file.getFileExtension();
+					if (fileExtension != ".zip")
+					{
+						diagnosticFileBuilder->addFile(file, 1);
+						anyFilesAdded = true;
+					}
 				}
-			}
 
-			auto isoDataDirectory = userDataFolder.getChildFile("iso_data").findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
+				auto isoDataDirectory = userDataFolder.getChildFile("iso_data").findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
 
-			for (auto &iop_directory : isoDataDirectory)
-			{
-				auto iopFiles = iop_directory.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iop");
-				for (auto &iopFile : iopFiles)
+				for (auto &iop_directory : isoDataDirectory)
 				{
-					diagnosticFileBuilder->addFile(iopFile, 9, "iso_data/" + iop_directory.getFileName() + "/" + iopFile.getFileName());
-					anyFilesAdded = true;
+					auto iopFiles = iop_directory.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iop");
+					for (auto &iopFile : iopFiles)
+					{
+						diagnosticFileBuilder->addFile(iopFile, 1, "iso_data/" + iop_directory.getFileName() + "/" + iopFile.getFileName());
+						anyFilesAdded = true;
+					}
 				}
-			}
 
-			if (anyFilesAdded)
-			{
-				auto currentTime = Time::getCurrentTime().toString(true, true, true, false);
-				currentTime = currentTime.replaceCharacter(' ', '_');
-				currentTime = currentTime.replaceCharacter(':', '_');
-				const String fileName = getAppDataDir() +
-				  File::getSeparatorString() +
-				  "AgISOVirtualTerminalLogs_" +
-				  currentTime +
-				  ".zip";
-				auto output = File(fileName).createOutputStream();
-				diagnosticFileBuilder->writeToStream(*output.get(), nullptr);
-				File(fileName).revealToUser();
-			}
-			else
-			{
-				AlertWindow::showAsync(MessageBoxOptions()
-				                         .withIconType(MessageBoxIconType::WarningIcon)
-				                         .withTitle("Export Failed")
-				                         .withButton("OK"),
-				                       nullptr);
-			}
+				if (anyFilesAdded)
+				{
+					auto currentTime = Time::getCurrentTime().toString(true, true, true, false);
+					currentTime = currentTime.replaceCharacter(' ', '_');
+					currentTime = currentTime.replaceCharacter(':', '_');
+					const String fileName = appDataDir +
+					  File::getSeparatorString() +
+					  "AgISOVirtualTerminalLogs_" +
+					  currentTime +
+					  ".zip";
+					auto output = File(fileName).createOutputStream();
+					diagnosticFileBuilder->writeToStream(*output.get(), nullptr);
+					output.reset();
+					MessageManager::callAsync([fileName]() { File(fileName).revealToUser(); });
+				}
+				else
+				{
+					MessageManager::callAsync([]() {
+						AlertWindow::showAsync(MessageBoxOptions()
+						                         .withIconType(MessageBoxIconType::WarningIcon)
+						                         .withTitle("Export Failed")
+						                         .withButton("OK"),
+						                       nullptr);
+					});
+				}
+			}).detach();
 			retVal = true;
 		}
 		break;
 
 		case static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession):
 		{
-			auto diagnosticFileBuilder = std::make_unique<ZipFile::Builder>();
+			// See the comment on GenerateLogPackage - same reasoning for running off the message
+			// thread. Everything perform() reads from `this` is copied out first, since the
+			// background thread must not touch UI components or members that could change under it.
+			const auto capturedCanLogPath = canLogPath;
+			const auto capturedLogFile = logger.getLogFile();
+			const auto capturedInitialPos = logger.initialPos();
+			const auto capturedLoadedNames = loadedNames;
+			const auto userDataDir = File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture";
 
-			// for the current session add the current CAN log file only
-			auto canLogFileName = File(canLogPath);
-			diagnosticFileBuilder->addFile(canLogFileName, 9, canLogFileName.getFileName());
+			std::thread([capturedCanLogPath, capturedLogFile, capturedInitialPos, capturedLoadedNames, userDataDir]() {
+				auto diagnosticFileBuilder = std::make_unique<ZipFile::Builder>();
 
-			// Cut the output logging where we started
-			FileInputStream *fis = new FileInputStream(logger.getLogFile());
-			if (fis->openedOk())
-			{
-				fis->setPosition(logger.initialPos());
-				diagnosticFileBuilder->addEntry(fis, 9, "AgISOVirtualTerminalLog.txt", Time::getCurrentTime());
-			}
+				// for the current session add the current CAN log file only
+				auto canLogFileName = File(capturedCanLogPath);
+				diagnosticFileBuilder->addFile(canLogFileName, 1, canLogFileName.getFileName());
 
-			auto userDataFolder = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString());
-
-			auto iopDirs = userDataFolder.getChildFile("iso_data").findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
-			for (auto &iopDir : iopDirs)
-			{
-				if (loadedNames.find(iopDir.getFileName().toStdString()) != loadedNames.end())
+				// Cut the output logging where we started
+				FileInputStream *fis = new FileInputStream(capturedLogFile);
+				if (fis->openedOk())
 				{
-					auto childFiles = iopDir.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iop");
-					for (auto &file : childFiles)
+					fis->setPosition(capturedInitialPos);
+					diagnosticFileBuilder->addEntry(fis, 1, "AgISOVirtualTerminalLog.txt", Time::getCurrentTime());
+				}
+
+				auto userDataFolder = File(userDataDir + File::getSeparatorString());
+
+				auto iopDirs = userDataFolder.getChildFile("iso_data").findChildFiles(File::TypesOfFileToFind::findDirectories, false, "*");
+				for (auto &iopDir : iopDirs)
+				{
+					if (capturedLoadedNames.find(iopDir.getFileName().toStdString()) != capturedLoadedNames.end())
 					{
-						diagnosticFileBuilder->addFile(file, 9, "iso_data/" + iopDir.getFileName().toStdString() + "/" + file.getFileName().toStdString());
+						auto childFiles = iopDir.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iop");
+						for (auto &file : childFiles)
+						{
+							diagnosticFileBuilder->addFile(file, 1, "iso_data/" + iopDir.getFileName().toStdString() + "/" + file.getFileName().toStdString());
+						}
 					}
 				}
-			}
 
-			auto currentTime = Time::getCurrentTime().toString(true, true, true, false);
-			currentTime = currentTime.replaceCharacter(' ', '_');
-			currentTime = currentTime.replaceCharacter(':', '_');
-			const String fileName = File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() +
-			  File::getSeparatorString() +
-			  "Open-Agriculture" +
-			  File::getSeparatorString() +
-			  "AgISOVirtualTerminalLogs_" +
-			  currentTime +
-			  ".zip";
-			auto output = File(fileName).createOutputStream();
-			diagnosticFileBuilder->writeToStream(*output.get(), nullptr);
-			File(fileName).revealToUser();
+				auto currentTime = Time::getCurrentTime().toString(true, true, true, false);
+				currentTime = currentTime.replaceCharacter(' ', '_');
+				currentTime = currentTime.replaceCharacter(':', '_');
+				const String fileName = userDataDir +
+				  File::getSeparatorString() +
+				  "AgISOVirtualTerminalLogs_" +
+				  currentTime +
+				  ".zip";
+				auto output = File(fileName).createOutputStream();
+				diagnosticFileBuilder->writeToStream(*output.get(), nullptr);
+				output.reset();
+				MessageManager::callAsync([fileName]() { File(fileName).revealToUser(); });
+			}).detach();
 			retVal = true;
 		}
 		break;
@@ -1192,19 +1261,14 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 		case static_cast<int>(CommandIDs::AutoStart):
 		{
-			autostart = !autostart;
-			mCommandManager.commandStatusChanged();
-			save_settings();
+			toggle_autostart();
 			retVal = true;
 		}
 		break;
 
 		case static_cast<int>(CommandIDs::AlwaysOnTop):
 		{
-			alwaysOnTop = !alwaysOnTop;
-			apply_always_on_top();
-			mCommandManager.commandStatusChanged();
-			save_settings();
+			toggle_always_on_top();
 			retVal = true;
 		}
 		break;
@@ -1337,6 +1401,61 @@ void ServerMainComponent::apply_always_on_top()
 		topLevelComponent->setAlwaysOnTop(alwaysOnTop);
 		needToApplyAlwaysOnTop = false;
 	}
+}
+
+void ServerMainComponent::setup_touch_resize_corner()
+{
+	auto *topLevelComponent = getTopLevelComponent();
+
+	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
+	{
+		needToSetupTouchResizeCorner = false;
+
+		touchResizeConstrainer.setSizeLimits(400, 300, 100000, 100000);
+		touchResizeCorner = std::make_unique<BottomLeftResizeCorner>(*topLevelComponent, touchResizeConstrainer);
+
+		// A child of workingSetSelector (not this component) and positioned in its local space, so
+		// it sits in that column rather than over the data mask/soft key mask - see resized().
+		workingSetSelector.addAndMakeVisible(*touchResizeCorner);
+		resized();
+	}
+}
+
+ServerMainComponent::BottomLeftResizeCorner::BottomLeftResizeCorner(juce::Component &componentToResize, juce::ComponentBoundsConstrainer &boundsConstrainer) :
+  component(componentToResize),
+  constrainer(boundsConstrainer)
+{
+	setMouseCursor(juce::MouseCursor::BottomLeftCornerResizeCursor);
+	setRepaintsOnMouseActivity(true);
+}
+
+void ServerMainComponent::BottomLeftResizeCorner::paint(juce::Graphics &g)
+{
+	// The look and feel only knows how to draw a bottom-right oriented resize glyph, so mirror it
+	// horizontally to point the other way
+	juce::Graphics::ScopedSaveState savedState(g);
+	g.addTransform(juce::AffineTransform::scale(-1.0f, 1.0f).translated(static_cast<float>(getWidth()), 0.0f));
+	getLookAndFeel().drawCornerResizer(g, getWidth(), getHeight(), isMouseOverOrDragging(), isMouseButtonDown());
+}
+
+void ServerMainComponent::BottomLeftResizeCorner::mouseDown(const juce::MouseEvent &)
+{
+	originalBounds = component.getBounds();
+	constrainer.resizeStart();
+}
+
+void ServerMainComponent::BottomLeftResizeCorner::mouseDrag(const juce::MouseEvent &event)
+{
+	auto newBounds = originalBounds.withX(originalBounds.getX() + event.getDistanceFromDragStartX())
+	                   .withWidth(originalBounds.getWidth() - event.getDistanceFromDragStartX())
+	                   .withHeight(originalBounds.getHeight() + event.getDistanceFromDragStartY());
+
+	constrainer.setBoundsForComponent(&component, newBounds, false, true, true, false);
+}
+
+void ServerMainComponent::BottomLeftResizeCorner::mouseUp(const juce::MouseEvent &)
+{
+	constrainer.resizeEnd();
 }
 
 void ServerMainComponent::change_selected_working_set(std::uint8_t index)
@@ -1674,72 +1793,80 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 {
 	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
 	{
-		const MessageManagerLock mmLock;
+		// ChangeActiveMaskCommand is processed on whatever thread is pumping CAN messages
+		// (not necessarily the UI thread). A synchronous MessageManagerLock here carries the
+		// same deadlock risk fixed in LoggerComponent::sink_CAN_stack_log(): if the calling
+		// thread holds an isobus-internal mutex the UI thread's own periodic work also needs,
+		// the two threads wait on each other forever. Mask changes are infrequent (unlike the
+		// per-object log/repaint traffic that made a callAsync-per-call too chatty in the
+		// logger), so deferring the whole handler to the UI thread asynchronously is both
+		// correct and cheap here.
+		juce::MessageManager::callAsync([this, affectedWorkingSet, newMask]() {
+			dataMaskRenderer.on_change_active_mask(activeWorkingSet);
+			softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
 
-		dataMaskRenderer.on_change_active_mask(activeWorkingSet);
-		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
+			auto activeMask = affectedWorkingSet->get_object_by_id(newMask);
 
-		auto activeMask = affectedWorkingSet->get_object_by_id(newMask);
-
-		if (activeWorkingSetDataMaskObjectID != newMask)
-		{
-			activeWorkingSetDataMaskObjectID = newMask;
-
-			if (send_status_message())
+			if (activeWorkingSetDataMaskObjectID != newMask)
 			{
-				statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
-			}
-			else
-			{
-				statusMessageTimestamp_ms = 0;
-			}
-		}
+				activeWorkingSetDataMaskObjectID = newMask;
 
-		update_ack_button_visibility();
-
-		if (nullptr != activeMask)
-		{
-			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
-			{
-				auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(activeMask);
-				activeWorkingSetSoftkeyMaskObjectID = alarmMask->get_soft_key_mask();
-
-				switch (alarmMask->get_signal_priority())
+				if (send_status_message())
 				{
-					case isobus::AlarmMask::AcousticSignal::Highest:
-					{
-						mSoundPlayer.play(AlarmMaskAudio::alarmMaskHigh_mp3, AlarmMaskAudio::alarmMaskHigh_mp3Size);
-					}
-					break;
-
-					case isobus::AlarmMask::AcousticSignal::Medium:
-					{
-						mSoundPlayer.play(AlarmMaskAudio::alarmMaskMedium_mp3, AlarmMaskAudio::alarmMaskMedium_mp3Size);
-					}
-					break;
-
-					case isobus::AlarmMask::AcousticSignal::Lowest:
-					{
-						mSoundPlayer.play(AlarmMaskAudio::alarmMaskLow_mp3, AlarmMaskAudio::alarmMaskLow_mp3Size);
-					}
-					break;
-
-					case isobus::AlarmMask::AcousticSignal::None:
-					default:
-						break;
+					statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
 				}
-				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
-				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+				else
+				{
+					statusMessageTimestamp_ms = 0;
+				}
 			}
-			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
+
+			update_ack_button_visibility();
+
+			if (nullptr != activeMask)
 			{
-				auto dataMask = std::static_pointer_cast<isobus::DataMask>(activeMask);
-				activeWorkingSetSoftkeyMaskObjectID = dataMask->get_soft_key_mask();
-				// Also process macros for the actual datamask (container) show event
-				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
-				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+				if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
+				{
+					auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(activeMask);
+					activeWorkingSetSoftkeyMaskObjectID = alarmMask->get_soft_key_mask();
+
+					switch (alarmMask->get_signal_priority())
+					{
+						case isobus::AlarmMask::AcousticSignal::Highest:
+						{
+							mSoundPlayer.play(AlarmMaskAudio::alarmMaskHigh_mp3, AlarmMaskAudio::alarmMaskHigh_mp3Size);
+						}
+						break;
+
+						case isobus::AlarmMask::AcousticSignal::Medium:
+						{
+							mSoundPlayer.play(AlarmMaskAudio::alarmMaskMedium_mp3, AlarmMaskAudio::alarmMaskMedium_mp3Size);
+						}
+						break;
+
+						case isobus::AlarmMask::AcousticSignal::Lowest:
+						{
+							mSoundPlayer.play(AlarmMaskAudio::alarmMaskLow_mp3, AlarmMaskAudio::alarmMaskLow_mp3Size);
+						}
+						break;
+
+						case isobus::AlarmMask::AcousticSignal::None:
+						default:
+							break;
+					}
+					process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+					process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+				}
+				else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
+				{
+					auto dataMask = std::static_pointer_cast<isobus::DataMask>(activeMask);
+					activeWorkingSetSoftkeyMaskObjectID = dataMask->get_soft_key_mask();
+					// Also process macros for the actual datamask (container) show event
+					process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+					process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+				}
 			}
-		}
+		});
 	}
 }
 
@@ -2205,6 +2332,203 @@ int ServerMainComponent::minimum_height() const
 	if (dataMaskRenderer.getHeight() > softKeyMaskDimensions.total_height())
 		return dataMaskRenderer.getHeight();
 	return softKeyMaskDimensions.total_height();
+}
+
+juce::ApplicationCommandManager &ServerMainComponent::get_command_manager()
+{
+	return mCommandManager;
+}
+
+void ServerMainComponent::open_settings_page()
+{
+	settingsPage.refresh_from_current_settings();
+	settingsPage.setVisible(true);
+	settingsPage.toFront(true);
+}
+
+void ServerMainComponent::close_settings_page()
+{
+	settingsPage.setVisible(false);
+}
+
+bool ServerMainComponent::get_autostart() const
+{
+	return autostart;
+}
+
+void ServerMainComponent::toggle_autostart()
+{
+	autostart = !autostart;
+	mCommandManager.commandStatusChanged();
+	save_settings();
+}
+
+bool ServerMainComponent::get_always_on_top() const
+{
+	return alwaysOnTop;
+}
+
+void ServerMainComponent::toggle_always_on_top()
+{
+	alwaysOnTop = !alwaysOnTop;
+	apply_always_on_top();
+	mCommandManager.commandStatusChanged();
+	save_settings();
+}
+
+bool ServerMainComponent::get_menu_bar_hidden() const
+{
+	return menuBarHidden;
+}
+
+void ServerMainComponent::toggle_menu_bar_hidden()
+{
+	menuBarHidden = !menuBarHidden;
+	menuBar.setVisible(!menuBarHidden);
+	resized();
+	repaint();
+}
+
+void ServerMainComponent::generate_diagnostic_package()
+{
+	mCommandManager.invokeDirectly(static_cast<int>(CommandIDs::GenerateLogPackage), false);
+}
+
+void ServerMainComponent::generate_diagnostic_package_from_current_session()
+{
+	mCommandManager.invokeDirectly(static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession), false);
+}
+
+void ServerMainComponent::request_clear_iso_data()
+{
+	mCommandManager.invokeDirectly(static_cast<int>(CommandIDs::ClearISOData), false);
+}
+
+int ServerMainComponent::get_reported_version_index() const
+{
+	return static_cast<int>(versionToReport);
+}
+
+void ServerMainComponent::set_reported_version_index(int index)
+{
+	versionToReport = get_version_from_setting(static_cast<std::uint8_t>(index + 2));
+	save_settings();
+}
+
+int ServerMainComponent::get_vt_number() const
+{
+	return vtNumber;
+}
+
+void ServerMainComponent::set_vt_number(int number)
+{
+	vtNumber = static_cast<std::uint8_t>(juce::jlimit(1, 32, number));
+	save_settings();
+}
+
+void ServerMainComponent::open_can_hardware_configuration()
+{
+	mCommandManager.invokeDirectly(static_cast<int>(CommandIDs::ConfigureCANHardware), false);
+}
+
+bool ServerMainComponent::get_can_hardware_configurable() const
+{
+	return !hasStartBeenCalled;
+}
+
+bool ServerMainComponent::get_can_interface_started() const
+{
+	return hasStartBeenCalled;
+}
+
+void ServerMainComponent::toggle_can_interface()
+{
+	mCommandManager.invokeDirectly(static_cast<int>(CommandIDs::StartStop), false);
+}
+
+int ServerMainComponent::get_log_level_index() const
+{
+	return static_cast<int>(isobus::CANStackLogger::get_log_level());
+}
+
+void ServerMainComponent::set_log_level_index(int index)
+{
+	isobus::CANStackLogger::set_log_level(static_cast<isobus::CANStackLogger::LoggingLevel>(index));
+	save_settings();
+}
+
+bool ServerMainComponent::get_log_window_visible() const
+{
+	return loggerViewport.isVisible();
+}
+
+void ServerMainComponent::toggle_log_window_visible()
+{
+	const bool newVisible = !loggerViewport.isVisible();
+	logger.setVisible(newVisible);
+	loggerViewport.setVisible(newVisible);
+	save_settings();
+}
+
+bool ServerMainComponent::get_save_iop_before_parse() const
+{
+	return saveIopBeforeParse;
+}
+
+void ServerMainComponent::toggle_save_iop_before_parse()
+{
+	saveIopBeforeParse = !saveIopBeforeParse;
+	save_settings();
+}
+
+bool ServerMainComponent::get_show_ack_button() const
+{
+	return showAckButton;
+}
+
+void ServerMainComponent::toggle_show_ack_button()
+{
+	showAckButton = !showAckButton;
+	update_ack_button_visibility();
+	save_settings();
+}
+
+int ServerMainComponent::get_alarm_ack_key_code() const
+{
+	return alarmAckKeyCode;
+}
+
+void ServerMainComponent::set_alarm_ack_key_code(int keyCode)
+{
+	alarmAckKeyCode = keyCode;
+	save_settings();
+}
+
+isobus::LanguageCommandInterface &ServerMainComponent::get_language_command_interface()
+{
+	return languageCommandInterface;
+}
+
+void ServerMainComponent::set_hardware_capabilities(int dataMaskSize, int softKeyDesignatorWidth, int softKeyDesignatorHeight, int softKeyColumns, int softKeyRows)
+{
+	dataMaskRenderer.setSize(dataMaskSize, dataMaskSize);
+	softKeyMaskRenderer.setTopLeftPosition(WorkingSetSelectorComponent::WIDTH + dataMaskSize, 4 + juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
+
+	softKeyMaskDimensions.columnCount = juce::jmax(1, softKeyColumns);
+	softKeyMaskDimensions.rowCount = juce::jmax(1, softKeyRows);
+	if (get_number_of_physical_soft_keys() != softKeyMaskDimensions.key_count())
+	{
+		softKeyMaskDimensions.rowCount = (get_number_of_physical_soft_keys() / softKeyMaskDimensions.columnCount);
+	}
+
+	softKeyMaskDimensions.keyWidth = softKeyDesignatorWidth;
+	softKeyMaskDimensions.keyHeight = softKeyDesignatorHeight;
+	JuceManagedWorkingSetCache::set_softkey_mask_dimension_info(softKeyMaskDimensions);
+
+	softKeyMaskRenderer.setSize(softKeyMaskDimensions.total_width(), dataMaskSize);
+
+	save_settings();
+	repaint_data_and_soft_key_mask();
 }
 
 void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
