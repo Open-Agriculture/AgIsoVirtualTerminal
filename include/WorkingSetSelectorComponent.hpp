@@ -61,12 +61,10 @@ private:
 	AckButton ackButton;
 	bool ackButtonPressed = false;
 
-	/**
-	 * @brief getWorkingSetChildComponent a function to return the UI component for the given Working set selector button
-   * @param workingSet the working set from the object pool
-   * @param workingSetIndex the position of the working set UI element in the working set selector
-   * @return A Juce component representing the workingSet, null if the working set does not exists or not selectable
-   */
+	/// @brief Returns the UI component for the given working set selector button
+	/// @param workingSet the working set from the object pool
+	/// @param workingSetIndex the position of the working set UI element in the working set selector
+	/// @return A Juce component representing the workingSet
 	std::shared_ptr<Component> getWorkingSetChildComponent(
 	  std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet,
 	  int workingSetIndex);

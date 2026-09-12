@@ -116,7 +116,7 @@ public:
 
 	std::shared_ptr<isobus::ControlFunction> get_client_control_function_for_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) const;
 
-	void change_selected_working_set(std::uint8_t index);
+	void change_selected_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
 	void send_alarm_ack_command(isobus::VirtualTerminalBase::KeyActivationCode activationCode);
 
