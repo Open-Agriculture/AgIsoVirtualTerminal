@@ -5,6 +5,8 @@
 *******************************************************************************/
 #include "ServerMainComponent.hpp"
 
+#include "ASCIILogFile.hpp"
+
 #include "AckSettingsWindow.hpp"
 #include "AlarmMaskAudio.h"
 #include "JuceManagedWorkingSetCache.hpp"
@@ -89,7 +91,6 @@ ServerMainComponent::ServerMainComponent(
 
 	workingSetSelector.setTopLeftPosition(0, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
 
-	logger.setTopLeftPosition(0, get_data_mask_area_size_y_pixels());
 	logger.setSize(getWidth(), LoggerComponent::HEIGHT);
 	loggerViewport.setViewedComponent(&logger, false);
 
@@ -704,6 +705,17 @@ void ServerMainComponent::timerCallback()
 	{
 		workingSetSelector.update_iop_load_indicators();
 	}
+
+	// By the time the timer first runs, this component is inside its window
+	if (needToApplyWindowState)
+	{
+		apply_window_state();
+	}
+
+	if (needToApplyAlwaysOnTop)
+	{
+		apply_always_on_top();
+	}
 }
 
 void ServerMainComponent::paint(juce::Graphics &g)
@@ -751,13 +763,19 @@ void ServerMainComponent::resized()
 	                              lMenuBarHeight,
 	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
 	                              get_data_mask_area_size_y_pixels());
-	loggerViewport.setTopLeftPosition(0, minimum_height());
+	// The logging area occupies everything below the mask render areas. The viewport needs an
+	// explicit size, otherwise it stays 0 x 0 and nothing is drawn even when it is made visible.
+	const int loggerTop = lMenuBarHeight + minimum_height();
+	loggerViewport.setBounds(0, loggerTop, getWidth(), juce::jmax(0, getHeight() - loggerTop));
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight).withTrimmedRight(CAN_STATUS_INDICATOR_WIDTH));
-	logger.setSize(loggerViewport.getWidth(), logger.getHeight());
 
-	if (logger.getHeight() < loggerViewport.getHeight())
+	// The visible sizes exclude any scroll bars, which keeps the log text from triggering a
+	// horizontal scroll bar of its own.
+	logger.setSize(loggerViewport.getMaximumVisibleWidth(), logger.getHeight());
+
+	if (logger.getHeight() < loggerViewport.getMaximumVisibleHeight())
 	{
-		logger.setSize(loggerViewport.getWidth(), loggerViewport.getHeight());
+		logger.setSize(loggerViewport.getMaximumVisibleWidth(), loggerViewport.getMaximumVisibleHeight());
 	}
 }
 
@@ -779,6 +797,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
 	allCommands.add(static_cast<int>(CommandIDs::StartStop));
 	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
+	allCommands.add(static_cast<int>(CommandIDs::AlwaysOnTop));
 #ifdef JUCE_WINDOWS
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
 #elif JUCE_LINUX
@@ -859,6 +878,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::AutoStart:
 		{
 			result.setInfo("Auto-Start VT on launch", "Controls whether or not the VT automatically starts when the program is launched", "Control", autostart ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::AlwaysOnTop:
+		{
+			result.setInfo("Always on top", "Keeps the VT window in front of other windows", "Control", alwaysOnTop ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -966,6 +991,9 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu->addTextBlock("Select if the log window should be shown or hidden. Showing the log window may affect performance.");
 			popupMenu->addComboBox("Logging Window", { "Hidden", "Enabled" });
 			popupMenu->getComboBoxComponent("Logging Window")->setSelectedItemIndex(loggerViewport.isVisible() ? 1 : 0);
+			popupMenu->addTextBlock("Log all CAN traffic to a .asc file. This costs performance on every frame, and can be slow enough to break object pool transfers, so leave it off unless you are diagnosing bus traffic.");
+			popupMenu->addComboBox("CAN Traffic Log", { "Disabled", "Enabled" });
+			popupMenu->getComboBoxComponent("CAN Traffic Log")->setSelectedItemIndex(ASCIILogFile::is_logging_enabled() ? 1 : 0);
 			popupMenu->addTextBlock("Save IOP data before parsing. This allows providing IOP data for debugging parser crashes.");
 			popupMenu->addComboBox("Save IOP data before parsing", { "No", "Yes" });
 			popupMenu->getComboBoxComponent("Save IOP data before parsing")->setSelectedItemIndex(saveIopBeforeParse ? 1 : 0);
@@ -1103,6 +1131,9 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
 			configureHardwareWindow->setBounds(result);
 
+			// A modal dialog is still its own window, so it has to be raised too when the main
+			// window is pinned on top, or it would open behind it.
+			configureHardwareWindow->setAlwaysOnTop(alwaysOnTop);
 			configureHardwareWindow->enterModalState(true);
 			retVal = true;
 		}
@@ -1168,6 +1199,16 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::AlwaysOnTop):
+		{
+			alwaysOnTop = !alwaysOnTop;
+			apply_always_on_top();
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -1189,6 +1230,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::StartStop));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoStart));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AlwaysOnTop));
 		}
 		break;
 
@@ -1246,6 +1288,55 @@ std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control
 		}
 	}
 	return retVal;
+}
+
+juce::String ServerMainComponent::get_window_state() const
+{
+	auto *topLevelComponent = getTopLevelComponent();
+
+	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
+	{
+		if (auto *window = dynamic_cast<juce::ResizableWindow *>(topLevelComponent))
+		{
+			return window->getWindowStateAsString();
+		}
+	}
+	return {};
+}
+
+void ServerMainComponent::apply_window_state()
+{
+	auto *topLevelComponent = getTopLevelComponent();
+
+	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
+	{
+		// Even with nothing saved there is nothing left to wait for, so the flag is cleared
+		// either way. Otherwise the window would be moved back on every timer tick.
+		needToApplyWindowState = false;
+
+		if (savedWindowState.isNotEmpty())
+		{
+			if (auto *window = dynamic_cast<juce::ResizableWindow *>(topLevelComponent))
+			{
+				// This keeps the window on a screen which actually exists, which matters when
+				// the saved position was on a display that is no longer connected.
+				window->restoreWindowStateFromString(savedWindowState);
+			}
+		}
+	}
+}
+
+void ServerMainComponent::apply_always_on_top()
+{
+	auto *topLevelComponent = getTopLevelComponent();
+
+	// While this component is being constructed it is not in a window yet, so it is its own top
+	// level component. Setting the flag on itself would do nothing.
+	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
+	{
+		topLevelComponent->setAlwaysOnTop(alwaysOnTop);
+		needToApplyAlwaysOnTop = false;
+	}
 }
 
 void ServerMainComponent::change_selected_working_set(std::uint8_t index)
@@ -1439,6 +1530,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 				mParent.loggerViewport.setVisible(false);
 			}
 
+			ASCIILogFile::set_logging_enabled(1 == mParent.popupMenu->getComboBoxComponent("CAN Traffic Log")->getSelectedItemIndex());
 			mParent.saveIopBeforeParse = (mParent.popupMenu->getComboBoxComponent("Save IOP data before parsing")->getSelectedItemIndex() == 1);
 			mParent.save_settings();
 		}
@@ -1821,6 +1913,10 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				loggerViewport.setVisible(false);
 			}
 
+			// Off unless the settings say otherwise, because logging every frame is expensive
+			ASCIILogFile::set_logging_enabled((!child.getProperty("LogCANTraffic").isVoid()) &&
+			                                  (0 != static_cast<int>(child.getProperty("LogCANTraffic"))));
+
 			if (!child.getProperty("SaveIopBeforeParse").isVoid())
 			{
 				saveIopBeforeParse = static_cast<int>(child.getProperty("SaveIopBeforeParse")) != 0;
@@ -1829,6 +1925,11 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			{
 				saveIopBeforeParse = false;
 			}
+		}
+		else if (Identifier("Window") == child.getType())
+		{
+			// The window does not exist yet at this point, so this is applied by the timer
+			savedWindowState = child.getProperty("State").toString();
 		}
 		else if (Identifier("Control") == child.getType())
 		{
@@ -1853,6 +1954,12 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			if (!child.getProperty("ShowAckButton").isVoid())
 			{
 				showAckButton = static_cast<int>(child.getProperty("ShowAckButton")) != 0;
+			}
+
+			if (!child.getProperty("AlwaysOnTop").isVoid())
+			{
+				// The window does not exist yet at this point, so this is applied by the timer
+				alwaysOnTop = static_cast<bool>(static_cast<int>(child.getProperty("AlwaysOnTop")));
 			}
 		}
 		index++;
@@ -1938,7 +2045,9 @@ void ServerMainComponent::save_settings()
 		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
 		loggingSettings.setProperty("Shown", static_cast<int>(logger.isVisible()), nullptr);
 		loggingSettings.setProperty("SaveIopBeforeParse", static_cast<int>(saveIopBeforeParse), nullptr);
+		loggingSettings.setProperty("LogCANTraffic", static_cast<int>(ASCIILogFile::is_logging_enabled()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
+		controlSettings.setProperty("AlwaysOnTop", alwaysOnTop, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("ShowAckButton", showAckButton, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
@@ -1946,6 +2055,22 @@ void ServerMainComponent::save_settings()
 		settings.appendChild(hardwareSettings, nullptr);
 		settings.appendChild(loggingSettings, nullptr);
 		settings.appendChild(controlSettings, nullptr);
+
+		// An empty state means there is no window yet, and overwriting a good saved geometry
+		// with nothing would lose it.
+		auto windowState = get_window_state();
+
+		if (windowState.isEmpty())
+		{
+			windowState = savedWindowState;
+		}
+
+		if (windowState.isNotEmpty())
+		{
+			ValueTree windowSettings("Window");
+			windowSettings.setProperty("State", windowState, nullptr);
+			settings.appendChild(windowSettings, nullptr);
+		}
 		std::unique_ptr<XmlElement> xml(settings.createXml());
 
 		if (nullptr != xml)
