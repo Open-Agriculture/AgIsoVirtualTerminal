@@ -38,15 +38,16 @@ inline confirmation.
 │  Decimal symbol             Point  │    VT version                 3 │
 │  Date format             yyyymmdd  │    VT number        1 (Primary) │
 │  Time format                  24 h │    CAN hardware               1 │
-│  Units system               Metric │    Log level    👁  debug        │
+│  Units system               Metric │    Log level:      debug    👁  │
 │  Distance units             Metric │                                 │
 │  Area units                 Metric │   CONTROL                       │
 │  Volume units               Metric │    ☑ Auto-start VT on launch    │
 │  Mass units                 Metric │    ☐ Always on top              │
-│  Temperature units          Metric │    ☐ (third — TBD)              │
+│  Temperature units          Metric │    ☐ Hide menu bar              │
 │                                    │    ☐ CAN traffic log            │
 │                                    │    ☐ Save IOP before parsing    │
-│                                    │    ACK button              ›    │
+│                                    │    ☐ Show ACK button on alarms  │
+│                                    │    Alarm ACK key            F1  │
 │                                    │                                 │
 │                                    │   TROUBLESHOOTING               │
 │                                    │    [📦 Diagnostics] [📦 Session] │
@@ -74,6 +75,18 @@ This is a safety property, not just a convention: CAN hardware and VT number can
 operator mid-operation, and a mis-tap should not take effect until deliberately confirmed.
 
 The cost is that every setting needs pending-vs-active state and CANCEL has to roll all of it back.
+
+**APPLY must say when a restart is needed.** Some settings cannot take effect in a running
+instance, and silently doing nothing is worse than saying so. `TouchLookAndFeel` in #212 is
+installed as the default look and feel *before any window is created*, because the main component
+sizes itself from the menu bar height the look and feel reports — so hiding the menu bar is in
+that category, and so is app language, since already-built components keep the strings they were
+constructed with.
+
+So each setting is tagged with how it applies — live, needs the CAN interface to restart, or
+needs a full app restart — and APPLY reports the strongest of those for whatever actually changed:
+nothing for a live-only change, a note that the interface will reconnect, or an explicit
+"restart required for these to take effect" listing the settings concerned.
 
 ## The cogwheel
 
@@ -172,12 +185,10 @@ retired sooner than expected, and its untranslated strings leave with it.
 
 ## Open questions
 
-- **The third Control checkbox** — if it is the touch-mode / hide-menu-bar toggle, it is also
-  Marton's opt-out for #212 and should land alongside this rather than after.
-- **Start/Stop.** It is under Control today, but it is the most-used control in the app and
-  burying it two taps behind a cogwheel is a regression. Options: keep it on the main screen next
-  to the cogwheel, or let APPLY subsume it (changing CAN hardware stages a stop/reconfigure/start).
-  Undecided.
+- **Start/Stop.** It is under Control today. Most of us run with auto-start, so it is not on the
+  hot path in practice, but it stays for now — the open question is only where it belongs. Options:
+  leave it in Control, move it to the main screen next to the cogwheel, or let APPLY subsume it
+  (changing CAN hardware stages a stop/reconfigure/start). Undecided.
 - **Working set selector orientation.** A horizontal mode is wanted for running the VT
   side-by-side with another application. Bigger than it looks: `WorkingSetSelectorComponent`
   hardcodes `WIDTH = 96`, pins itself to `(0, 0, WIDTH, minimum_height())`, and derives positions
@@ -188,7 +199,8 @@ retired sooner than expected, and its untranslated strings leave with it.
 ## Suggested phasing
 
 1. Cogwheel (with merged CAN status) + page shell + staged-apply plumbing + the Control checkboxes
-   and Troubleshooting buttons. Menu bar untouched.
+   and Troubleshooting buttons. Menu bar untouched. The "Hide menu bar" checkbox here is also the
+   user-facing opt-out Marton asked for on #212, so that PR can land alongside rather than wait.
 2. Right pane Configuration rows, migrating the Logging / ACK / CAN hardware popups.
 3. Left pane: locale row with flags, units, and the Hardware Capabilities swap.
 4. Touch mode hides the menu bar; #212 becomes redundant.
