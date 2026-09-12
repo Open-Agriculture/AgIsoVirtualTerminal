@@ -84,6 +84,15 @@ TextButton *NumericKeypadComponent::add_key(const String &text, std::function<vo
 
 void NumericKeypadComponent::append(juce::juce_wchar character)
 {
+	// The displayed entry is the object's current value until the operator actually types
+	// something - the first digit or decimal point overwrites it instead of appending to it,
+	// matching what a touch typist expects instead of requiring an explicit Clear press first.
+	if (!hasTypedSinceOpening)
+	{
+		hasTypedSinceOpening = true;
+		entry.clear();
+	}
+
 	if ('.' == character)
 	{
 		// Only one decimal point, and only when the object actually displays decimals

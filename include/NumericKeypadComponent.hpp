@@ -78,6 +78,7 @@ private:
 	double minimum;
 	double maximum;
 	std::uint8_t decimals;
+	bool hasTypedSinceOpening = false; ///< The keypad opens showing the object's current value, not something the operator typed. The first digit/decimal-point press should overwrite it rather than append to it, or an operator has to press Clear first to get the same result - see append().
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NumericKeypadComponent)
 };
