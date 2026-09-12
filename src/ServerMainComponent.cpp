@@ -536,6 +536,8 @@ std::uint8_t ServerMainComponent::get_user_layout_softkeymask_bg_color() const
 
 void ServerMainComponent::timerCallback()
 {
+	logger.pump_pending_messages();
+
 	if ((isobus::SystemTiming::time_expired_ms(statusMessageTimestamp_ms, 1000)) &&
 	    (send_status_message()))
 	{
@@ -564,10 +566,20 @@ void ServerMainComponent::timerCallback()
 			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
 
 			auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
-			if ((isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress) &&
-			    (nullptr != workingSetObject) &&
-			    (workingSetObject->get_selectable()))
+			if ((nullptr != workingSetObject) &&
+			    (workingSetObject->get_selectable()) &&
+			    ((isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress) ||
+			     (activeWorkingSetMasterAddress == ws->get_control_function()->get_address())))
 			{
+				// The second condition above catches a client reconnecting (e.g. after a power
+				// cycle) at the address that was already recorded as the active master. Nothing
+				// resets activeWorkingSetMasterAddress to NULL_CAN_ADDRESS when a working set goes
+				// silent without a clean disconnect, so without this, a reconnecting client gets a
+				// brand new VirtualTerminalServerManagedWorkingSet object that never has
+				// change_selected_working_set() (and therefore never has the repaint listener
+				// re-registered via save_callback_handle) called on it again - the screen then
+				// silently stops repainting for that client's mask entirely, frozen at whatever was
+				// last drawn, until the working set is manually reselected.
 				ws->set_working_set_maintenance_message_timestamp_ms(isobus::SystemTiming::get_timestamp_ms());
 				change_selected_working_set(wsIndex);
 			}
@@ -627,18 +639,26 @@ void ServerMainComponent::timerCallback()
 				{
 					if (nextWorkingSet->get_control_function()->get_address() != activeWorkingSetMasterAddress)
 					{
-						activeWorkingSetMasterAddress = nextWorkingSet->get_control_function()->get_address();
 						auto nextWorkingSetObject = nextWorkingSet->get_working_set_object();
-						if (nextWorkingSetObject)
+						auto nextWorkingSetObjectTyped = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSetObject);
+
+						// A working set that declared itself non-selectable (e.g. an AUX-N-only
+						// input device with just a placeholder bench-test mask) must never be
+						// promoted to the active/displayed master - it was never a candidate to
+						// begin with. Without this check, disconnecting the real selectable
+						// master left it as the sole fallback here, silently making it "master"
+						// with no repaint listener ever wired up for it via
+						// change_selected_working_set() (nothing here calls that), so the real
+						// master's own reconnect later could never reclaim the role either -
+						// the screen just froze on whatever was last drawn.
+						if ((nullptr == nextWorkingSetObject) || !nextWorkingSetObjectTyped->get_selectable())
 						{
-							activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSetObject)->get_active_mask();
-							newWorkingSetFound = true;
+							continue;
 						}
-						else
-						{
-							activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
-							newWorkingSetFound = false;
-						}
+
+						activeWorkingSetMasterAddress = nextWorkingSet->get_control_function()->get_address();
+						activeWorkingSetDataMaskObjectID = nextWorkingSetObjectTyped->get_active_mask();
+						newWorkingSetFound = true;
 						break;
 					}
 				}
@@ -1663,9 +1683,16 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 {
 	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
 	{
-		const MessageManagerLock mmLock;
-
-		dataMaskRenderer.on_change_active_mask(activeWorkingSet);
+		// ChangeActiveMaskCommand is processed on whatever thread is pumping CAN messages
+		// (not necessarily the UI thread). A synchronous MessageManagerLock here carries the
+		// same deadlock risk fixed in LoggerComponent::sink_CAN_stack_log(): if the calling
+		// thread holds an isobus-internal mutex the UI thread's own periodic work also needs,
+		// the two threads wait on each other forever. Mask changes are infrequent (unlike the
+		// per-object log/repaint traffic that made a callAsync-per-call too chatty in the
+		// logger), so deferring the whole handler to the UI thread asynchronously is both
+		// correct and cheap here.
+		juce::MessageManager::callAsync([this, affectedWorkingSet, newMask]() {
+			dataMaskRenderer.on_change_active_mask(activeWorkingSet);
 		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
 
 		auto activeMask = affectedWorkingSet->get_object_by_id(newMask);
@@ -1729,6 +1756,7 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
 			}
 		}
+		});
 	}
 }
 
