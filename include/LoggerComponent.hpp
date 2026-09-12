@@ -30,6 +30,13 @@ public:
 
 	std::uint64_t initialPos() const;
 
+	/// @brief Drains any log messages queued up from background threads and applies them to
+	/// the visible log, resizing/repainting at most once regardless of how many arrived. Must
+	/// be called from the UI thread - intended to be driven by ServerMainComponent's own
+	/// periodic timer, so a burst of stack log activity (e.g. a lot of VT traffic) can never
+	/// flood the JUCE message queue with one post per log line - see sink_CAN_stack_log().
+	void pump_pending_messages();
+
 private:
 	struct LogData
 	{
@@ -38,6 +45,9 @@ private:
 	};
 	static constexpr std::size_t MAX_NUMBER_MESSAGES = 3000;
 	std::deque<LogData> loggedMessages;
+
+	std::mutex pendingMessagesMutex; ///< Guards pendingMessages only, cheap and dedicated - never held across any isobus stack call
+	std::deque<LogData> pendingMessages; ///< Messages sunk from background threads, not yet applied to loggedMessages
 
 	std::uint64_t startPos = 0;
 
