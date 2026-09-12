@@ -19,6 +19,7 @@ public:
 	static std::shared_ptr<Component> create_component(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::shared_ptr<isobus::VTObject> sourceObject);
 
 	static void set_softkey_mask_dimension_info(const SoftKeyMaskDimensions &info);
+	static const SoftKeyMaskDimensions &get_softkey_mask_dimension_info();
 
 private:
 	class ComponentCacheClass
