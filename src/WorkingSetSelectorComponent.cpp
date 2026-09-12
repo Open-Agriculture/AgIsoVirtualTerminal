@@ -65,6 +65,65 @@ void WorkingSetSelectorComponent::AckButton::paintButton(juce::Graphics &g, bool
 	g.drawText(getButtonText(), textBounds, juce::Justification::centred, false);
 }
 
+WorkingSetSelectorComponent::CogwheelButton::CogwheelButton() :
+  juce::Button("Settings")
+{
+}
+
+void WorkingSetSelectorComponent::CogwheelButton::paintButton(juce::Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
+{
+	auto bounds = getLocalBounds().toFloat();
+	auto centre = bounds.getCentre();
+	auto outerRadius = bounds.getWidth() * 0.5f;
+	auto toothLength = outerRadius * 0.28f;
+	auto hubRadius = outerRadius * 0.42f;
+
+	auto gearColour = juce::Colours::lightgrey;
+	if (shouldDrawButtonAsDown)
+	{
+		gearColour = gearColour.darker(0.3f);
+	}
+	else if (shouldDrawButtonAsHighlighted)
+	{
+		gearColour = gearColour.brighter(0.2f);
+	}
+
+	juce::Path gear;
+	gear.addEllipse(bounds.reduced(toothLength));
+
+	// Teeth: rectangles from the ring's edge outward, rotated evenly around the centre
+	static constexpr int NUMBER_OF_TEETH = 8;
+	for (int i = 0; i < NUMBER_OF_TEETH; i++)
+	{
+		juce::Path tooth;
+		auto toothWidth = outerRadius * 0.5f;
+		tooth.addRoundedRectangle(centre.x - toothWidth * 0.5f, bounds.getY(), toothWidth, toothLength * 1.4f, 2.0f);
+		tooth.applyTransform(juce::AffineTransform::rotation(juce::MathConstants<float>::twoPi * static_cast<float>(i) / static_cast<float>(NUMBER_OF_TEETH), centre.x, centre.y));
+		gear.addPath(tooth);
+	}
+
+	g.setColour(gearColour);
+	g.fillPath(gear);
+
+	// The hub is cut out of the gear (rather than just drawn over it) so the status dot beneath
+	// shows through cleanly regardless of gear colour
+	g.setColour(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+	g.fillEllipse(centre.x - hubRadius, centre.y - hubRadius, hubRadius * 2.0f, hubRadius * 2.0f);
+
+	auto dotRadius = hubRadius * 0.62f;
+	g.setColour(statusColour);
+	g.fillEllipse(centre.x - dotRadius, centre.y - dotRadius, dotRadius * 2.0f, dotRadius * 2.0f);
+}
+
+void WorkingSetSelectorComponent::CogwheelButton::set_status_colour(juce::Colour colour)
+{
+	if (statusColour != colour)
+	{
+		statusColour = colour;
+		repaint();
+	}
+}
+
 WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &server) :
   parentServer(server)
 {
@@ -80,6 +139,8 @@ WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &se
 	};
 	addAndMakeVisible(ackButton);
 	ackButton.setVisible(false);
+	addAndMakeVisible(settingsButton);
+	settingsButton.setTooltip("Settings");
 }
 
 void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> &managedWorkingSetList)
@@ -153,7 +214,7 @@ void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
 void WorkingSetSelectorComponent::resized()
 {
 	setBounds(0, 0, WIDTH, parentServer.minimum_height());
-	update_ack_button_bounds();
+	update_button_bounds();
 }
 
 void WorkingSetSelectorComponent::redraw()
@@ -192,7 +253,7 @@ void WorkingSetSelectorComponent::set_ack_button_visible(bool shouldBeVisible)
 		parentServer.send_alarm_ack_command(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased);
 	}
 	ackButton.setVisible(shouldBeVisible);
-	update_ack_button_bounds();
+	update_button_bounds();
 	ackButton.toFront(false);
 	repaint();
 }
@@ -227,11 +288,29 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	return workingSetComponent;
 }
 
-void WorkingSetSelectorComponent::update_ack_button_bounds()
+void WorkingSetSelectorComponent::update_button_bounds()
 {
-	const auto ackButtonSize = BUTTON_WIDTH;
-	const auto ackButtonY = std::max(0, getHeight() - ackButtonSize - button_padding());
-	ackButton.setBounds(button_padding(), ackButtonY, ackButtonSize, ackButtonSize);
+	const auto buttonSize = BUTTON_WIDTH;
+	const auto settingsButtonY = std::max(0, getHeight() - buttonSize - button_padding());
+	settingsButton.setBounds(button_padding(), settingsButtonY, buttonSize, buttonSize);
+
+	const auto ackButtonY = std::max(0, settingsButtonY - buttonSize - button_padding());
+	ackButton.setBounds(button_padding(), ackButtonY, buttonSize, buttonSize);
+}
+
+void WorkingSetSelectorComponent::set_can_status(bool interfaceRunning, bool adapterConnected)
+{
+	juce::Colour colour = juce::Colours::grey;
+	if (interfaceRunning)
+	{
+		colour = adapterConnected ? juce::Colours::limegreen : juce::Colours::red;
+	}
+	settingsButton.set_status_colour(colour);
+}
+
+void WorkingSetSelectorComponent::set_on_settings_clicked(std::function<void()> callback)
+{
+	settingsButton.onClick = std::move(callback);
 }
 
 void WorkingSetSelectorComponent::mouseUp(const MouseEvent &event)
