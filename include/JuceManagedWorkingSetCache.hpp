@@ -26,7 +26,7 @@ private:
 	{
 	public:
 		ComponentCacheClass(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> associatedWorkingSet) :
-		  workingSet(associatedWorkingSet) {};
+		  workingSet(associatedWorkingSet){};
 
 		std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet;
 		//std::map<std::uint16_t, std::shared_ptr<Component>> componentLookup;
