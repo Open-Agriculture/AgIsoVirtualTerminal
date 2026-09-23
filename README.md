@@ -62,6 +62,7 @@ Supported features:
 - Selecting different working sets
 - Most common macro and extended macro functionality
 - Screen capture command/response
+- Checking GitHub for a newer release on launch (this can be turned off from the "About" menu)
 
 Unimplemented features (for now - we are always adding new features)
 
@@ -76,7 +77,6 @@ Unimplemented features (for now - we are always adding new features)
 - TAN
 - Several messages, such as ESC
 - Open GL mode (currently only software rendering is supported, though JUCE's software rendering is very RAM efficient compared to GL)
-- Some way of automatically checking for new releases
 - Probably more things to be honest
 
 ## Download
