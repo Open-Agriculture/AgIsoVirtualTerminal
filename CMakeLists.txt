@@ -125,6 +125,54 @@ target_link_libraries(
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
          cmake_git_version_tracking)
 
+option(AGISOVT_BUILD_POOL_RENDERER
+       "Build ObjectPoolRenderer, which renders object pool masks to PNG" OFF)
+if(AGISOVT_BUILD_POOL_RENDERER)
+  juce_add_console_app(ObjectPoolRenderer PRODUCT_NAME "ObjectPoolRenderer")
+  set_target_properties(ObjectPoolRenderer PROPERTIES CXX_STANDARD 17)
+  target_compile_definitions(
+    ObjectPoolRenderer PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0
+                               JUCE_USE_XRANDR=0 JUCE_USE_XINERAMA=0)
+  juce_generate_juce_header(ObjectPoolRenderer)
+  target_sources(
+    ObjectPoolRenderer
+    PRIVATE tools/ObjectPoolRenderer.cpp
+            src/JuceManagedWorkingSetCache.cpp
+            src/AlarmMaskComponent.cpp
+            src/ButtonComponent.cpp
+            src/ContainerComponent.cpp
+            src/DataMaskComponent.cpp
+            src/InputBooleanComponent.cpp
+            src/InputListComponent.cpp
+            src/InputNumberComponent.cpp
+            src/InputStringComponent.cpp
+            src/KeyComponent.cpp
+            src/NumberComponent.cpp
+            src/ObjectPointerComponent.cpp
+            src/OutputEllipseComponent.cpp
+            src/OutputLineComponent.cpp
+            src/OutputLinearBarGraphComponent.cpp
+            src/OutputMeterComponent.cpp
+            src/OutputNumberComponent.cpp
+            src/OutputPolygonComponent.cpp
+            src/OutputRectangleComponent.cpp
+            src/OutputStringComponent.cpp
+            src/PictureGraphicComponent.cpp
+            src/SoftKeyMaskComponent.cpp
+            src/StringDrawingComponent.cpp
+            src/StringEncodingConversions.cpp
+            src/TextDrawingComponent.cpp
+            src/VT_NumberComponent.cpp
+            src/WorkingSetComponent.cpp)
+  target_include_directories(ObjectPoolRenderer
+                             PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
+  target_link_libraries(
+    ObjectPoolRenderer
+    PRIVATE juce::juce_gui_extra isobus::Isobus isobus::HardwareIntegration
+            isobus::Utility
+    PUBLIC juce::juce_recommended_config_flags)
+endif()
+
 if(WIN32)
   add_custom_command(
     TARGET AgISOVirtualTerminal
