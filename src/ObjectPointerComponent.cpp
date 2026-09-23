@@ -24,20 +24,11 @@ void ObjectPointerComponent::on_content_changed(bool initial)
 
 		if (nullptr != childComponent)
 		{
-			int w = 0, h = 0;
 			addAndMakeVisible(*childComponent);
 			childComponent->setTopLeftPosition(get_child_x(0), get_child_y(0));
-			if (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type())
-			{
-				std::static_pointer_cast<ObjectPointerComponent>(childComponent)->getChildSizeRecursive(w, h);
-			}
-			else
-			{
-				w = child->get_width();
-				h = child->get_height();
-			}
 
-			setSize(w, h);
+			// Components size themselves, so a chain of object pointers ends up as large as the object it resolves to
+			setSize(childComponent->getWidth(), childComponent->getHeight());
 		}
 	}
 
@@ -49,25 +40,4 @@ void ObjectPointerComponent::on_content_changed(bool initial)
 
 void ObjectPointerComponent::paint(Graphics &g)
 {
-}
-
-void ObjectPointerComponent::getChildSizeRecursive(int &w, int &h) const
-{
-	auto child = get_object_by_id(get_value(), parentWorkingSet->get_object_tree());
-	if (nullptr != child)
-	{
-		if (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type())
-		{
-			int numChildren = getNumChildComponents();
-			if (numChildren == 1)
-			{
-				static_cast<ObjectPointerComponent *>(getChildComponent(0))->getChildSizeRecursive(w, h);
-			}
-		}
-		else
-		{
-			w = child->get_width();
-			h = child->get_height();
-		}
-	}
 }
