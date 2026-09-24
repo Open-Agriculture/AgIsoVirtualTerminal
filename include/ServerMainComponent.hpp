@@ -3,11 +3,13 @@
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
 #include "LoggerComponent.hpp"
+#include "SettingsPageComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 #include "VT_NumberComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_diagnostic_protocol.hpp"
+#include "isobus/isobus/isobus_language_command_interface.hpp"
 #include "isobus/isobus/isobus_time_date_interface.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
@@ -138,6 +140,85 @@ public:
    */
 	int minimum_height() const;
 
+	/// @brief Gives the settings page access to invoke/query the existing menu commands, so
+	/// simple rows (toggles, actions) stay backed by the same logic as the menu bar rather than
+	/// duplicating it. See docs/touch-settings-page.md.
+	/// @returns The command manager that also backs the menu bar
+	juce::ApplicationCommandManager &get_command_manager();
+
+	/// @brief Shows the full-window touch settings page, hiding the normal VT view behind it.
+	/// See docs/touch-settings-page.md.
+	void open_settings_page();
+
+	/// @brief Hides the touch settings page and restores the normal VT view.
+	void close_settings_page();
+
+	// The Control checkboxes on the settings page are small dedicated wrappers, rather than the
+	// settings page invoking the menu bar's CommandIDs directly, so the enum itself does not need
+	// to become public. perform() calls these same methods, so there is exactly one place each
+	// setting's toggle logic lives.
+	bool get_autostart() const;
+	void toggle_autostart();
+	bool get_always_on_top() const;
+	void toggle_always_on_top();
+
+	/// @brief Whether the desktop menu bar is currently hidden in favour of the touch settings
+	/// page's cogwheel. Not yet persisted between runs - see docs/touch-settings-page.md.
+	bool get_menu_bar_hidden() const;
+	void toggle_menu_bar_hidden();
+
+	// These three route through mCommandManager.invokeDirectly() to the same CommandIDs the menu
+	// bar's Troubleshooting items use, so the settings page's buttons and the menu bar share one
+	// implementation instead of two.
+	void generate_diagnostic_package();
+	void generate_diagnostic_package_from_current_session();
+	void request_clear_iso_data();
+
+	// Configuration section wrappers - see docs/touch-settings-page.md. VT version and VT number
+	// only take effect on restart, matching the popup they replace; the settings page is
+	// responsible for saying so, not this class.
+	int get_reported_version_index() const;
+	void set_reported_version_index(int index);
+	int get_vt_number() const;
+	void set_vt_number(int number);
+
+	/// @brief Opens the existing CAN hardware selection dialog. Not yet migrated to an inline row -
+	/// see docs/touch-settings-page.md's phasing.
+	void open_can_hardware_configuration();
+	bool get_can_hardware_configurable() const;
+
+	/// @brief Whether the CAN interface is currently running. Hardware can only be reconfigured
+	/// while it is stopped, so the settings page offers this right next to the CAN hardware row.
+	bool get_can_interface_started() const;
+	void toggle_can_interface();
+
+	int get_log_level_index() const;
+	void set_log_level_index(int index);
+	bool get_log_window_visible() const;
+	void toggle_log_window_visible();
+	bool get_save_iop_before_parse() const;
+	void toggle_save_iop_before_parse();
+
+	bool get_show_ack_button() const;
+	void toggle_show_ack_button();
+	int get_alarm_ack_key_code() const;
+	void set_alarm_ack_key_code(int keyCode);
+
+	/// @brief Gives the settings page direct access to the ISOBUS language/units settings, so it
+	/// can reuse the same get/set methods the popup this replaces already used, rather than adding
+	/// a pass-through wrapper for each of the dozen fields.
+	isobus::LanguageCommandInterface &get_language_command_interface();
+
+	/// @brief Applies new data mask / soft key mask dimensions, reproducing the reported-hardware
+	/// popup's exact logic (mask sizing, soft key dimension recompute, JuceManagedWorkingSetCache
+	/// update) - see docs/touch-settings-page.md. The individual current values are already
+	/// available via the public get_data_mask_area_size_x_pixels(), get_soft_key_descriptor_x_
+	/// pixel_width(), get_soft_key_descriptor_y_pixel_height(), get_physical_soft_key_columns() and
+	/// get_physical_soft_key_rows(), so no new getters are needed alongside this setter.
+	/// @attention Like the popup this replaces, some clients may show discrepancies until the app
+	/// is restarted.
+	void set_hardware_capabilities(int dataMaskSize, int softKeyDesignatorWidth, int softKeyDesignatorHeight, int softKeyColumns, int softKeyRows);
+
 private:
 	enum class CommandIDs : int
 	{
@@ -168,6 +249,27 @@ private:
 	private:
 	};
 	friend class LanguageCommandConfigClosed;
+
+	/// @brief A larger, touch-friendly grab handle that resizes the window from its bottom-left
+	/// corner, mirroring juce::ResizableCornerComponent's bottom-right behaviour (which cannot be
+	/// reused directly - it always grows from the top-left, regardless of where it is placed).
+	/// Lives over the working set selector column rather than the data mask, so it never sits on
+	/// top of rendered VT content - see setup_touch_resize_corner().
+	class BottomLeftResizeCorner : public juce::Component
+	{
+	public:
+		BottomLeftResizeCorner(juce::Component &componentToResize, juce::ComponentBoundsConstrainer &boundsConstrainer);
+
+		void paint(juce::Graphics &g) override;
+		void mouseDown(const juce::MouseEvent &event) override;
+		void mouseDrag(const juce::MouseEvent &event) override;
+		void mouseUp(const juce::MouseEvent &event) override;
+
+	private:
+		juce::Component &component;
+		juce::ComponentBoundsConstrainer &constrainer;
+		juce::Rectangle<int> originalBounds;
+	};
 
 	struct HeldButtonData
 	{
@@ -206,6 +308,12 @@ private:
 	/// not inside its window yet at that point.
 	void apply_always_on_top();
 
+	/// @brief Creates a larger touch-friendly grab handle in the bottom-right corner for resizing
+	/// the window, since the native OS resize border is thin and easy to miss with a finger.
+	/// @attention Like the always on top setting, this cannot be done during construction, because
+	/// this component is not inside its window yet at that point.
+	void setup_touch_resize_corner();
+
 	void repaint_data_and_soft_key_mask();
 	bool is_active_alarm_mask() const;
 	void update_ack_button_visibility();
@@ -222,6 +330,7 @@ private:
 	WorkingSetSelectorComponent workingSetSelector;
 	DataMaskRenderAreaComponent dataMaskRenderer;
 	SoftKeyMaskRenderAreaComponent softKeyMaskRenderer;
+	SettingsPageComponent settingsPage;
 	MenuBarComponent menuBar;
 	LoggerComponent logger;
 	Viewport loggerViewport;
@@ -232,6 +341,8 @@ private:
 	std::unique_ptr<isobus::DiagnosticProtocol> diagnosticProtocol;
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::unique_ptr<ConfigureHardwareWindow> configureHardwareWindow;
+	juce::ComponentBoundsConstrainer touchResizeConstrainer;
+	std::unique_ptr<BottomLeftResizeCorner> touchResizeCorner;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
@@ -251,9 +362,11 @@ private:
 	bool showAckButton = false;
 	bool saveIopBeforeParse = false;
 	bool alwaysOnTop = false;
+	bool menuBarHidden = false; ///< See get_menu_bar_hidden() - not yet persisted between runs
 	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
 	juce::String savedWindowState; ///< The window geometry loaded from the settings file
 	bool needToApplyWindowState = true; ///< Set until the saved geometry has been given to the window
+	bool needToSetupTouchResizeCorner = true; ///< Set until setup_touch_resize_corner() has run
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };
