@@ -23,7 +23,6 @@ namespace
 		File input;
 		File outputDirectory;
 		File referenceDirectory;
-		int maxPixelDifference = 0;
 	};
 
 	struct Totals
@@ -152,7 +151,7 @@ namespace
 					std::cout << "DIFF  " << relativePath << ": size differs from reference" << std::endl;
 					totals.imagesDifferent++;
 				}
-				else if (differentPixels > options.maxPixelDifference)
+				else if (differentPixels > 0)
 				{
 					std::cout << "DIFF  " << relativePath << ": " << differentPixels << " pixels differ" << std::endl;
 					write_png(diff, options.outputDirectory.getChildFile(relativePath.replace(".png", ".diff.png")));
@@ -165,7 +164,7 @@ namespace
 
 	void print_usage()
 	{
-		std::cout << "Usage: ObjectPoolRenderer <pool.iop | folder> <output folder> [--compare <reference folder>] [--tolerance <pixels>]\n"
+		std::cout << "Usage: ObjectPoolRenderer <pool.iop | folder> <output folder> [--compare <reference folder>]\n"
 		             "\n"
 		             "Renders every data mask, alarm mask and soft key mask of the object pool(s) to PNG.\n"
 		             "A folder is searched recursively for .iop files; split pools (*_partNN.iop) are skipped,\n"
@@ -188,10 +187,6 @@ int main(int argc, char *argv[])
 		if ((argument == "--compare") && (i + 1 < argc))
 		{
 			options.referenceDirectory = File::getCurrentWorkingDirectory().getChildFile(String::fromUTF8(argv[++i]));
-		}
-		else if ((argument == "--tolerance") && (i + 1 < argc))
-		{
-			options.maxPixelDifference = String(argv[++i]).getIntValue();
 		}
 		else
 		{
