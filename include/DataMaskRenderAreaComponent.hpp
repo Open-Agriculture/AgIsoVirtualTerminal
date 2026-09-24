@@ -12,6 +12,8 @@
 #include "isobus/isobus/isobus_virtual_terminal_objects.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server_managed_working_set.hpp"
 
+#include "NumericKeypadComponent.hpp"
+
 #include "JuceHeader.h"
 
 class ServerMainComponent;
@@ -38,11 +40,11 @@ public:
 	void set_has_started(bool started);
 
 private:
-	class InputNumberListener : public Slider::Listener
+	/// @brief Holds the object being edited and the value the keypad produced for it
+	class InputNumberListener
 	{
 	public:
 		InputNumberListener() = default;
-		void sliderValueChanged(Slider *slider) override;
 
 		std::uint32_t get_last_value() const;
 		void set_last_value(std::uint32_t value);
@@ -63,7 +65,7 @@ private:
 	std::unique_ptr<AlertWindow> inputListModal;
 	std::unique_ptr<AlertWindow> inputNumberModal;
 	std::unique_ptr<AlertWindow> inputStringModal;
-	std::unique_ptr<Slider> inputNumberSlider;
+	std::unique_ptr<NumericKeypadComponent> inputNumberKeypad;
 	std::vector<std::shared_ptr<Component>> childComponents;
 	std::vector<std::shared_ptr<Component>> currentModalComponentCache;
 	ServerMainComponent &ownerServer;
