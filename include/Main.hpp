@@ -9,6 +9,7 @@
 #include "ASCIILogFile.hpp"
 #include "AppImages.h"
 #include "ServerMainComponent.hpp"
+#include "TouchLookAndFeel.hpp"
 #include "isobus/hardware_integration/can_hardware_interface.hpp"
 #include "isobus/isobus/can_internal_control_function.hpp"
 #include "isobus/isobus/can_network_manager.hpp"
@@ -43,6 +44,10 @@ public:
 	{
 		SystemStats::setApplicationCrashHandler(onCrash);
 
+		// This has to happen before any window is created, because the main component sizes
+		// itself from the menu bar height it gets from the look and feel.
+		juce::LookAndFeel::setDefaultLookAndFeel(&touchLookAndFeel);
+
 		juce::StringArray args;
 		args.addTokens(commandLineParameters, true);
 
@@ -74,6 +79,10 @@ public:
 		// Add your application's shutdown code here..
 
 		mainWindow = nullptr; // (deletes our window)
+
+		// The windows are gone, so nothing can reference the look and feel anymore. It has to be
+		// cleared before it is destroyed with this application object.
+		juce::LookAndFeel::setDefaultLookAndFeel(nullptr);
 	}
 
 	//==============================================================================
@@ -144,6 +153,7 @@ public:
 	};
 
 private:
+	TouchLookAndFeel touchLookAndFeel;
 	std::unique_ptr<MainWindow> mainWindow;
 	ASCIILogFile logFile;
 };
