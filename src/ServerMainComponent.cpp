@@ -761,7 +761,7 @@ void ServerMainComponent::resized()
 	                            (dataMaskRenderer.getBounds().getHeight() / 10.0) * 8);
 	softKeyMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels(),
 	                              lMenuBarHeight,
-	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
+	                              softKeyMaskDimensions.total_width(),
 	                              get_data_mask_area_size_y_pixels());
 	// The logging area occupies everything below the mask render areas. The viewport needs an
 	// explicit size, otherwise it stays 0 x 0 and nothing is drawn even when it is made visible.
@@ -1860,7 +1860,7 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			if (!child.getProperty("DataMaskRenderAreaSize").isVoid())
 			{
 				dataMaskRenderer.setSize(static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))), static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))));
-				softKeyMaskRenderer.setSize(2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
+				softKeyMaskRenderer.setSize(softKeyMaskDimensions.total_width(),
 				                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
 			}
 #ifdef JUCE_WINDOWS
