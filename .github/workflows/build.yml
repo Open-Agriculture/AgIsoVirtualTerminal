@@ -24,10 +24,9 @@ jobs:
         with:
             nsis-version: '3.12'
       - name: Compile
-        run: |
-          mkdir build
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
-          cmake --build build --config Release --target package
+        uses: ./.github/actions/build-vt
+        with:
+          target: package
       - name: 'Upload Windows Installer'
         uses: actions/upload-artifact@v7
         with:
@@ -45,10 +44,9 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Compile
-        run: |
-          mkdir build
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
-          cmake --build build --config Release --target package
+        uses: ./.github/actions/build-vt
+        with:
+          target: package
       - name: 'Upload OSX Installer'
         uses: actions/upload-artifact@v7
         with:
@@ -65,15 +63,15 @@ jobs:
           fetch-tags: true
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
-      - name: Compile
+      - name: Install dependencies
         run: |
-          mkdir build
           sudo apt update
           sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype6-dev libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libwebkit2gtk-4.0-dev libglu1-mesa-dev mesa-common-dev
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
-          cmake --build build --config Release
-          cd build
-          cpack -G DEB
+      - name: Compile
+        uses: ./.github/actions/build-vt
+      - name: Package
+        working-directory: build
+        run: cpack -G DEB
       - name: 'Upload Ubuntu 22.04 deb package'
         uses: actions/upload-artifact@v7
         with:
@@ -90,15 +88,13 @@ jobs:
           fetch-tags: true
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install dependencies
+        uses: ./.github/actions/install-linux-deps
       - name: Compile
-        run: |
-          mkdir build
-          sudo apt update
-          sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev git cmake
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
-          cmake --build build --config Release
-          cd build
-          cpack -G DEB
+        uses: ./.github/actions/build-vt
+      - name: Package
+        working-directory: build
+        run: cpack -G DEB
       - name: 'Upload Ubuntu 24.04 deb package'
         uses: actions/upload-artifact@v7
         with:
@@ -115,15 +111,13 @@ jobs:
           fetch-tags: true
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install dependencies
+        uses: ./.github/actions/install-linux-deps
       - name: Compile
-        run: |
-          mkdir build
-          sudo apt update
-          sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev git cmake
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
-          cmake --build build --config Release
-          cd build
-          cpack -G DEB
+        uses: ./.github/actions/build-vt
+      - name: Package
+        working-directory: build
+        run: cpack -G DEB
       - name: 'Upload Ubuntu 26.04 deb package'
         uses: actions/upload-artifact@v7
         with:

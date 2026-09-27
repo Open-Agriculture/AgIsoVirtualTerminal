@@ -1,0 +1,37 @@
+name: Visual change approval
+
+# Adding or removing the visual-change-approved label re-runs the visual-diff job of the pull request's
+# latest Object pools run, which reads the labels when it runs. No pull request code is checked out here.
+
+on:
+  pull_request_target:
+    types: [labeled, unlabeled]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  rerun-visual-diff:
+    if: github.event.label.name == 'visual-change-approved'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Re-run the visual diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          run_id="$(gh run list -R "$REPO" --workflow object-pools.yml --event pull_request --commit "$HEAD_SHA" \
+            --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          if [ -z "$run_id" ]; then
+            echo "No Object pools run for $HEAD_SHA yet; when it runs, it reads the labels itself."
+            exit 0
+          fi
+          if [ "$(gh run view "$run_id" -R "$REPO" --json status --jq '.status')" != "completed" ]; then
+            echo "Run $run_id is still going; its visual-diff job reads the labels when it gets there."
+            exit 0
+          fi
+          job_id="$(gh run view "$run_id" -R "$REPO" --json jobs --jq '.jobs[] | select(.name == "visual-diff") | .databaseId')"
+          gh run rerun "$run_id" -R "$REPO" --job "$job_id"
+          echo "Re-running visual-diff (job $job_id) of run $run_id"

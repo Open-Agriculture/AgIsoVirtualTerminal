@@ -1,0 +1,145 @@
+name: Object pools
+
+# Renders every pool of the tests/pools submodule with vt-render. On a pull request it also renders them
+# with the base commit's build and compares the two. See doc/object-pool-ci.md.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: object-pools-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Repository variables can override these
+  VISUAL_DIFF_THRESHOLD: ${{ vars.VISUAL_DIFF_THRESHOLD || '0.1' }}
+  VISUAL_DIFF_MAX_DIFF_PIXELS: ${{ vars.VISUAL_DIFF_MAX_DIFF_PIXELS || '0' }}
+
+jobs:
+  submodule-pin:
+    name: submodule-pin-in-own-pr
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check that a pin bump comes alone
+        run: tools/pool-ci/check-pin-isolation.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+  pool-load-check:
+    name: pool-load-check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      # On main the renders also go to the cache, where pull requests based on this commit find them
+      - name: Build the VT and vt-render, and render the pools
+        id: render
+        uses: ./.github/actions/render-pools
+        with:
+          pools: tests/pools
+          out: out
+          build-targets: all
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Summarise the manifests
+        run: node tools/pool-ci/summarize.mjs --renders out --pools tests/pools --summary "$GITHUB_STEP_SUMMARY"
+      - name: Upload the renders
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: object-pool-renders
+          path: out
+          if-no-files-found: error
+          overwrite: true
+
+  visual-diff:
+    name: visual-diff
+    needs: pool-load-check
+    # Also after a failed load check: a pool that stops loading is one of the things this job reports
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      # Built from the base commit, but rendering this pull request's pools, so a pin bump compares the
+      # new pools with both builds
+      - name: Check out the base commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base-src
+      - name: Download the head renders
+        uses: actions/download-artifact@v8
+        with:
+          name: object-pool-renders
+          path: head-renders
+      - name: Render the pools with the base build
+        uses: ./.github/actions/render-pools
+        with:
+          vt-source: base-src
+          pools: tests/pools
+          out: base-renders
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/visual-diff/package-lock.json
+      - name: Install the diff tools
+        run: npm ci --prefix tools/visual-diff
+      - name: Compare
+        id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Read the labels now rather than from the event, so that a re-run after (un)labelling sees them
+          approved=""
+          if gh api "repos/$REPO/issues/$PR_NUMBER/labels" --jq '.[].name' | grep -qx 'visual-change-approved'; then
+            approved="--approved"
+          fi
+          set +e
+          node tools/visual-diff/compare.mjs --base base-renders --head head-renders --out visual-diff \
+            --threshold "$VISUAL_DIFF_THRESHOLD" --max-diff-pixels "$VISUAL_DIFF_MAX_DIFF_PIXELS" $approved
+          code=$?
+          set -e
+          echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+          jq -n --argjson pr "$PR_NUMBER" --arg head_sha "$HEAD_SHA" '{pr: $pr, head_sha: $head_sha}' > visual-diff/pull-request.json
+          if [ -f visual-diff/report.json ]; then
+            node tools/visual-diff/comment.mjs --report visual-diff/report.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+      # The Visual diff comment workflow posts the pull request comment from this artifact
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-diff-report
+          path: visual-diff
+          overwrite: true
+      - name: Result
+        env:
+          CODE: ${{ steps.compare.outputs.exit-code }}
+        run: |
+          case "$CODE" in
+            0) echo "Visual diff passed" ;;
+            1) echo "Visual diff failed: see the job summary"; exit 1 ;;
+            *) echo "The comparison did not finish (exit code '$CODE')"; exit 1 ;;
+          esac

@@ -1,0 +1,129 @@
+name: Render object pools
+description: >
+  Builds vt-render from a VT source tree and renders every pool of an AgIsoObjectPoolCollection checkout
+  with it, unless the renders are cached. Renders are cached by VT commit, collection commit and build
+  environment fingerprint, since together these decide every pixel. Writes render-info.json next to the
+  pool folders.
+inputs:
+  vt-source:
+    description: The VT source tree to build vt-render from
+    default: .
+  pools:
+    description: The AgIsoObjectPoolCollection checkout to render
+    required: true
+  out:
+    description: The folder to render into
+    required: true
+  build-targets:
+    description: The CMake targets to build; all builds the VT as well
+    default: VtRender
+outputs:
+  available:
+    description: false if the VT source has no vt-render, in which case nothing was rendered
+    value: ${{ steps.describe.outputs.available }}
+  exit-code:
+    description: The exit code of vt-render
+    value: ${{ steps.result.outputs.exit-code }}
+  fingerprint:
+    description: The build environment fingerprint
+    value: ${{ steps.describe.outputs.fingerprint }}
+  cache-hit:
+    description: true if the renders came from the cache
+    value: ${{ steps.cache.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - name: Install build dependencies
+      uses: ./.github/actions/install-linux-deps
+
+    - name: Install Xvfb
+      shell: bash
+      run: sudo apt-get install -y xvfb
+
+    - name: Describe the render
+      id: describe
+      shell: bash
+      env:
+        VT_SOURCE: ${{ inputs.vt-source }}
+        POOLS: ${{ inputs.pools }}
+      run: |
+        echo "vt-commit=$(git -C "$VT_SOURCE" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        echo "pools-commit=$(git -C "$POOLS" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        echo "fingerprint=$("$GITHUB_WORKSPACE/tools/pool-ci/env-fingerprint.sh")" >> "$GITHUB_OUTPUT"
+        if [ -f "$VT_SOURCE/tools/vt-render/vt_render.cpp" ]; then
+          echo "available=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "available=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Restore cached renders
+      id: cache
+      if: steps.describe.outputs.available == 'true'
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ inputs.out }}
+        key: vt-render-v1-${{ steps.describe.outputs.vt-commit }}-${{ steps.describe.outputs.pools-commit }}-${{ steps.describe.outputs.fingerprint }}
+
+    - name: Build
+      if: steps.describe.outputs.available == 'true' && steps.cache.outputs.cache-hit != 'true'
+      uses: ./.github/actions/build-vt
+      with:
+        source-dir: ${{ inputs.vt-source }}
+        build-dir: ${{ inputs.vt-source }}/build-vt-render
+        cmake-args: -DCMAKE_BUILD_TYPE=Release -DAGISOVT_BUILD_POOL_RENDERER=ON
+        target: ${{ inputs.build-targets }}
+        build-args: --parallel
+
+    - name: Render
+      if: steps.describe.outputs.available == 'true' && steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        VT_SOURCE: ${{ inputs.vt-source }}
+        POOLS: ${{ inputs.pools }}
+        OUT: ${{ inputs.out }}
+        VT_COMMIT: ${{ steps.describe.outputs.vt-commit }}
+        POOLS_COMMIT: ${{ steps.describe.outputs.pools-commit }}
+        FINGERPRINT: ${{ steps.describe.outputs.fingerprint }}
+      run: |
+        binary="$(find "$VT_SOURCE/build-vt-render" -type f -name vt-render -perm -u+x | head -n 1)"
+        rm -rf "$OUT"
+        set +e
+        # vt-render opens no window, but JUCE's GUI initialisation may look for a display
+        xvfb-run -a "$binary" --all "$POOLS" --out "$OUT"
+        code=$?
+        set -e
+        echo "vt-render exited with $code"
+        mkdir -p "$OUT"
+        jq -n --arg vt "$VT_COMMIT" --arg pools "$POOLS_COMMIT" --arg fingerprint "$FINGERPRINT" --argjson code "$code" \
+          '{available: true, vt_commit: $vt, pools_commit: $pools, fingerprint: $fingerprint, exit_code: $code}' > "$OUT/render-info.json"
+
+    - name: Describe a missing vt-render
+      if: steps.describe.outputs.available != 'true'
+      shell: bash
+      env:
+        OUT: ${{ inputs.out }}
+        VT_COMMIT: ${{ steps.describe.outputs.vt-commit }}
+        POOLS_COMMIT: ${{ steps.describe.outputs.pools-commit }}
+        FINGERPRINT: ${{ steps.describe.outputs.fingerprint }}
+      run: |
+        echo "$VT_COMMIT has no vt-render; nothing was rendered."
+        mkdir -p "$OUT"
+        jq -n --arg vt "$VT_COMMIT" --arg pools "$POOLS_COMMIT" --arg fingerprint "$FINGERPRINT" \
+          '{available: false, vt_commit: $vt, pools_commit: $pools, fingerprint: $fingerprint, exit_code: null}' > "$OUT/render-info.json"
+
+    - name: Result
+      id: result
+      shell: bash
+      env:
+        OUT: ${{ inputs.out }}
+      run: echo "exit-code=$(jq -r '.exit_code // ""' "$OUT/render-info.json")" >> "$GITHUB_OUTPUT"
+
+    # A crashed run is not cached, so that a re-run tries again
+    - name: Cache the renders
+      if: >-
+        steps.describe.outputs.available == 'true' && steps.cache.outputs.cache-hit != 'true' &&
+        contains(fromJSON('["0", "1", "2"]'), steps.result.outputs.exit-code)
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ inputs.out }}
+        key: vt-render-v1-${{ steps.describe.outputs.vt-commit }}-${{ steps.describe.outputs.pools-commit }}-${{ steps.describe.outputs.fingerprint }}
