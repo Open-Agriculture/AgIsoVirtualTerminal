@@ -158,27 +158,20 @@ namespace
 		return (name == "Unknown") ? ("Unknown(" + String(static_cast<int>(type)) + ")") : name;
 	}
 
-	/// Objects that can appear in the rendered images but that the VT has no component for, or that never
-	/// appear in any image. Everything else is either drawn or only referenced by drawn objects (fonts,
-	/// variables, macros, ...). Returns nullptr for those.
-	const char *get_skipped_object_status(isobus::VirtualTerminalObjectType type)
+	/// What an object type is to the renders: something the VT draws, something drawn objects only refer to
+	/// (fonts, variables, macros, ...), or something no mask shows.
+	enum class ObjectRole
+	{
+		Drawn,
+		Referenced,
+		Ignored
+	};
+
+	ObjectRole get_object_role(isobus::VirtualTerminalObjectType type)
 	{
 		using Type = isobus::VirtualTerminalObjectType;
 		switch (type)
 		{
-			case Type::WindowMask:
-			case Type::KeyGroup:
-			case Type::OutputList:
-			case Type::OutputArchedBarGraph:
-			case Type::GraphicsContext:
-			case Type::Animation:
-			case Type::GraphicData:
-			case Type::ScaledGraphic:
-			case Type::ExternalObjectPointer:
-			case Type::ManufacturerDefined1:
-			case Type::ManufacturerDefined2:
-				return "unsupported";
-
 			case Type::ExternalObjectDefinition:
 			case Type::ExternalReferenceNAME:
 			case Type::AuxiliaryFunctionType1:
@@ -186,28 +179,8 @@ namespace
 			case Type::AuxiliaryFunctionType2:
 			case Type::AuxiliaryInputType2:
 			case Type::AuxiliaryControlDesignatorType2:
-				return "ignored";
+				return ObjectRole::Ignored;
 
-			case Type::WorkingSet:
-			case Type::DataMask:
-			case Type::AlarmMask:
-			case Type::Container:
-			case Type::SoftKeyMask:
-			case Type::Key:
-			case Type::Button:
-			case Type::InputBoolean:
-			case Type::InputString:
-			case Type::InputNumber:
-			case Type::InputList:
-			case Type::OutputString:
-			case Type::OutputNumber:
-			case Type::OutputLine:
-			case Type::OutputRectangle:
-			case Type::OutputEllipse:
-			case Type::OutputPolygon:
-			case Type::OutputMeter:
-			case Type::OutputLinearBarGraph:
-			case Type::PictureGraphic:
 			case Type::NumberVariable:
 			case Type::StringVariable:
 			case Type::FontAttributes:
@@ -217,12 +190,12 @@ namespace
 			case Type::ExtendedInputAttributes:
 			case Type::ColourMap:
 			case Type::ObjectLabelRefrenceList:
-			case Type::ObjectPointer:
+			case Type::GraphicData:
 			case Type::Macro:
-				return nullptr;
+				return ObjectRole::Referenced;
 
 			default:
-				return "unsupported";
+				return ObjectRole::Drawn;
 		}
 	}
 
@@ -700,10 +673,16 @@ namespace
 
 					default:
 					{
-						const auto status = get_skipped_object_status(object->get_object_type());
-						if (nullptr != status)
+						// Whether the VT can draw an object is whatever its component factory says, so this list
+						// follows the VT when it learns to draw another object type
+						const auto role = get_object_role(object->get_object_type());
+						if (ObjectRole::Ignored == role)
 						{
-							add_skipped_object(id, object->get_object_type(), status, "the VT does not draw this object type");
+							add_skipped_object(id, object->get_object_type(), "ignored", "not part of any mask");
+						}
+						else if ((ObjectRole::Drawn == role) && !is_drawable(workingSet, object))
+						{
+							add_skipped_object(id, object->get_object_type(), "unsupported", "the VT does not draw this object type");
 						}
 					}
 					break;
@@ -711,6 +690,18 @@ namespace
 			}
 			render_designator(workingSet, false);
 			render_designator(workingSet, true);
+		}
+
+		/// The factory decides by object type, so it is asked once per type: creating a container's component
+		/// also creates everything inside it
+		bool is_drawable(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, const std::shared_ptr<isobus::VTObject> &object)
+		{
+			const auto type = object->get_object_type();
+			if (0 == drawableTypes.count(type))
+			{
+				drawableTypes[type] = (nullptr != JuceManagedWorkingSetCache::create_component(workingSet, object));
+			}
+			return drawableTypes[type];
 		}
 
 		void render_mask(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet,
@@ -975,6 +966,7 @@ namespace
 		Array<var> images;
 		Array<var> skippedObjects;
 		Array<var> errors;
+		std::map<isobus::VirtualTerminalObjectType, bool> drawableTypes;
 	};
 
 	/// A load failure outranks a render failure
