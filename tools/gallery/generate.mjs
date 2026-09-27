@@ -36,6 +36,11 @@ function write(file, text) {
   fs.writeFileSync(file, text);
 }
 
+/** meta.yaml says TODO for what nobody has found out yet */
+function known(value, fallback) {
+  return value && value !== 'TODO' ? value : fallback;
+}
+
 function objectNumber(file) {
   return Number(/_(\d+)\.png$/.exec(file)?.[1] ?? 0);
 }
@@ -106,15 +111,15 @@ function figure({ src, caption, reportUrl, className = '' }) {
 }
 
 function renderIndexPage({ version, pools }) {
-  const manufacturers = [...new Set(pools.map(({ manifest }) => manifest.manufacturer || 'Unknown'))].sort();
+  const manufacturers = [...new Set(pools.map(({ manifest }) => known(manifest.manufacturer, 'Unknown')))].sort();
   const cards = pools
     .map(({ id, manifest }) => {
-      const manufacturer = manifest.manufacturer || 'Unknown';
+      const manufacturer = known(manifest.manufacturer, 'Unknown');
       const hasIcon = (manifest.images ?? []).some((image) => image.file === 'ws_designator.png');
       const icon = hasIcon ? `<img src="${encodePath(`${id}/ws_designator.png`)}" alt="" width="96" height="96">` : '<span class="no-icon">?</span>';
       return `<a class="card" href="${encodePath(id)}/index.html" data-manufacturer="${esc(manufacturer)}">
   ${icon}
-  <span class="card-text"><strong>${esc(manifest.pool_name && manifest.pool_name !== 'TODO' ? manifest.pool_name : id)}</strong>
+  <span class="card-text"><strong>${esc(known(manifest.pool_name, id))}</strong>
   <span>${esc(manufacturer)}</span>
   <span>${badge(poolStatus(manifest))}</span></span>
 </a>`;
@@ -131,7 +136,7 @@ ${cards || '<p>No public pools in this release.</p>'}
 }
 
 function renderPoolPage({ version, id, manifest, references, repo, siteUrl }) {
-  const name = manifest.pool_name && manifest.pool_name !== 'TODO' ? manifest.pool_name : id;
+  const name = known(manifest.pool_name, id);
   const images = [...(manifest.images ?? [])];
   const reportUrl = (image) =>
     reportIssueUrl({
@@ -187,7 +192,7 @@ function renderPoolPage({ version, id, manifest, references, repo, siteUrl }) {
 
   const body = `<p class="crumbs"><a href="../index.html">Release ${esc(version)}</a> / ${esc(name)}</p>
 <h1>${esc(name)}</h1>
-<p>${esc(manifest.manufacturer)} · pool ${esc(id)} · ${badge(poolStatus(manifest))} ${knownIssues(manifest)}</p>
+<p>${esc(known(manifest.manufacturer, 'Unknown manufacturer'))} · pool ${esc(id)} · ${badge(poolStatus(manifest))} ${knownIssues(manifest)}</p>
 <p><a href="../../compare/${encodePath(id)}/index.html">Compare with other releases</a></p>
 ${warnings.length ? `<section class="warnings"><h2>Warnings</h2><ul>${warnings.join('')}</ul></section>` : ''}
 ${sections}
@@ -232,7 +237,7 @@ export function generate({ renders, collection, site, version, repo, siteUrl }) 
     .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(renders, entry.name, 'manifest.json')))
     .map((entry) => ({ id: entry.name, manifest: readJson(path.join(renders, entry.name, 'manifest.json')) }))
     .filter(({ id, manifest }) => manifest.public === true && /^[0-9a-f]{8}$/.test(id))
-    .sort((a, b) => (a.manifest.manufacturer || '').localeCompare(b.manifest.manufacturer || '') || a.id.localeCompare(b.id));
+    .sort((a, b) => known(a.manifest.manufacturer, '~').localeCompare(known(b.manifest.manufacturer, '~')) || a.id.localeCompare(b.id));
   const references = findReferenceImages(collection);
 
   const versionFolder = path.join(site, version);
@@ -254,8 +259,8 @@ export function generate({ renders, collection, site, version, repo, siteUrl }) 
     }
     write(path.join(poolFolder, 'index.html'), renderPoolPage({ version, id, manifest, references: poolReferences, repo, siteUrl }));
     data.pools[id] = {
-      name: manifest.pool_name && manifest.pool_name !== 'TODO' ? manifest.pool_name : id,
-      manufacturer: manifest.manufacturer ?? '',
+      name: known(manifest.pool_name, id),
+      manufacturer: known(manifest.manufacturer, ''),
       images: (manifest.images ?? []).map(({ file, object_id, object_type, width, height }) => ({ file, object_id, object_type, width, height })),
     };
   }
@@ -265,9 +270,9 @@ export function generate({ renders, collection, site, version, repo, siteUrl }) 
 
   // What every release shares: the list of releases, the assets, latest/ and the comparison pages
   const versionsFile = path.join(site, 'versions.json');
-  const known = fs.existsSync(versionsFile) ? readJson(versionsFile) : [];
+  const previousVersions = fs.existsSync(versionsFile) ? readJson(versionsFile) : [];
   const versions = [
-    ...known.filter((entry) => entry.version !== version),
+    ...previousVersions.filter((entry) => entry.version !== version),
     { version, pools: pools.map(({ id }) => ({ id, name: data.pools[id].name })) },
   ].sort((a, b) => compareVersionsDescending(a.version, b.version));
   const latest = versions[0].version;
