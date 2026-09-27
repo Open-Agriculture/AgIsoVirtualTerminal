@@ -72,7 +72,8 @@ runs:
         build-dir: ${{ inputs.vt-source }}/build-vt-render
         cmake-args: -DCMAKE_BUILD_TYPE=Release -DAGISOVT_BUILD_POOL_RENDERER=ON
         target: ${{ inputs.build-targets }}
-        build-args: --parallel
+        # JUCE modules take over a gigabyte each to compile; a bare --parallel starts them all at once
+        build-args: --parallel 4
 
     - name: Render
       if: steps.describe.outputs.available == 'true' && steps.cache.outputs.cache-hit != 'true'
