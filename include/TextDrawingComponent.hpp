@@ -19,6 +19,10 @@ class TextDrawingComponent : public Component
 public:
 	TextDrawingComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
+	/// @brief Sets whether characters missing from the font are drawn with a system fallback font (the default).
+	/// Turning it off keeps text independent of the fonts installed on the machine.
+	static void set_font_fallback_enabled(bool enabled);
+
 protected:
 	virtual const isobus::VTObject *vtObject() const = 0;
 
@@ -50,6 +54,8 @@ protected:
 	bool show = true;
 
 private:
+	static bool fontFallbackEnabled;
+
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TextDrawingComponent)
 };
 
