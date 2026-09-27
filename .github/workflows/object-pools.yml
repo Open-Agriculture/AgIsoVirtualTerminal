@@ -57,13 +57,15 @@ jobs:
           node-version: 22
       - name: Summarise the manifests
         run: node tools/pool-ci/summarize.mjs --renders out --pools tests/pools --summary "$GITHUB_STEP_SUMMARY"
+      # Also after a failed load check, whose renders show what went wrong. Without renders (the build
+      # failed), the failed step above already says why.
       - name: Upload the renders
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: object-pool-renders
           path: out
-          if-no-files-found: error
+          if-no-files-found: warn
           overwrite: true
 
   visual-diff:
@@ -128,7 +130,7 @@ jobs:
           fi
       # The Visual diff comment workflow posts the pull request comment from this artifact
       - name: Upload the report
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: visual-diff-report
