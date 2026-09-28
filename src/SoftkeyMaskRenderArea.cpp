@@ -190,6 +190,7 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 				                                keyCode,
 				                                true);
 			}
+			ownerServer.release_held_buttons();
 		}
 	}
 }
