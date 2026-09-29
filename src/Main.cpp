@@ -65,12 +65,11 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 			serverNAME.set_function_instance(settings.vt_number() - 1);
 			vtNumber = settings.vt_number();
 		}
-		else
-		{
-			// VT number provided from the vtNumberCmdLineArg line
-			serverNAME.set_function_instance(vtNumberCmdLineArg - 1);
-			vtNumber = vtNumberCmdLineArg;
-		}
+	}
+
+	if (0 != vtNumberCmdLineArg)
+	{
+		serverNAME.set_function_instance(vtNumberCmdLineArg - 1);
 	}
 
 	serverNAME.set_arbitrary_address_capable(true);
