@@ -58,7 +58,7 @@ juce_add_gui_app(
   PRODUCT_NAME
   "AgISOVirtualTerminal"
   NEEDS_CURL
-  FALSE
+  TRUE
   NEEDS_WEB_BROWSER
   FALSE
   DESCRIPTION
@@ -66,7 +66,7 @@ juce_add_gui_app(
 
 set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 17)
 
-target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=0
+target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
                                                         JUCE_WEB_BROWSER=0)
 
 juce_generate_juce_header(AgISOVirtualTerminal)
@@ -111,6 +111,8 @@ target_sources(
           "src/InputListComponent.cpp"
           "src/AckSettingsWindow.cpp"
           "src/Settings.cpp"
+          "src/UpdateChecker.cpp"
+          "src/IndentedToggleButton.cpp"
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
           "src/StringDrawingComponent.cpp")
@@ -208,10 +210,10 @@ endif()
 set(CPACK_PACKAGE_NAME "AgISOVirtualTerminal")
 set(CPACK_PACKAGE_VENDOR "Open-Agriculture")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "An ISO11783-6 Server")
-set(CPACK_PACKAGE_VERSION "1.5.1")
-set(CPACK_PACKAGE_VERSION_MAJOR "1")
-set(CPACK_PACKAGE_VERSION_MINOR "5")
-set(CPACK_PACKAGE_VERSION_PATCH "1")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "AgISOVirtualTerminal")
 set(CPACK_COMPONENTS_ALL applications)
 set(CPACK_COMPONENT_APPLICATIONS_DISPLAY_NAME "AgISOVirtualTerminal")
