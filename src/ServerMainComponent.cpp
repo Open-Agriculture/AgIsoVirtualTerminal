@@ -1433,11 +1433,22 @@ void ServerMainComponent::release_held_buttons()
 {
 	for (auto &button : heldButtons)
 	{
-		send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
-		                               button.buttonObjectID,
-		                               button.activeMaskObjectID,
-		                               button.buttonKeyCode,
-		                               get_active_working_set()->get_control_function());
+		if (button.isSoftKey)
+		{
+			send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+			                                 button.buttonObjectID,
+			                                 button.activeMaskObjectID,
+			                                 button.buttonKeyCode,
+			                                 get_active_working_set()->get_control_function());
+		}
+		else
+		{
+			send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+			                               button.buttonObjectID,
+			                               button.activeMaskObjectID,
+			                               button.buttonKeyCode,
+			                               get_active_working_set()->get_control_function());
+		}
 	}
 	heldButtons.clear();
 }
