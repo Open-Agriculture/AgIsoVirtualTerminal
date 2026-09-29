@@ -5,6 +5,7 @@
 *******************************************************************************/
 #include "KeyComponent.hpp"
 
+#include "DesignatorFit.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 
 KeyComponent::KeyComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::Key sourceObject, int keyWidth, int keyHeight) :
@@ -13,6 +14,11 @@ KeyComponent::KeyComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedW
 {
 	setSize(keyWidth, keyHeight);
 	setOpaque(true);
+
+	// The artwork is scaled inside a holder rather than on this component, so that paint() keeps
+	// filling the whole designator and the letterboxing shows the key's colour.
+	contentHolder.setSize(keyWidth, keyHeight);
+	addAndMakeVisible(contentHolder);
 
 	for (std::uint16_t i = 0; i < this->get_number_children(); i++)
 	{
@@ -24,11 +30,13 @@ KeyComponent::KeyComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedW
 
 			if (nullptr != childComponents.back())
 			{
-				addAndMakeVisible(*childComponents.back());
+				contentHolder.addAndMakeVisible(*childComponents.back());
 				childComponents.back()->setTopLeftPosition(get_child_x(i), get_child_y(i));
 			}
 		}
 	}
+
+	fit_designator_to_button(contentHolder, getLocalBounds(), juce::RectanglePlacement::centred | juce::RectanglePlacement::onlyReduceInSize);
 }
 
 void KeyComponent::paint(Graphics &g)
