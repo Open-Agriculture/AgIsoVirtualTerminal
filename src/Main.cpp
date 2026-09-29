@@ -27,6 +27,15 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 #endif
 	canDrivers.push_back(std::make_shared<isobus::TouCANPlugin>(static_cast<std::int16_t>(0), 0));
 	canDrivers.push_back(std::make_shared<isobus::SysTecWindowsPlugin>());
+
+	// The remaining PEAK USB channels are appended *after* the drivers above on purpose: the index
+	// into this list is what gets written to the settings file, so the entries above have to keep
+	// the index they have always had. These extra channels are what makes it possible to fall back
+	// to another adapter when the configured one is already in use by something else.
+	for (auto peakChannel : { PCAN_USBBUS2, PCAN_USBBUS3, PCAN_USBBUS4, PCAN_USBBUS5, PCAN_USBBUS6, PCAN_USBBUS7, PCAN_USBBUS8 })
+	{
+		canDrivers.push_back(std::make_shared<isobus::PCANBasicWindowsPlugin>(static_cast<WORD>(peakChannel)));
+	}
 #elif defined(JUCE_MAC)
 	canDrivers.push_back(std::make_shared<isobus::MacCANPCANPlugin>(PCAN_USBBUS1));
 #else
