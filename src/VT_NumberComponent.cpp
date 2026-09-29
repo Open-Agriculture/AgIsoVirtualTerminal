@@ -1,3 +1,8 @@
+/*******************************************************************************
+** @file       VT_NumberComponent.cpp
+** @author     Miklos Marton
+** @copyright  The Open-Agriculture Developers
+*******************************************************************************/
 #include "VT_NumberComponent.hpp"
 
 void VT_NumberComponent::paint(Graphics &g)

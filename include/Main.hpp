@@ -3,7 +3,9 @@
 ** @author     Adrian Del Grosso
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
-#pragma once
+
+#ifndef MAIN_HPP
+#define MAIN_HPP
 
 #include <JuceHeader.h>
 #include "ASCIILogFile.hpp"
@@ -147,3 +149,5 @@ private:
 	std::unique_ptr<MainWindow> mainWindow;
 	ASCIILogFile logFile;
 };
+
+#endif // MAIN_HPP

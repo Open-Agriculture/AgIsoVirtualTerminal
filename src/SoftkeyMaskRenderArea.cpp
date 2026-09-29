@@ -1,5 +1,5 @@
 /*******************************************************************************
-** @file       SoftKeyMaskRenderAreaComponent.cpp
+** @file       SoftkeyMaskRenderArea.cpp
 ** @author     Adrian Del Grosso
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
@@ -10,7 +10,6 @@
 SoftKeyMaskRenderAreaComponent::SoftKeyMaskRenderAreaComponent(ServerMainComponent &parentServer) :
   ownerServer(parentServer)
 {
-	//addMouseListener(this, true);
 }
 
 void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
