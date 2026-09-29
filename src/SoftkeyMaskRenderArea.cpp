@@ -186,7 +186,7 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 				                                             ownerServer.get_active_working_set()->get_control_function());
 				ownerServer.set_button_released(ownerServer.get_active_working_set(),
 				                                clickedObject->get_id(),
-				                                activeMask->get_id(),
+				                                parentMask->get_id(),
 				                                keyCode,
 				                                true);
 			}
