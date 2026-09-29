@@ -1,4 +1,14 @@
-#pragma once
+//================================================================================================
+/// @file ServerMainComponent.hpp
+///
+/// @brief The main component of the application, which runs the VT server
+/// @author Adrian Del Grosso
+///
+/// @copyright 2023 The Open-Agriculture Developers
+//================================================================================================
+
+#ifndef SERVER_MAIN_COMPONENT_HPP
+#define SERVER_MAIN_COMPONENT_HPP
 
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
@@ -276,3 +286,5 @@ private:
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };
+
+#endif // SERVER_MAIN_COMPONENT_HPP

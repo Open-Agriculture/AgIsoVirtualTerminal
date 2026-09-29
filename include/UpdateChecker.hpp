@@ -7,7 +7,8 @@
 /// @copyright  The Open-Agriculture Developers
 //================================================================================================
 
-#pragma once
+#ifndef UPDATE_CHECKER_HPP
+#define UPDATE_CHECKER_HPP
 
 #include "JuceHeader.h"
 
@@ -49,3 +50,5 @@ private:
 	CriticalSection activeStreamLock;
 	WebInputStream *activeStream = nullptr;
 };
+
+#endif // UPDATE_CHECKER_HPP
