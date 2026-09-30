@@ -567,7 +567,6 @@ void ServerMainComponent::timerCallback()
 	}
 
 	bool hasIopLoadInProgress = false;
-	int wsIndex = 0;
 	for (auto &ws : managedWorkingSetList)
 	{
 		if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Success == ws->get_object_pool_processing_state())
@@ -582,7 +581,7 @@ void ServerMainComponent::timerCallback()
 			    (workingSetObject->get_selectable()))
 			{
 				ws->set_working_set_maintenance_message_timestamp_ms(isobus::SystemTiming::get_timestamp_ms());
-				change_selected_working_set(wsIndex);
+				change_selected_working_set(ws);
 			}
 
 			// A Load Version response is only valid for the initial pool restored
@@ -710,7 +709,6 @@ void ServerMainComponent::timerCallback()
 				hasIopLoadInProgress = true;
 			}
 		}
-		wsIndex++;
 	}
 
 	if (hasIopLoadInProgress)
@@ -1383,11 +1381,11 @@ void ServerMainComponent::apply_always_on_top()
 	}
 }
 
-void ServerMainComponent::change_selected_working_set(std::uint8_t index)
+void ServerMainComponent::change_selected_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
-	if ((index < managedWorkingSetList.size()) &&
-	    (nullptr != managedWorkingSetList.at(index)->get_working_set_object()) &&
-	    (std::static_pointer_cast<isobus::WorkingSet>(managedWorkingSetList.at(index)->get_working_set_object())->get_selectable()))
+	if ((nullptr != workingSet) &&
+	    (nullptr != workingSet->get_working_set_object()) &&
+	    (std::static_pointer_cast<isobus::WorkingSet>(workingSet->get_working_set_object())->get_selectable()))
 	{
 		bool lProcessActivateDeactivateMacros = false;
 
@@ -1395,7 +1393,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		{
 			ws->clear_callback_handles();
 		}
-		auto &ws = managedWorkingSetList.at(index);
+		auto &ws = workingSet;
 
 		if (activeWorkingSetMasterAddress != ws->get_control_function()->get_address())
 		{
