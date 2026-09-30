@@ -81,32 +81,32 @@ void OutputRectangleComponent::paint(Graphics &g)
 
 			if (0 != line->get_width())
 			{
-				bool anyLineSuppressed = (0 != get_line_suppression_bitfield());
+				const int lineWidth = line->get_width();
+				const int width = static_cast<int>(get_width());
+				const int height = static_cast<int>(get_height());
+				const auto isSuppressed = [this](LineSuppressionOption side) {
+					return 0 != ((0x01 << static_cast<std::uint8_t>(side)) & get_line_suppression_bitfield());
+				};
 				vtColour = parentWorkingSet->get_colour(line->get_background_color());
 				g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0));
 
-				if (!anyLineSuppressed)
+				// ISO 11783-6 draws shapes with a square paintbrush of the line width that stays inside the object's
+				// box, so each side is a strip of the line width along the inside of its edge
+				if (!isSuppressed(LineSuppressionOption::SuppressTopLine))
 				{
-					g.drawRect(0, 0, static_cast<int>(get_width()), static_cast<int>(get_height()), line->get_width());
+					g.fillRect(0, 0, width, lineWidth);
 				}
-				else // Something is suppressed
+				if (!isSuppressed(LineSuppressionOption::SuppressBottomLine))
 				{
-					if (0 == ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressTopLine)) & get_line_suppression_bitfield()))
-					{
-						g.drawLine(0, 0, get_width(), 0, line->get_width());
-					}
-					if (0 == ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressLeftSideLine)) & get_line_suppression_bitfield()))
-					{
-						g.drawLine(0, 0, 0, get_height(), line->get_width());
-					}
-					if (0 == ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressRightSideLine)) & get_line_suppression_bitfield()))
-					{
-						g.drawLine(get_width(), 0, get_width(), get_height(), line->get_width());
-					}
-					if (0 == ((0x01 << static_cast<std::uint8_t>(LineSuppressionOption::SuppressBottomLine)) & get_line_suppression_bitfield()))
-					{
-						g.drawLine(0, get_height(), get_width(), get_height(), line->get_width());
-					}
+					g.fillRect(0, height - lineWidth, width, lineWidth);
+				}
+				if (!isSuppressed(LineSuppressionOption::SuppressLeftSideLine))
+				{
+					g.fillRect(0, 0, lineWidth, height);
+				}
+				if (!isSuppressed(LineSuppressionOption::SuppressRightSideLine))
+				{
+					g.fillRect(width - lineWidth, 0, lineWidth, height);
 				}
 			}
 		}
