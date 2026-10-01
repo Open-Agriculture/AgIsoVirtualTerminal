@@ -42,6 +42,8 @@ void OutputLineComponent::paint(Graphics &g)
 
 				// Bresenham's line algorithm, painting the brush at every point. The line art has one bit per spot
 				// the size of the brush, so the spot of a point is its step along the line divided by the brush size.
+				// The brush reaches brush size - 1 steps past its point, so it is painted only where everything it
+				// covers is drawn; otherwise each dash would grow into the gap after it.
 				const int deltaX = std::abs(to.x - from.x);
 				const int deltaY = -std::abs(to.y - from.y);
 				const int stepX = (from.x < to.x) ? 1 : -1;
@@ -52,7 +54,7 @@ void OutputLineComponent::paint(Graphics &g)
 
 				while (true)
 				{
-					if (line_art::is_spot_drawn(lineArt, step / brushSize))
+					if (line_art::is_spot_drawn(lineArt, step / brushSize) && line_art::is_spot_drawn(lineArt, (step + brushSize - 1) / brushSize))
 					{
 						g.fillRect(point.x, point.y, brushSize, brushSize);
 					}
