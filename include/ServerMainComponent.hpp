@@ -1,10 +1,21 @@
-#pragma once
+//================================================================================================
+/// @file ServerMainComponent.hpp
+///
+/// @brief The main component of the application, which runs the VT server
+/// @author Adrian Del Grosso
+///
+/// @copyright 2023 The Open-Agriculture Developers
+//================================================================================================
+
+#ifndef SERVER_MAIN_COMPONENT_HPP
+#define SERVER_MAIN_COMPONENT_HPP
 
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
 #include "LoggerComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
+#include "UpdateChecker.hpp"
 #include "VT_NumberComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_diagnostic_protocol.hpp"
@@ -122,6 +133,7 @@ public:
 
 	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
+	void release_held_buttons();
 
 	void repaint_on_next_update();
 
@@ -154,6 +166,8 @@ private:
 		ConfigureCANHardware,
 		StartStop,
 		AutoStart,
+		CheckForUpdates,
+		AutoCheckForUpdates,
 		AlwaysOnTop
 	};
 
@@ -210,15 +224,27 @@ private:
 	bool is_active_alarm_mask() const;
 	void update_ack_button_visibility();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
+
+	/// @brief Asks GitHub if a newer release is available and tells the user if there is one
+	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
+	void check_for_update(bool reportWhenUpToDate);
+
+	/// @brief Handles the result of a check started by check_for_update(), on the message thread
+	/// @param[in] result The outcome of the check
+	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
+	void on_update_check_complete(const UpdateChecker::Result &result, bool reportWhenUpToDate);
+
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 
 	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
+	static constexpr juce::int64 UPDATE_CHECK_INTERVAL_MS = 60LL * 60LL * 1000LL;
 	const std::string ISO_DATA_PATH = "iso_data";
 	std::string screenCaptureDirArgument = "";
 	std::string canLogPath;
 
 	juce::ApplicationCommandManager mCommandManager;
+	UpdateChecker updateChecker;
 	WorkingSetSelectorComponent workingSetSelector;
 	DataMaskRenderAreaComponent dataMaskRenderer;
 	SoftKeyMaskRenderAreaComponent softKeyMaskRenderer;
@@ -239,6 +265,8 @@ private:
 	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
+	juce::int64 lastUpdateCheck = 0;
+	juce::String skippedUpdateVersion;
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;
@@ -250,6 +278,7 @@ private:
 	bool alarmAckKeyPressed = false;
 	bool showAckButton = false;
 	bool saveIopBeforeParse = false;
+	bool checkForUpdatesOnStartup = true;
 	bool alwaysOnTop = false;
 	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
 	juce::String savedWindowState; ///< The window geometry loaded from the settings file
@@ -257,3 +286,5 @@ private:
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ServerMainComponent)
 };
+
+#endif // SERVER_MAIN_COMPONENT_HPP
