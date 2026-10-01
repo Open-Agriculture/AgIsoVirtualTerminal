@@ -1,0 +1,12 @@
+{
+  "name": "vt-render-gallery",
+  "private": true,
+  "description": "Generates the static render gallery from vt-render manifests",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

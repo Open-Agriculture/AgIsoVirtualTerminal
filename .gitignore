@@ -48,3 +48,6 @@ CMakeFiles
 
 *.orig
 *.rej
+
+# Node tools
+node_modules/
