@@ -4,6 +4,7 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "OutputLineComponent.hpp"
+#include "LineArt.hpp"
 
 OutputLineComponent::OutputLineComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputLine sourceObject) :
   isobus::OutputLine(sourceObject),
@@ -20,28 +21,88 @@ void OutputLineComponent::paint(Graphics &g)
 
 		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::LineAttributes == child->get_object_type()))
 		{
-			if ((0 != get_width()) && (0 != get_height()))
-			{
-				auto line = std::static_pointer_cast<isobus::LineAttributes>(child);
+			auto line = std::static_pointer_cast<isobus::LineAttributes>(child);
+			const int brushSize = line->get_width();
+			const std::uint16_t lineArt = line->get_line_art_bit_pattern();
 
+			if ((0 != get_width()) && (0 != get_height()) && (0 != brushSize))
+			{
 				auto vtColour = parentWorkingSet->get_colour(line->get_background_color());
 				g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 
-				if (1 == get_height())
+				// ISO 11783-6 draws lines with a square paintbrush the size of the line width, each point of the line
+				// being the brush's upper left corner. The brush stays inside the object's box, so the line runs
+				// between the corners that leave room for it; where the box is smaller than the brush, the brush is
+				// clipped to the box (Figure B.4).
+				const int endX = std::max(0, static_cast<int>(get_width()) - brushSize);
+				const int endY = std::max(0, static_cast<int>(get_height()) - brushSize);
+				const bool bottomLeftToTopRight = (LineDirection::BottomLeftToTopRight == get_line_direction());
+				const Point<int> from(0, bottomLeftToTopRight ? endY : 0);
+				const Point<int> to(endX, bottomLeftToTopRight ? 0 : endY);
+
+				// Bresenham's line algorithm, painting the brush at every point. The line art has one bit per spot
+				// the size of the brush, counted along the line's longer axis from its start (Figure B.13). Each step
+				// moves one pixel along that axis, and the brush covers the brush size pixels from its step on, so
+				// only the slices of the brush whose spot is drawn are painted. Otherwise each dash would grow into
+				// the gap after it, and a spot cut short by the end of the line would not be drawn at all.
+				const int deltaX = std::abs(to.x - from.x);
+				const int deltaY = -std::abs(to.y - from.y);
+				const int stepX = (from.x < to.x) ? 1 : -1;
+				const int stepY = (from.y < to.y) ? 1 : -1;
+				const bool alongX = (deltaX >= -deltaY);
+				const bool startsAtFarEdge = !alongX && (stepY < 0);
+				int error = deltaX + deltaY;
+				Point<int> point = from;
+				int step = 0;
+
+				while (true)
 				{
-					g.drawHorizontalLine(0, 0, get_width());
-				}
-				else if (1 == get_width())
-				{
-					g.drawVerticalLine(0, 0, get_height());
-				}
-				else if (LineDirection::BottomLeftToTopRight == get_line_direction())
-				{
-					g.drawLine(0, get_height(), get_width(), 0, line->get_width() + 0.5f);
-				}
-				else // LineDirection::TopLeftToBottomRight
-				{
-					g.drawLine(0, 0, get_width(), get_height(), line->get_width() + 0.5f);
+					if (line_art::SOLID == lineArt)
+					{
+						g.fillRect(point.x, point.y, brushSize, brushSize);
+					}
+					else
+					{
+						// Slice i of the brush is i pixels along the axis from the brush's upper left corner. On a line
+						// drawn upwards, the start of the line is at the brush's bottom edge instead.
+						int sliceStart = 0;
+						for (int i = 0; i <= brushSize; i++)
+						{
+							const int distance = step + (startsAtFarEdge ? (brushSize - 1 - i) : i);
+							const bool drawn = (i < brushSize) && line_art::is_spot_drawn(lineArt, distance / brushSize);
+							if (!drawn)
+							{
+								if (i > sliceStart)
+								{
+									if (alongX)
+									{
+										g.fillRect(point.x + sliceStart, point.y, i - sliceStart, brushSize);
+									}
+									else
+									{
+										g.fillRect(point.x, point.y + sliceStart, brushSize, i - sliceStart);
+									}
+								}
+								sliceStart = i + 1;
+							}
+						}
+					}
+					step++;
+					if (point == to)
+					{
+						break;
+					}
+					const int doubledError = 2 * error;
+					if (doubledError >= deltaY)
+					{
+						error += deltaY;
+						point.x += stepX;
+					}
+					if (doubledError <= deltaX)
+					{
+						error += deltaX;
+						point.y += stepY;
+					}
 				}
 			}
 		}
