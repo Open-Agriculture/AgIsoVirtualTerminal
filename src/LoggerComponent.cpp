@@ -72,12 +72,51 @@ void LoggerComponent::paint(Graphics &g)
 
 void LoggerComponent::sink_CAN_stack_log(LoggingLevel level, const std::string &logText)
 {
-	const auto mmLock = MessageManagerLock();
+	// This sink is called from arbitrary isobus stack threads, potentially while those
+	// threads hold an isobus-internal mutex (e.g. a transport protocol session lock) that
+	// the main/UI thread also needs during its own periodic work. A synchronous
+	// MessageManagerLock() here used to block the calling thread until the UI thread was
+	// free - if the UI thread was itself waiting on that same isobus-internal mutex, the
+	// two threads deadlocked each other permanently (the whole app, since the UI thread
+	// drives the message pump).
+	//
+	// Posting one juce::MessageManager::callAsync() per call fixed that deadlock but traded
+	// it for a different problem: this sink fires on every single LOG_DEBUG in the stack, so
+	// under real VT traffic (a client toggling several objects a second) it was flooding the
+	// JUCE message queue with one closure per log line - and JUCE's own Timer callbacks are
+	// dispatched through that same queue, so the working-set repaint timer got starved behind
+	// the backlog and stopped firing in practice, even though nothing was deadlocked anymore.
+	//
+	// Instead, just buffer the message behind a small dedicated mutex (never held across any
+	// isobus stack call, so it can't itself become a deadlock the way the isobus-internal
+	// mutexes could) and let pump_pending_messages(), called from ServerMainComponent's
+	// existing periodic timer, apply the whole backlog and repaint at most once per tick.
+	logMessage(logText);
+
+	const std::lock_guard<std::mutex> lock(pendingMessagesMutex);
+	pendingMessages.push_back({ logText, level });
+}
+
+void LoggerComponent::pump_pending_messages()
+{
+	std::deque<LogData> drained;
+	{
+		const std::lock_guard<std::mutex> lock(pendingMessagesMutex);
+		if (pendingMessages.empty())
+		{
+			return;
+		}
+		drained.swap(pendingMessages);
+	}
+
 	auto bounds = getLocalBounds();
 
-	loggedMessages.push_front({ logText, level });
+	for (auto it = drained.rbegin(); it != drained.rend(); ++it)
+	{
+		loggedMessages.push_front(*it);
+	}
 
-	if (loggedMessages.size() > MAX_NUMBER_MESSAGES)
+	while (loggedMessages.size() > MAX_NUMBER_MESSAGES)
 	{
 		loggedMessages.pop_back();
 	}
@@ -90,7 +129,6 @@ void LoggerComponent::sink_CAN_stack_log(LoggingLevel level, const std::string &
 	}
 	setSize(bounds.getWidth(), newSize);
 	repaint();
-	logMessage(logText);
 }
 
 std::uint64_t LoggerComponent::initialPos() const
