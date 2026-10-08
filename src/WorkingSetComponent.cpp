@@ -37,3 +37,37 @@ void WorkingSetComponent::paint(Graphics &g)
 	g.setColour(background);
 	g.fillAll();
 }
+
+// Clients author designators against whatever soft key size they assume, which across real pools runs from
+// 28x26 up to 240x192, so the designator is scaled to fit the button rather than clipped to it. getUnion
+// ignores empty rectangles, so children that resolved to nothing drop out of the measurement on their own.
+void WorkingSetComponent::fit_designator_to_button(Component &designator, juce::Rectangle<int> button)
+{
+	auto children = designator.getChildren();
+	juce::Rectangle<int> drawnArea;
+
+	for (auto *child : children)
+	{
+		drawnArea = drawnArea.getUnion(child->getBounds());
+	}
+
+	if (drawnArea.isEmpty())
+	{
+		// nothing to measure, so leave the component at the button-sized bounds it was built with
+		return;
+	}
+
+	for (auto *child : children)
+	{
+		child->setTopLeftPosition(child->getPosition() - drawnArea.getPosition());
+	}
+	designator.setSize(drawnArea.getWidth(), drawnArea.getHeight());
+	designator.setTransform(juce::RectanglePlacement(juce::RectanglePlacement::centred)
+	                          .getTransformToFit(designator.getBounds().toFloat(), button.toFloat()));
+}
+
+void WorkingSetComponent::paint_active_highlight(Graphics &g, juce::Rectangle<int> button)
+{
+	g.setColour(juce::Colours::yellow.withAlpha(0.4f));
+	g.drawRoundedRectangle(button.toFloat().expanded(2.0f), 4.0f, 4.0f);
+}

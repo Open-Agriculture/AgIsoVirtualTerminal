@@ -1,0 +1,51 @@
+name: Rendering problem
+description: Something from an object pool is drawn wrong, in the render gallery or on the VT.
+title: "[Render] "
+labels: [visual, render-bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The "Looks wrong?" link under a gallery image fills in the first five fields.
+  - type: input
+    id: pool-id
+    attributes:
+      label: Pool id
+      description: The 8 hex digit id of the pool in AgIsoObjectPoolCollection.
+      placeholder: 7301e2a8
+  - type: input
+    id: object-id
+    attributes:
+      label: Object id
+      description: The id of the mask or object that looks wrong.
+      placeholder: "1000"
+  - type: input
+    id: object-type
+    attributes:
+      label: Object type
+      placeholder: DataMask
+  - type: input
+    id: vt-version
+    attributes:
+      label: VT version
+      description: The release of the gallery page, or the VT version you use.
+      placeholder: 1.5.1
+  - type: input
+    id: image-url
+    attributes:
+      label: Image URL
+      description: A link to the render that looks wrong.
+  - type: textarea
+    id: what-looks-wrong
+    attributes:
+      label: What looks wrong?
+      description: What is drawn, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: terminal-photo
+    attributes:
+      label: Photo from a real terminal, and which terminal
+      description: A photo or screenshot of the same screen on another terminal helps a lot. Drag it in here and name the terminal.
+    validations:
+      required: false
