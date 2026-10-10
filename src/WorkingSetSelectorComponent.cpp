@@ -86,17 +86,24 @@ void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::sha
 {
 	children.clear();
 
-	for (std::size_t i = 0; i < managedWorkingSetList.size(); i++)
+	for (auto &managedWorkingSet : managedWorkingSetList)
 	{
-		children.push_back({ managedWorkingSetList.at(i) });
+		auto workingSetObject = managedWorkingSet->get_working_set_object();
 
-		if ((
-		      (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) ||
-		      managedWorkingSetList.at(i)->is_object_pool_transfer_in_progress()) &&
-		    (!isobus::SystemTiming::time_expired_ms(managedWorkingSetList.at(i)->get_working_set_maintenance_message_timestamp_ms(), 3000)) &&
-		    (!managedWorkingSetList.at(i)->is_deletion_requested()))
+		// a pool still transferring has no working set object yet, so it keeps its row until the selectable attribute can be read
+		if ((nullptr == workingSetObject) ||
+		    std::static_pointer_cast<isobus::WorkingSet>(workingSetObject)->get_selectable())
 		{
-			children.back().childComponents.push_back(getWorkingSetChildComponent(managedWorkingSetList.at(i), i));
+			children.push_back({ managedWorkingSet });
+
+			if ((
+			      (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSet->get_object_pool_processing_state()) ||
+			      managedWorkingSet->is_object_pool_transfer_in_progress()) &&
+			    (!isobus::SystemTiming::time_expired_ms(managedWorkingSet->get_working_set_maintenance_message_timestamp_ms(), 3000)) &&
+			    (!managedWorkingSet->is_deletion_requested()))
+			{
+				children.back().childComponents.push_back(getWorkingSetChildComponent(managedWorkingSet, static_cast<int>(children.size()) - 1));
+			}
 		}
 	}
 
@@ -240,11 +247,11 @@ void WorkingSetSelectorComponent::mouseUp(const MouseEvent &event)
 
 	if ((button_padding() <= relativeEvent.getMouseDownX()) && (relativeEvent.getMouseDownX() < button_padding() + BUTTON_WIDTH) && (button_padding() <= relativeEvent.getMouseDownY()) && (relativeEvent.getMouseDownY() < button_padding() + (button_padding() + BUTTON_HEIGHT) * children.size()))
 	{
-		int workingSetIndex = (relativeEvent.getMouseDownY() - button_padding()) / (BUTTON_HEIGHT + button_padding());
+		const auto workingSetIndex = static_cast<std::size_t>((relativeEvent.getMouseDownY() - button_padding()) / (BUTTON_HEIGHT + button_padding()));
 
-		if (workingSetIndex <= 255)
+		if (workingSetIndex < children.size())
 		{
-			parentServer.change_selected_working_set(static_cast<std::uint8_t>(workingSetIndex));
+			parentServer.change_selected_working_set(children.at(workingSetIndex).workingSet);
 		}
 		redraw();
 	}
