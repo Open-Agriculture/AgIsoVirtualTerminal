@@ -588,15 +588,8 @@ void ServerMainComponent::timerCallback()
 			    ((isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress) ||
 			     (activeWorkingSetMasterAddress == ws->get_control_function()->get_address())))
 			{
-				// The second condition above catches a client reconnecting (e.g. after a power
-				// cycle) at the address that was already recorded as the active master. Nothing
-				// resets activeWorkingSetMasterAddress to NULL_CAN_ADDRESS when a working set goes
-				// silent without a clean disconnect, so without this, a reconnecting client gets a
-				// brand new VirtualTerminalServerManagedWorkingSet object that never has
-				// change_selected_working_set() (and therefore never has the repaint listener
-				// re-registered via save_callback_handle) called on it again - the screen then
-				// silently stops repainting for that client's mask entirely, frozen at whatever was
-				// last drawn, until the working set is manually reselected.
+				// Also reselect a client that reconnects at the active master's address,
+				// otherwise its new working set never gets a repaint listener
 				ws->set_working_set_maintenance_message_timestamp_ms(isobus::SystemTiming::get_timestamp_ms());
 				change_selected_working_set(wsIndex);
 			}
@@ -659,15 +652,7 @@ void ServerMainComponent::timerCallback()
 						auto nextWorkingSetObject = nextWorkingSet->get_working_set_object();
 						auto nextWorkingSetObjectTyped = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSetObject);
 
-						// A working set that declared itself non-selectable (e.g. an AUX-N-only
-						// input device with just a placeholder bench-test mask) must never be
-						// promoted to the active/displayed master - it was never a candidate to
-						// begin with. Without this check, disconnecting the real selectable
-						// master left it as the sole fallback here, silently making it "master"
-						// with no repaint listener ever wired up for it via
-						// change_selected_working_set() (nothing here calls that), so the real
-						// master's own reconnect later could never reclaim the role either -
-						// the screen just froze on whatever was last drawn.
+						// Never fall back to a non-selectable working set (e.g. an AUX-N-only device)
 						if ((nullptr == nextWorkingSetObject) || !nextWorkingSetObjectTyped->get_selectable())
 						{
 							continue;
@@ -1738,13 +1723,7 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 {
 	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
 	{
-		// ChangeActiveMaskCommand is processed on whatever thread is pumping CAN messages
-		// (not necessarily the UI thread). A synchronous MessageManagerLock here carries the
-		// same deadlock risk fixed in LoggerComponent::sink_CAN_stack_log() (#249): if the
-		// calling thread holds an isobus-internal mutex the UI thread's own periodic work also
-		// needs, the two threads wait on each other forever. Mask changes are infrequent, so
-		// deferring the whole handler to the UI thread asynchronously is both correct and
-		// cheap here.
+		// Called from the CAN thread; a MessageManagerLock here can deadlock (see #249)
 		juce::MessageManager::callAsync([this, affectedWorkingSet, newMask]() {
 			dataMaskRenderer.on_change_active_mask(activeWorkingSet);
 			softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
