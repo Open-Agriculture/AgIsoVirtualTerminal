@@ -83,34 +83,28 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 			auto relativeEvent = event.getEventRelativeTo(this);
 			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
 
-			std::uint8_t keyCode = 1;
-
 			if (nullptr != clickedObject)
 			{
 				if (isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
 				{
-					keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
-					ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
-				}
-				else if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type())
-				{
-					keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
-					ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
-				}
+					// A disabled button is ignored here, the same way the release below ignores
+					// it, so that a press can never be sent without its matching release
+					if (false == std::static_pointer_cast<isobus::Button>(clickedObject)->get_option(isobus::Button::Options::Disabled))
+					{
+						std::uint8_t keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+						ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
 
-				ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
-				                                           clickedObject->get_id(),
-				                                           activeMask->get_id(),
-				                                           keyCode,
-				                                           ownerServer.get_active_working_set()->get_control_function());
-				if (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type() ||
-				    isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
-				{
-					ownerServer.set_button_held(ownerServer.get_active_working_set(),
-					                            clickedObject->get_id(),
-					                            activeMask->get_id(),
-					                            keyCode,
-					                            (isobus::VirtualTerminalObjectType::Key == clickedObject->get_object_type()));
+						ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
+						                                           clickedObject->get_id(),
+						                                           activeMask->get_id(),
+						                                           keyCode,
+						                                           ownerServer.get_active_working_set()->get_control_function());
+						ownerServer.set_button_held(ownerServer.get_active_working_set(),
+						                            clickedObject->get_id(),
+						                            activeMask->get_id(),
+						                            keyCode,
+						                            false);
+					}
 				}
 			}
 		}
@@ -132,8 +126,6 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 			auto relativeEvent = event.getEventRelativeTo(this);
 			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
 
-			std::uint8_t keyCode = 1;
-
 			if (nullptr != clickedObject)
 			{
 				switch (clickedObject->get_object_type())
@@ -142,7 +134,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 					{
 						if (false == std::static_pointer_cast<isobus::Button>(clickedObject)->get_option(isobus::Button::Options::Disabled))
 						{
-							keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+							std::uint8_t keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
 							ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 							                                           clickedObject->get_id(),
 							                                           activeMask->get_id(),
@@ -155,23 +147,6 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							                                keyCode,
 							                                true);
 						}
-					}
-					break;
-
-					case isobus::VirtualTerminalObjectType::Key:
-					{
-						keyCode = std::static_pointer_cast<isobus::Key>(clickedObject)->get_key_code();
-						ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
-						                                           clickedObject->get_id(),
-						                                           activeMask->get_id(),
-						                                           keyCode,
-						                                           ownerServer.get_active_working_set()->get_control_function());
-						ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
-						ownerServer.set_button_released(ownerServer.get_active_working_set(),
-						                                clickedObject->get_id(),
-						                                activeMask->get_id(),
-						                                keyCode,
-						                                true);
 					}
 					break;
 
@@ -547,6 +522,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						break;
 				}
 			}
+			ownerServer.release_held_buttons();
 		}
 	}
 }
@@ -661,7 +637,6 @@ bool DataMaskRenderAreaComponent::objectCanBeClicked(std::shared_ptr<isobus::VTO
 		{
 			case isobus::VirtualTerminalObjectType::Button:
 			case isobus::VirtualTerminalObjectType::InputList:
-			case isobus::VirtualTerminalObjectType::Key:
 			case isobus::VirtualTerminalObjectType::InputNumber:
 			case isobus::VirtualTerminalObjectType::InputBoolean:
 			case isobus::VirtualTerminalObjectType::InputString:
