@@ -234,6 +234,16 @@ private:
 	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
 	void on_update_check_complete(const UpdateChecker::Result &result, bool reportWhenUpToDate);
 
+	/// @brief Stops the CAN interface, keeps the configured frame handlers and resets the started state
+	void stop_can_interface();
+
+	/// @brief Stops the CAN interface and tells the user why, using the last error of the channel 0 driver
+	/// @param[in] title The title of the alert
+	void stop_can_interface_with_alert(const String &title);
+
+	/// @brief Starts the CAN interface, and stops it again with an alert if a channel could not be opened
+	void start_can_interface();
+
 	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
 	void clear_iso_data();
 
