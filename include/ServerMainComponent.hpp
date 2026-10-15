@@ -150,25 +150,15 @@ public:
    */
 	int minimum_height() const;
 
-	/// @brief Resizes this component, and the window around it, for the current display scale
-	void apply_display_size();
+	static constexpr double MINIMUM_DISPLAY_SCALE = 0.25; ///< Lower bound when fitting to the window
+	static constexpr double MAXIMUM_DISPLAY_SCALE = 6.0; ///< Upper bound when fitting to the window
 
-	/// @brief The percentages offered in the settings dialog. Index 0 is the automatic entry,
-	/// which has no percentage of its own, so it is only a placeholder.
-	static constexpr int SCREEN_SCALE_CHOICES[] = { 0, 100, 125, 150, 200, 250, 300, 400 };
-
-	/// @brief Returns which entry of the screen scale list matches the current setting
-	/// @returns The index to select in the dialog's screen scale box
-	int get_screen_scale_choice_index() const;
-
-	static constexpr double MINIMUM_AUTOMATIC_SCALE = 0.25; ///< Lower bound when fitting to the window
-	static constexpr double MAXIMUM_AUTOMATIC_SCALE = 6.0; ///< Upper bound when fitting to the window
-
-	/// @brief Returns the factor the data mask and soft key mask are magnified by on screen.
+	/// @brief Returns the factor the data mask and soft key mask are magnified by on screen, so
+	/// that they fill the window.
 	/// @details This is a display zoom only. The size reported to clients is unchanged, because
 	/// that is what their object pools are designed against; the same pool is simply drawn
-	/// larger, which is what makes a 480 pixel mask usable on a big screen. When the automatic
-	/// setting is on, this is instead recomputed on every layout pass to fit the window.
+	/// larger, which is what makes a 480 pixel mask usable on a big screen. It is recomputed on
+	/// every layout pass, so resizing the window rescales the masks.
 	/// @returns The display scale, where 1.0 is the reported size
 	double display_scale() const;
 
@@ -308,8 +298,6 @@ private:
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	juce::int64 lastUpdateCheck = 0;
 	juce::String skippedUpdateVersion;
-	int displayScalePercent = 100; ///< How much the ISO render areas are magnified on screen, when not automatic
-	bool automaticDisplayScale = false; ///< True to recompute the scale from the window size instead
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;

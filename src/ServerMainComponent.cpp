@@ -88,8 +88,9 @@ ServerMainComponent::ServerMainComponent(
 
 	// Make sure you set the size of the component after
 	// you add any child components.
-	setSize(juce::roundToInt(WorkingSetSelectorComponent::WIDTH * working_set_selector_scale()) + juce::roundToInt((get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width()) * display_scale()),
-	        minimum_height() + LoggerComponent::HEIGHT);
+	// The menu bar is counted too, so that a new window fits the masks at exactly 100 %
+	setSize(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width(),
+	        juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() + minimum_height() + LoggerComponent::HEIGHT);
 
 	workingSetSelector.setTopLeftPosition(0, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
 
@@ -1017,7 +1018,6 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Capabilities", "You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients.", MessageBoxIconType::NoIcon);
 			popupMenu->addTextEditor("VT number", String(vtNumber), "VT number (1-32, only applied on restart)");
 			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), "Data Mask Size (height and width)");
-			popupMenu->addComboBox("Screen Scale", { "Automatic (fit to window)", "100 %", "125 %", "150 %", "200 %", "250 %", "300 %", "400 %" });
 			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_height()), "Soft Key Designator Height (min 60)");
 			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), "Soft Key Designator Width (min 60)");
 			popupMenu->addTextEditor("Number of Physical Soft Key columns", String(get_physical_soft_key_columns()), "Number of Physical Soft Key columns (min 1)");
@@ -1025,8 +1025,6 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 			popupMenu->getTextEditor("VT number")->setInputRestrictions(2, "1234567890");
 			popupMenu->getTextEditor("Data Mask Size (height and width)")->setInputRestrictions(4, "1234567890");
-			// The scale magnifies the display only, so the item order has to match SCREEN_SCALE_CHOICES
-			popupMenu->getComboBoxComponent("Screen Scale")->setSelectedItemIndex(get_screen_scale_choice_index());
 			popupMenu->getTextEditor("Soft Key Designator Height")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Soft Key Designator Width")->setInputRestrictions(4, "1234567890");
 			popupMenu->getTextEditor("Number of Physical Soft Key columns")->setInputRestrictions(1, "1234567890");
@@ -1582,17 +1580,9 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 				mParent.vtNumber = 1;
 			}
 
-			const int scaleChoice = mParent.popupMenu->getComboBoxComponent("Screen Scale")->getSelectedItemIndex();
-
-			mParent.automaticDisplayScale = (0 >= scaleChoice);
-
-			if (!mParent.automaticDisplayScale)
-			{
-				mParent.displayScalePercent = SCREEN_SCALE_CHOICES[scaleChoice];
-			}
-
 			mParent.save_settings();
-			mParent.apply_display_size();
+			// The mask and soft key sizes may have changed, so the masks are fitted to the window again
+			mParent.resized();
 			mParent.repaint_data_and_soft_key_mask();
 		}
 		break;
@@ -2006,18 +1996,6 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				softKeyMaskRenderer.setSize(softKeyMaskDimensions.total_width(),
 				                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
 			}
-
-			if (!child.getProperty("ScreenScale").isVoid())
-			{
-				const int savedScale = static_cast<int>(child.getProperty("ScreenScale"));
-
-				automaticDisplayScale = (0 == savedScale);
-
-				if (!automaticDisplayScale)
-				{
-					displayScalePercent = juce::jlimit(100, 400, savedScale);
-				}
-			}
 #ifdef JUCE_WINDOWS
 			if (!child.getProperty("TouCANSerial").isVoid())
 			{
@@ -2318,7 +2296,6 @@ void ServerMainComponent::save_settings()
 		languageCommandSettings.setProperty("LanguageCode", String(languageCommandInterface.get_language_code()), nullptr);
 		compatibilitySettings.setProperty("Version", get_vt_version_byte(versionToReport), nullptr);
 		hardwareSettings.setProperty("DataMaskRenderAreaSize", dataMaskRenderer.getWidth(), nullptr);
-		hardwareSettings.setProperty("ScreenScale", automaticDisplayScale ? 0 : displayScalePercent, nullptr);
 		hardwareSettings.setProperty("VT_Number", vtNumber, nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorWidth", softKeyMaskDimensions.keyWidth, nullptr);
 		hardwareSettings.setProperty("SoftKeyDesignatorHeight", softKeyMaskDimensions.keyHeight, nullptr);
@@ -2508,56 +2485,8 @@ int ServerMainComponent::minimum_height() const
 	return juce::roundToInt(get_data_mask_area_size_y_pixels() * display_scale());
 }
 
-void ServerMainComponent::apply_display_size()
-{
-	setSize(juce::roundToInt(WorkingSetSelectorComponent::WIDTH * working_set_selector_scale()) + juce::roundToInt((get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width()) * display_scale()),
-	        minimum_height() + LoggerComponent::HEIGHT);
-
-	// When fitting to the window, the window is the input rather than the output, so it is left
-	// exactly as the operator sized it
-	if (automaticDisplayScale)
-	{
-		resized();
-		return;
-	}
-
-	// The window has to follow, otherwise the magnified areas are simply clipped by it
-	auto *topLevelComponent = getTopLevelComponent();
-
-	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
-	{
-		if (auto *window = dynamic_cast<juce::ResizableWindow *>(topLevelComponent))
-		{
-			window->setContentComponentSize(getWidth(), getHeight());
-		}
-	}
-	resized();
-}
-
-int ServerMainComponent::get_screen_scale_choice_index() const
-{
-	if (automaticDisplayScale)
-	{
-		return 0;
-	}
-
-	for (int i = 1; i < static_cast<int>(std::size(SCREEN_SCALE_CHOICES)); i++)
-	{
-		if (SCREEN_SCALE_CHOICES[i] == displayScalePercent)
-		{
-			return i;
-		}
-	}
-	return 1; // Anything unrecognised shows as 100 %
-}
-
 double ServerMainComponent::display_scale() const
 {
-	if (!automaticDisplayScale)
-	{
-		return static_cast<double>(displayScalePercent) / 100.0;
-	}
-
 	// Fit the ISO areas to whatever room this component has. Recomputed on every layout pass, so
 	// dragging the window edge rescales as it goes. The room the working-set picker itself takes
 	// is not accounted for here (its own scale is a floor applied afterwards, not an input to
@@ -2578,11 +2507,11 @@ double ServerMainComponent::display_scale() const
 
 	if ((availableWidth <= 0) || (availableHeight <= 0))
 	{
-		return MINIMUM_AUTOMATIC_SCALE;
+		return MINIMUM_DISPLAY_SCALE;
 	}
 
-	return juce::jlimit(MINIMUM_AUTOMATIC_SCALE,
-	                    MAXIMUM_AUTOMATIC_SCALE,
+	return juce::jlimit(MINIMUM_DISPLAY_SCALE,
+	                    MAXIMUM_DISPLAY_SCALE,
 	                    juce::jmin(static_cast<double>(availableWidth) / isoWidth,
 	                               static_cast<double>(availableHeight) / isoHeight));
 }
