@@ -197,6 +197,7 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y)
 {
 	std::shared_ptr<isobus::VTObject> retVal;
+	const SoftKeyMaskDimensions &keyDimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
 
 	if ((nullptr == object) ||
 	    ((isobus::VirtualTerminalObjectType::ObjectPointer != object->get_object_type()) &&
@@ -209,11 +210,9 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 	{
 		auto child = object->get_object_by_id(std::static_pointer_cast<isobus::ObjectPointer>(object)->get_value(), parentWorkingSet->get_object_tree());
 
-		// Knowing the location requires some knowledge of how the mask is displaying each key...
-
 		if ((nullptr != child) &&
 		    (objectCanBeClicked(child)) &&
-		    (isClickWithinBounds(x, y, 0, 0, ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_height())))
+		    (isClickWithinBounds(x, y, 0, 0, keyDimensions.keyWidth, keyDimensions.keyHeight)))
 		{
 			return child;
 		}
@@ -229,13 +228,12 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 		{
 			auto child = object->get_object_by_id(object->get_child_id(i), parentWorkingSet->get_object_tree());
 
-			// Knowing the location requires some knowledge of how the mask is displaying each key...
-
-			int colX = SoftKeyMaskDimensions::PADDING + col * (ownerServer.get_soft_key_descriptor_x_pixel_width() + SoftKeyMaskDimensions::PADDING);
-			int rowY = SoftKeyMaskDimensions::PADDING + row * (ownerServer.get_soft_key_descriptor_y_pixel_height() + SoftKeyMaskDimensions::PADDING);
+			// Must match SoftKeyMaskComponent's layout, not the advertised key size
+			int colX = SoftKeyMaskDimensions::PADDING + col * (keyDimensions.keyWidth + SoftKeyMaskDimensions::PADDING);
+			int rowY = SoftKeyMaskDimensions::PADDING + row * (keyDimensions.keyHeight + SoftKeyMaskDimensions::PADDING);
 			if ((nullptr != child) &&
 			    (objectCanBeClicked(child)) &&
-			    (isClickWithinBounds(x, y, colX, rowY, ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_height())))
+			    (isClickWithinBounds(x, y, colX, rowY, keyDimensions.keyWidth, keyDimensions.keyHeight)))
 			{
 				return child;
 			}
@@ -285,6 +283,6 @@ bool SoftKeyMaskRenderAreaComponent::objectCanBeClicked(std::shared_ptr<isobus::
 
 bool SoftKeyMaskRenderAreaComponent::isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight)
 {
-	return ((clickXRelative >= objectX) && (clickXRelative <= (objectX + objectWidth))) &&
-	  ((clickYRelative >= objectY) && (clickYRelative <= (objectY + objectHeight)));
+	return ((clickXRelative >= objectX) && (clickXRelative < (objectX + objectWidth))) &&
+	  ((clickYRelative >= objectY) && (clickYRelative < (objectY + objectHeight)));
 }
