@@ -1,0 +1,95 @@
+name: Release gallery
+
+# Renders every pool with the released code, adds the release to the gallery on the gh-pages branch
+# (earlier releases stay), and attaches the renders of the public pools to the GitHub release as a zip.
+# A tag is often pushed before its release is published, so publishing the release runs this again;
+# the renders then come from the cache, and the gallery commit is only made if something changed.
+
+on:
+  push:
+    tags: ['*']
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-gallery
+  cancel-in-progress: false
+
+jobs:
+  gallery:
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ github.event.release.tag_name || github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Render the pools
+        id: render
+        uses: ./.github/actions/render-pools
+        with:
+          pools: tests/pools
+          out: renders
+      - name: Check that vt-render finished
+        env:
+          CODE: ${{ steps.render.outputs.exit-code }}
+        run: |
+          # 1 and 2 are pools with problems, which the gallery shows; anything else is vt-render failing
+          case "$CODE" in 0|1|2) ;; *) echo "vt-render exited with '$CODE'"; exit 1 ;; esac
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Check out the gallery branch
+        run: |
+          if git ls-remote --exit-code --heads origin gh-pages > /dev/null; then
+            git fetch --depth 1 origin gh-pages
+            git worktree add site FETCH_HEAD
+          else
+            git worktree add --detach site
+            git -C site checkout --orphan gh-pages
+            git -C site rm -rfq .
+          fi
+      - name: Add the release to the gallery
+        env:
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          GALLERY_URL: ${{ vars.GALLERY_URL }}
+        run: |
+          site_url="${GALLERY_URL:-https://${OWNER,,}.github.io/$REPO_NAME}"
+          node tools/gallery/generate.mjs --renders renders --collection tests/pools --site site \
+            --version "$VERSION" --repo "$REPO" --site-url "$site_url"
+      - name: Publish the gallery
+        run: |
+          git -C site config user.name 'github-actions[bot]'
+          git -C site config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C site add -A
+          if git -C site diff --cached --quiet; then
+            echo "The gallery already has release $VERSION as rendered now."
+          else
+            git -C site commit -q -m "Gallery: release $VERSION"
+            git -C site push origin HEAD:gh-pages
+          fi
+      - name: Zip the renders of the public pools
+        run: |
+          # Pools not marked public: true are left out, as they are from the gallery
+          mapfile -t public < <(for manifest in renders/*/manifest.json; do
+            jq -e '.public == true' "$manifest" > /dev/null && dirname "${manifest#renders/}"
+          done)
+          (cd renders && zip -qr "../vt-renders-$VERSION.zip" render-info.json "${public[@]}")
+          echo "${#public[@]} public pools in vt-renders-$VERSION.zip"
+      - name: Attach the zip to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            gh release upload "$VERSION" "vt-renders-$VERSION.zip" --clobber
+          else
+            echo "There is no release for $VERSION yet; publishing it runs this workflow again and attaches the zip."
+          fi

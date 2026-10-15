@@ -110,15 +110,13 @@ void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
 	}
 	const auto activeName = activeWorkingSet->get_control_function()->get_NAME().get_full_name();
 
-	g.setColour(juce::Colours::yellow.withAlpha(0.4f));
-
 	for (std::size_t i = 0; i < children.size(); i++)
 	{
 		auto controlFunction = children.at(i).workingSet->get_control_function();
 
 		if ((nullptr != controlFunction) && (activeName == controlFunction->get_NAME().get_full_name()))
 		{
-			g.drawRoundedRectangle(button_bounds(static_cast<int>(i)).toFloat().expanded(2.0f), 4.0f, 4.0f);
+			WorkingSetComponent::paint_active_highlight(g, button_bounds(static_cast<int>(i)));
 		}
 	}
 }

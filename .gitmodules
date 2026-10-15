@@ -1,0 +1,3 @@
+[submodule "tests/pools"]
+	path = tests/pools
+	url = https://github.com/gunicsba/AgIsoObjectPoolCollection
