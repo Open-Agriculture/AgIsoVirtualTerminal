@@ -64,7 +64,21 @@ void SoftKeyMaskComponent::paint(Graphics &g)
 {
 	auto vtColour = parentWorkingSet->get_colour(backgroundColor);
 
-	g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+	auto background = Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
+	g.fillAll(background);
+
+	// Ring every slot, empty ones too, just outside the key where no child draws.
+	g.setColour(background.contrasting());
+	for (int column = 0; column < dimensionInfo.columnCount; column++)
+	{
+		for (int row = 0; row < dimensionInfo.rowCount; row++)
+		{
+			g.drawRect(dimensionInfo.PADDING + column * (dimensionInfo.PADDING + dimensionInfo.keyWidth) - 1,
+			           dimensionInfo.PADDING + row * (dimensionInfo.PADDING + dimensionInfo.keyHeight) - 1,
+			           dimensionInfo.keyWidth + 2,
+			           dimensionInfo.keyHeight + 2);
+		}
+	}
 }
 
 int SoftKeyMaskDimensions::key_count() const
