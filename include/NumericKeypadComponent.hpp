@@ -77,9 +77,9 @@ private:
 	/// @returns A pointer to the created button
 	TextButton *add_key(const String &text, std::function<void()> action);
 
-	static constexpr int KEY_SIZE = 76; ///< Key size in pixels, comfortably above a fingertip
+	static constexpr int KEY_SIZE = 60; ///< Key size in pixels. Keeps the dialog under the 430 px JUCE allows on an 800 x 480 screen
 	static constexpr int KEY_GAP = 6; ///< Space between the keys
-	static constexpr int DISPLAY_HEIGHT = 84; ///< Height of the entry and range readout
+	static constexpr int DISPLAY_HEIGHT = 72; ///< Height of the entry and range readout
 	static constexpr int NUMBER_OF_COLUMNS = 4; ///< Digits take three columns, edit keys the fourth
 	static constexpr int NUMBER_OF_ROWS = 4; ///< Three digit rows plus the bottom row
 
