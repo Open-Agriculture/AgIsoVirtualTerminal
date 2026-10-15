@@ -1,11 +1,12 @@
 //================================================================================================
-/// @file DataMaskRenderArea.hpp
+/// @file DataMaskRenderAreaComponent.hpp
 ///
 /// @brief A component to hold all the data mask render components.
 /// @author Adrian Del Grosso
 ///
 /// @copyright 2023 Adrian Del Grosso
 //================================================================================================
+
 #ifndef DATA_MASK_RENDER_AREA_COMPONENT_HPP
 #define DATA_MASK_RENDER_AREA_COMPONENT_HPP
 

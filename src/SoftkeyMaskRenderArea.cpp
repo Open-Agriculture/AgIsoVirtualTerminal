@@ -1,5 +1,5 @@
 /*******************************************************************************
-** @file       SoftKeyMaskRenderAreaComponent.cpp
+** @file       SoftkeyMaskRenderArea.cpp
 ** @author     Adrian Del Grosso
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
@@ -10,7 +10,6 @@
 SoftKeyMaskRenderAreaComponent::SoftKeyMaskRenderAreaComponent(ServerMainComponent &parentServer) :
   ownerServer(parentServer)
 {
-	//addMouseListener(this, true);
 }
 
 void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
@@ -83,30 +82,30 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 		if (nullptr != workingSetObject)
 		{
-			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
-			auto parentMask = activeMask;
+			auto activeDataOrAlarmMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+			std::shared_ptr<isobus::VTObject> softkeyMask;
 
-			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
+			if (isobus::VirtualTerminalObjectType::AlarmMask == activeDataOrAlarmMask->get_object_type())
 			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+				auto child = activeDataOrAlarmMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeDataOrAlarmMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
 
 				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{
-					activeMask = child;
+					softkeyMask = child;
 				}
 			}
-			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
+			else if (isobus::VirtualTerminalObjectType::DataMask == activeDataOrAlarmMask->get_object_type())
 			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+				auto child = activeDataOrAlarmMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeDataOrAlarmMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
 
 				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{
-					activeMask = child;
+					softkeyMask = child;
 				}
 			}
 
 			auto relativeEvent = event.getEventRelativeTo(this);
-			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
+			auto clickedObject = getClickedChildRecursive(softkeyMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
 
 			ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 
@@ -121,12 +120,12 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 				ownerServer.send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
 				                                             clickedObject->get_id(),
-				                                             parentMask->get_id(),
+				                                             activeDataOrAlarmMask->get_id(),
 				                                             keyCode,
 				                                             ownerServer.get_active_working_set()->get_control_function());
 				ownerServer.set_button_held(ownerServer.get_active_working_set(),
 				                            clickedObject->get_id(),
-				                            activeMask->get_id(),
+				                            activeDataOrAlarmMask->get_id(),
 				                            keyCode,
 				                            true);
 			}
@@ -143,30 +142,30 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 		if (nullptr != workingSetObject)
 		{
-			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
-			auto parentMask = activeMask;
+			auto activeDataOrAlarmMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+			std::shared_ptr<isobus::VTObject> softkeyMask;
 
-			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
+			if (isobus::VirtualTerminalObjectType::AlarmMask == activeDataOrAlarmMask->get_object_type())
 			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+				auto child = activeDataOrAlarmMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeDataOrAlarmMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
 
 				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{
-					activeMask = child;
+					softkeyMask = child;
 				}
 			}
-			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
+			else if (isobus::VirtualTerminalObjectType::DataMask == activeDataOrAlarmMask->get_object_type())
 			{
-				auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+				auto child = activeDataOrAlarmMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeDataOrAlarmMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
 
 				if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 				{
-					activeMask = child;
+					softkeyMask = child;
 				}
 			}
 
 			auto relativeEvent = event.getEventRelativeTo(this);
-			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getPosition().x, relativeEvent.getPosition().y);
+			auto clickedObject = getClickedChildRecursive(softkeyMask, relativeEvent.getPosition().x, relativeEvent.getPosition().y);
 
 			ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 
@@ -181,15 +180,16 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 				ownerServer.send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 				                                             clickedObject->get_id(),
-				                                             parentMask->get_id(),
+				                                             activeDataOrAlarmMask->get_id(),
 				                                             keyCode,
 				                                             ownerServer.get_active_working_set()->get_control_function());
 				ownerServer.set_button_released(ownerServer.get_active_working_set(),
 				                                clickedObject->get_id(),
-				                                activeMask->get_id(),
+				                                activeDataOrAlarmMask->get_id(),
 				                                keyCode,
 				                                true);
 			}
+			ownerServer.release_held_buttons();
 		}
 	}
 }
@@ -197,6 +197,7 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y)
 {
 	std::shared_ptr<isobus::VTObject> retVal;
+	const SoftKeyMaskDimensions &keyDimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
 
 	if ((nullptr == object) ||
 	    ((isobus::VirtualTerminalObjectType::ObjectPointer != object->get_object_type()) &&
@@ -209,11 +210,9 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 	{
 		auto child = object->get_object_by_id(std::static_pointer_cast<isobus::ObjectPointer>(object)->get_value(), parentWorkingSet->get_object_tree());
 
-		// Knowing the location requires some knowledge of how the mask is displaying each key...
-
 		if ((nullptr != child) &&
 		    (objectCanBeClicked(child)) &&
-		    (isClickWithinBounds(x, y, 0, 0, ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_height())))
+		    (isClickWithinBounds(x, y, 0, 0, keyDimensions.keyWidth, keyDimensions.keyHeight)))
 		{
 			return child;
 		}
@@ -229,13 +228,12 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 		{
 			auto child = object->get_object_by_id(object->get_child_id(i), parentWorkingSet->get_object_tree());
 
-			// Knowing the location requires some knowledge of how the mask is displaying each key...
-
-			int colX = SoftKeyMaskDimensions::PADDING + col * (ownerServer.get_soft_key_descriptor_x_pixel_width() + SoftKeyMaskDimensions::PADDING);
-			int rowY = SoftKeyMaskDimensions::PADDING + row * (ownerServer.get_soft_key_descriptor_y_pixel_height() + SoftKeyMaskDimensions::PADDING);
+			// Must match SoftKeyMaskComponent's layout, not the advertised key size
+			int colX = SoftKeyMaskDimensions::PADDING + col * (keyDimensions.keyWidth + SoftKeyMaskDimensions::PADDING);
+			int rowY = SoftKeyMaskDimensions::PADDING + row * (keyDimensions.keyHeight + SoftKeyMaskDimensions::PADDING);
 			if ((nullptr != child) &&
 			    (objectCanBeClicked(child)) &&
-			    (isClickWithinBounds(x, y, colX, rowY, ownerServer.get_soft_key_descriptor_x_pixel_width(), ownerServer.get_soft_key_descriptor_y_pixel_height())))
+			    (isClickWithinBounds(x, y, colX, rowY, keyDimensions.keyWidth, keyDimensions.keyHeight)))
 			{
 				return child;
 			}
@@ -285,6 +283,6 @@ bool SoftKeyMaskRenderAreaComponent::objectCanBeClicked(std::shared_ptr<isobus::
 
 bool SoftKeyMaskRenderAreaComponent::isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight)
 {
-	return ((clickXRelative >= objectX) && (clickXRelative <= (objectX + objectWidth))) &&
-	  ((clickYRelative >= objectY) && (clickYRelative <= (objectY + objectHeight)));
+	return ((clickXRelative >= objectX) && (clickXRelative < (objectX + objectWidth))) &&
+	  ((clickYRelative >= objectY) && (clickYRelative < (objectY + objectHeight)));
 }

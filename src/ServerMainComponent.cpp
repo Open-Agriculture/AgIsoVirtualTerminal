@@ -9,6 +9,7 @@
 
 #include "AckSettingsWindow.hpp"
 #include "AlarmMaskAudio.h"
+#include "IndentedToggleButton.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "Main.hpp"
 #include "isobus/utility/system_timing.hpp"
@@ -23,6 +24,7 @@
 #include "isobus/isobus/can_stack_logger.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
@@ -100,6 +102,16 @@ ServerMainComponent::ServerMainComponent(
 
 	setWantsKeyboardFocus(true);
 	addKeyListener(this);
+
+	const auto millisecondsSinceLastUpdateCheck = Time::getCurrentTime().toMilliseconds() - lastUpdateCheck;
+	const bool hasRecentUpdateCheck = (lastUpdateCheck > 0) &&
+	  (millisecondsSinceLastUpdateCheck >= 0) &&
+	  (millisecondsSinceLastUpdateCheck < UPDATE_CHECK_INTERVAL_MS);
+
+	if (checkForUpdatesOnStartup && !hasRecentUpdateCheck)
+	{
+		check_for_update(false);
+	}
 }
 
 ServerMainComponent::~ServerMainComponent()
@@ -547,6 +559,12 @@ void ServerMainComponent::timerCallback()
 	bool isAdapterConnected = (nullptr != activeCANDriver) && activeCANDriver->get_is_valid();
 	bool isInterfaceRunning = isobus::CANHardwareInterface::is_running();
 
+	if (hasStartBeenCalled && isInterfaceRunning && !isAdapterConnected)
+	{
+		stop_can_interface_with_alert("The CAN interface stopped");
+		mCommandManager.commandStatusChanged();
+	}
+
 	if ((isAdapterConnected != canAdapterConnected) || (isInterfaceRunning != canInterfaceRunning))
 	{
 		canAdapterConnected = isAdapterConnected;
@@ -606,7 +624,7 @@ void ServerMainComponent::timerCallback()
 			else
 			{
 				///  @todo Get the parent object ID of the faulting object
-				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, ws->get_object_pool_faulting_object_id(), 0, ws->get_control_function());
+				send_end_of_object_pool_response(false, isobus::NULL_OBJECT_ID, ws->get_object_pool_faulting_object_id(), static_cast<std::uint8_t>(1U << static_cast<std::uint8_t>(ObjectPoolErrorBit::AnyOtherError)), ws->get_control_function());
 			}
 		}
 		else if (isobus::SystemTiming::time_expired_ms(ws->get_working_set_maintenance_message_timestamp_ms(), 3000) || ws->is_deletion_requested())
@@ -761,7 +779,7 @@ void ServerMainComponent::resized()
 	                            (dataMaskRenderer.getBounds().getHeight() / 10.0) * 8);
 	softKeyMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels(),
 	                              lMenuBarHeight,
-	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
+	                              softKeyMaskDimensions.total_width(),
 	                              get_data_mask_area_size_y_pixels());
 	// The logging area occupies everything below the mask render areas. The viewport needs an
 	// explicit size, otherwise it stays 0 x 0 and nothing is drawn even when it is made visible.
@@ -797,6 +815,8 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
 	allCommands.add(static_cast<int>(CommandIDs::StartStop));
 	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
+	allCommands.add(static_cast<int>(CommandIDs::CheckForUpdates));
+	allCommands.add(static_cast<int>(CommandIDs::AutoCheckForUpdates));
 	allCommands.add(static_cast<int>(CommandIDs::AlwaysOnTop));
 #ifdef JUCE_WINDOWS
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
@@ -878,6 +898,18 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::AutoStart:
 		{
 			result.setInfo("Auto-Start VT on launch", "Controls whether or not the VT automatically starts when the program is launched", "Control", autostart ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::CheckForUpdates:
+		{
+			result.setInfo("Check for Updates", "Checks GitHub for a newer version of this application", "About", updateChecker.is_check_in_progress() ? ApplicationCommandInfo::CommandFlags::isDisabled : 0);
+		}
+		break;
+
+		case CommandIDs::AutoCheckForUpdates:
+		{
+			result.setInfo("Check for Updates on launch", "Controls whether or not GitHub is checked for a newer version when the program is launched", "About", checkForUpdatesOnStartup ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -1143,32 +1175,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		{
 			if (hasStartBeenCalled)
 			{
-				isobus::CANStackLogger::info("Stopping CAN interface");
-
-				// Save the frame handlers so we can re-add them after stopping the interface
-#ifdef JUCE_WINDOWS
-				auto canDriver0 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
-				auto canDriver1 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(1);
-				auto canDriver2 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(2);
-				auto canDriver3 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(3);
-#else
-				auto canDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
-#endif
-
-				isobus::CANHardwareInterface::stop();
-
-				// Since "Stop" clears all frame handlers, we need to re-add the ones we saved
-#ifdef JUCE_WINDOWS
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver0);
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(1, canDriver1);
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(2, canDriver2);
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(3, canDriver3);
-#else
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
-#endif
-
-				dataMaskRenderer.set_has_started(false);
-				hasStartBeenCalled = false;
+				stop_can_interface();
 			}
 			else if (nullptr == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
 			{
@@ -1180,10 +1187,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			}
 			else
 			{
-				isobus::CANStackLogger::info("Starting CAN interface");
-				isobus::CANHardwareInterface::start();
-				dataMaskRenderer.set_has_started(true);
-				hasStartBeenCalled = true;
+				start_can_interface();
 			}
 			mCommandManager.commandStatusChanged();
 			retVal = true;
@@ -1193,6 +1197,22 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		case static_cast<int>(CommandIDs::AutoStart):
 		{
 			autostart = !autostart;
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::CheckForUpdates):
+		{
+			check_for_update(true);
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::AutoCheckForUpdates):
+		{
+			checkForUpdatesOnStartup = !checkForUpdatesOnStartup;
 			mCommandManager.commandStatusChanged();
 			save_settings();
 			retVal = true;
@@ -1261,6 +1281,8 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 		case 3:
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::About));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::CheckForUpdates));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoCheckForUpdates));
 		}
 		break;
 
@@ -1427,6 +1449,30 @@ void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTer
 	{
 		heldButtons.erase(found);
 	}
+}
+
+void ServerMainComponent::release_held_buttons()
+{
+	for (auto &button : heldButtons)
+	{
+		if (button.isSoftKey)
+		{
+			send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+			                                 button.buttonObjectID,
+			                                 button.activeMaskObjectID,
+			                                 button.buttonKeyCode,
+			                                 get_active_working_set()->get_control_function());
+		}
+		else
+		{
+			send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+			                               button.buttonObjectID,
+			                               button.activeMaskObjectID,
+			                               button.buttonKeyCode,
+			                               get_active_working_set()->get_control_function());
+		}
+	}
+	heldButtons.clear();
 }
 
 void ServerMainComponent::repaint_on_next_update()
@@ -1770,6 +1816,68 @@ void ServerMainComponent::update_ack_button_visibility()
 	workingSetSelector.set_ack_button_visible(showAckButton && is_active_alarm_mask());
 }
 
+void ServerMainComponent::stop_can_interface()
+{
+	isobus::CANStackLogger::info("Stopping CAN interface");
+
+#ifdef JUCE_WINDOWS
+	auto canDriver0 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+	auto canDriver1 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(1);
+	auto canDriver2 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(2);
+	auto canDriver3 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(3);
+#else
+	auto canDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+#endif
+
+	isobus::CANHardwareInterface::stop();
+
+	// Since "Stop" clears all frame handlers, we need to re-add the ones we saved
+#ifdef JUCE_WINDOWS
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver0);
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(1, canDriver1);
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(2, canDriver2);
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(3, canDriver3);
+#else
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
+#endif
+
+	dataMaskRenderer.set_has_started(false);
+	hasStartBeenCalled = false;
+}
+
+void ServerMainComponent::stop_can_interface_with_alert(const String &title)
+{
+	std::string reason;
+	auto canDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+
+	if (nullptr != canDriver)
+	{
+		reason = canDriver->get_last_error();
+	}
+
+	stop_can_interface();
+	isobus::CANStackLogger::error(reason.empty() ? title.toStdString() : title.toStdString() + ": " + reason);
+	AlertWindow::showAsync(MessageBoxOptions()
+	                         .withIconType(MessageBoxIconType::WarningIcon)
+	                         .withTitle(title)
+	                         .withMessage(reason.empty() ? String("Check the CAN hardware in the Configure menu, then press Start.") : String(reason))
+	                         .withButton("OK"),
+	                       nullptr);
+}
+
+void ServerMainComponent::start_can_interface()
+{
+	isobus::CANStackLogger::info("Starting CAN interface");
+	bool started = isobus::CANHardwareInterface::start();
+	dataMaskRenderer.set_has_started(true);
+	hasStartBeenCalled = true;
+
+	if (!started)
+	{
+		stop_can_interface_with_alert("Could not start the CAN interface");
+	}
+}
+
 void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> settings)
 {
 	int index = 0;
@@ -1860,7 +1968,7 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			if (!child.getProperty("DataMaskRenderAreaSize").isVoid())
 			{
 				dataMaskRenderer.setSize(static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))), static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))));
-				softKeyMaskRenderer.setSize(2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
+				softKeyMaskRenderer.setSize(softKeyMaskDimensions.total_width(),
 				                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
 			}
 #ifdef JUCE_WINDOWS
@@ -1939,9 +2047,7 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 
 				if (autostart)
 				{
-					isobus::CANHardwareInterface::start();
-					dataMaskRenderer.set_has_started(true);
-					hasStartBeenCalled = true;
+					start_can_interface();
 					isobus::CANStackLogger::info("AutoStart enabled. Starting CAN hardware interface.");
 				}
 			}
@@ -1954,6 +2060,21 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			if (!child.getProperty("ShowAckButton").isVoid())
 			{
 				showAckButton = static_cast<int>(child.getProperty("ShowAckButton")) != 0;
+			}
+
+			if (!child.getProperty("CheckForUpdates").isVoid())
+			{
+				checkForUpdatesOnStartup = static_cast<bool>(static_cast<int>(child.getProperty("CheckForUpdates")));
+			}
+
+			if (!child.getProperty("LastUpdateCheck").isVoid())
+			{
+				lastUpdateCheck = static_cast<juce::int64>(child.getProperty("LastUpdateCheck"));
+			}
+
+			if (!child.getProperty("SkippedUpdateVersion").isVoid())
+			{
+				skippedUpdateVersion = child.getProperty("SkippedUpdateVersion").toString();
 			}
 
 			if (!child.getProperty("AlwaysOnTop").isVoid())
@@ -1971,6 +2092,130 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 	if (!autostart)
 	{
 		isobus::CANStackLogger::info("AutoStart is disabled. Waiting for user to start the CAN hardware interface.");
+	}
+}
+
+void ServerMainComponent::check_for_update(bool reportWhenUpToDate)
+{
+	auto checkStarted = updateChecker.start([safeThis = Component::SafePointer<ServerMainComponent>(this), reportWhenUpToDate](const UpdateChecker::Result &result) {
+		if (nullptr != safeThis.getComponent())
+		{
+			safeThis->on_update_check_complete(result, reportWhenUpToDate);
+		}
+	});
+
+	if (checkStarted)
+	{
+		mCommandManager.commandStatusChanged();
+	}
+	else if (updateChecker.is_check_in_progress())
+	{
+		isobus::CANStackLogger::info("An update check is already in progress.");
+	}
+	else
+	{
+		isobus::CANStackLogger::warn("Could not start a background thread to check for updates.");
+
+		if (reportWhenUpToDate)
+		{
+			AlertWindow::showAsync(MessageBoxOptions()
+			                         .withIconType(MessageBoxIconType::WarningIcon)
+			                         .withTitle("Update Check Failed")
+			                         .withMessage("Could not start the update check.")
+			                         .withButton("OK"),
+			                       nullptr);
+		}
+	}
+}
+
+void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &result, bool reportWhenUpToDate)
+{
+	mCommandManager.commandStatusChanged();
+	const bool updateIsSkipped = result.updateAvailable && (skippedUpdateVersion == result.latestVersion);
+
+	if (result.checkSucceeded && (!result.updateAvailable || updateIsSkipped))
+	{
+		lastUpdateCheck = Time::getCurrentTime().toMilliseconds();
+		save_settings();
+	}
+
+	if (result.updateAvailable)
+	{
+		isobus::CANStackLogger::info("Version " + result.latestVersion.toStdString() + " of this application is available at " + result.releaseUrl.toStdString());
+
+		// On startup we stay quiet about a version the user chose to skip. A manual check still
+		// shows the dialog with the box ticked, so they can un-skip it from there.
+		if (updateIsSkipped && !reportWhenUpToDate)
+		{
+			return;
+		}
+
+		auto skipToggle = std::make_shared<IndentedToggleButton>();
+		skipToggle->toggle.setButtonText("Don't notify me about version " + result.latestVersion + " again");
+		skipToggle->setSize(360, 24);
+		skipToggle->toggle.setToggleState(updateIsSkipped, NotificationType::dontSendNotification);
+
+		auto *updateBox = new AlertWindow("Update Available",
+		                                  "Version " + result.latestVersion + " is available. You are running " + String(ProjectInfo::versionString) + ".",
+		                                  MessageBoxIconType::InfoIcon);
+		updateBox->addCustomComponent(skipToggle.get());
+		updateBox->addButton("Download", 1, KeyPress(KeyPress::returnKey));
+		updateBox->addButton("Not Now", 0, KeyPress(KeyPress::escapeKey));
+		updateBox->enterModalState(true,
+		                           ModalCallbackFunction::create([safeThis = Component::SafePointer<ServerMainComponent>(this), latestVersion = result.latestVersion, releaseUrl = result.releaseUrl, skipToggle](int choice) {
+			                           if (nullptr != safeThis.getComponent())
+			                           {
+				                           const String newSkippedVersion = skipToggle->toggle.getToggleState() ? latestVersion : String();
+
+				                           if (newSkippedVersion != safeThis->skippedUpdateVersion)
+				                           {
+					                           safeThis->skippedUpdateVersion = newSkippedVersion;
+					                           safeThis->lastUpdateCheck = 0;
+					                           safeThis->save_settings();
+				                           }
+			                           }
+
+			                           if (1 == choice)
+			                           {
+				                           URL(releaseUrl).launchInDefaultBrowser();
+			                           }
+		                           }),
+		                           true);
+	}
+	else if (result.checkSucceeded)
+	{
+		isobus::CANStackLogger::info("This application is up to date.");
+
+		if (reportWhenUpToDate)
+		{
+			AlertWindow::showAsync(MessageBoxOptions()
+			                         .withIconType(MessageBoxIconType::InfoIcon)
+			                         .withTitle("No Updates Available")
+			                         .withMessage("You are running the latest version, " + String(ProjectInfo::versionString) + ".")
+			                         .withButton("OK"),
+			                       nullptr);
+		}
+	}
+	else
+	{
+		auto failureMessage = std::string("Could not check GitHub for a newer version of this application.");
+
+		if (0 != result.statusCode)
+		{
+			failureMessage += " HTTP status code: " + std::to_string(result.statusCode) + ".";
+		}
+
+		isobus::CANStackLogger::warn(failureMessage);
+
+		if (reportWhenUpToDate)
+		{
+			AlertWindow::showAsync(MessageBoxOptions()
+			                         .withIconType(MessageBoxIconType::WarningIcon)
+			                         .withTitle("Update Check Failed")
+			                         .withMessage("Could not reach GitHub to check for a newer version.")
+			                         .withButton("OK"),
+			                       nullptr);
+		}
 	}
 }
 
@@ -2050,6 +2295,9 @@ void ServerMainComponent::save_settings()
 		controlSettings.setProperty("AlwaysOnTop", alwaysOnTop, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("ShowAckButton", showAckButton, nullptr);
+		controlSettings.setProperty("CheckForUpdates", checkForUpdatesOnStartup, nullptr);
+		controlSettings.setProperty("LastUpdateCheck", lastUpdateCheck, nullptr);
+		controlSettings.setProperty("SkippedUpdateVersion", skippedUpdateVersion, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
