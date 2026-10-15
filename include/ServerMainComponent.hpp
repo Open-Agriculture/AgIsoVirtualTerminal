@@ -147,28 +147,20 @@ public:
 	static std::string getAppDataDir();
 	/**
    * @brief minimum_height
-   * @return the height reserved on screen for the mask render areas, at the current display scale
+   * @return the on-screen height of the mask render areas, at the current display scale
    */
 	int minimum_height() const;
 
 	static constexpr double MINIMUM_DISPLAY_SCALE = 0.25; ///< Lower bound when fitting to the window
 	static constexpr double MAXIMUM_DISPLAY_SCALE = 6.0; ///< Upper bound when fitting to the window
 
-	/// @brief Returns the factor the data mask and soft key mask are magnified by on screen, so
-	/// that they fill the window.
-	/// @details This is a display zoom only. The size reported to clients is unchanged, because
-	/// that is what their object pools are designed against; the same pool is simply drawn
-	/// larger, which is what makes a 480 pixel mask usable on a big screen. It is recomputed on
-	/// every layout pass, so resizing the window rescales the masks.
+	/// @brief Returns how much the masks are magnified to fit the window. Clients still get the reported size.
 	/// @returns The display scale, where 1.0 is the reported size
 	double display_scale() const;
 
 	static constexpr double MINIMUM_WORKING_SET_SELECTOR_SCALE = 0.75; ///< Floor for the picker column's own scale
 
-	/// @brief Returns the factor the working-set picker column is magnified by on screen.
-	/// @details Tracks display_scale(), but is never allowed to shrink the picker below
-	/// MINIMUM_WORKING_SET_SELECTOR_SCALE, so it stays usable on a touch screen even when the
-	/// rest of the display is scaled down further to fit a small window.
+	/// @brief Returns display_scale(), floored so the working-set picker stays usable on a touch screen
 	/// @returns The working-set picker's display scale
 	double working_set_selector_scale() const;
 
@@ -284,8 +276,8 @@ private:
 	LoggerComponent logger;
 	Viewport loggerViewport;
 	VT_NumberComponent vtNumberComponent;
-	static constexpr int RESIZE_GRIP_SIZE = 44; ///< Big enough to drag with a finger, unlike the window's own 18 pixel corner
-	std::unique_ptr<juce::ResizableCornerComponent> resizeGrip; ///< Resizes the window from its bottom right corner, for touch screens
+	static constexpr int RESIZE_GRIP_SIZE = 44; ///< Large enough to drag with a finger
+	std::unique_ptr<juce::ResizableCornerComponent> resizeGrip; ///< Replaces the window's 18 pixel corner resizer
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<isobus::TimeDateInterface> timeServingInterface;

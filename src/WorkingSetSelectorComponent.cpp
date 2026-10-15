@@ -43,9 +43,7 @@ WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &se
 {
 	setOpaque(false);
 
-	// Only the width is known here. Asking the server for its layout would read members which it
-	// has not initialised yet, because this component is built from its initialiser list, and the
-	// owner sets the real bounds as soon as it lays itself out.
+	// The server is not fully constructed yet, so it sets the real bounds when it lays itself out
 	setSize(WIDTH, 0);
 	ackButton.onStateChange = [this]() {
 		const auto isPressed = ackButton.isDown();
@@ -129,8 +127,7 @@ void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
 
 void WorkingSetSelectorComponent::resized()
 {
-	// The owner decides where this column goes. Setting our own bounds here would undo that, and
-	// used to slide the column up over the menu bar every time the layout changed.
+	// The owner positions this column; setting bounds here used to move it over the menu bar
 	update_ack_button_bounds();
 }
 
