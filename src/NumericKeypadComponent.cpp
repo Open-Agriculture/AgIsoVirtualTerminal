@@ -36,12 +36,14 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 		[this]() { backspace(); },
 		[this]() { clear(); },
 		[this]() {
-		  entry = entry.startsWith("-") ? entry.substring(1) : ("-" + entry);
-		  refresh_display();
+		  if (onCancel)
+		  {
+			  onCancel();
+		  }
 		}
 	};
-	const char *editLabels[3] = { "\xe2\x8c\xab", "C", "\xc2\xb1" };
-	const char *editTooltips[3] = { "Backspace", "Clear the entry", "Change the sign" };
+	const char *editLabels[3] = { "\xe2\x8c\xab", "C", "\xe2\x9c\x95" };
+	const char *editTooltips[3] = { "Backspace", "Clear the entry", "Cancel" };
 
 	for (int row = 0; row < 3; row++)
 	{
@@ -53,18 +55,23 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 
 		auto *editKey = add_key(String::fromUTF8(editLabels[row]), editActions[row]);
 		editKey->setTooltip(editTooltips[row]);
-
-		// A sign key is pointless when the object cannot represent a negative value
-		if (2 == row)
-		{
-			editKey->setEnabled(minimum < 0.0);
-		}
 	}
+	keys.getLast()->setColour(TextButton::buttonColourId, Colour(0xffc62828));
 
-	// Bottom row: a double width zero under the digits, then the decimal point
+	// Bottom row: sign, zero, decimal point and confirm
+	auto *signKey = add_key(String::fromUTF8("\xc2\xb1"), [this]() {
+		entry = entry.startsWith("-") ? entry.substring(1) : ("-" + entry);
+		refresh_display();
+	});
+	signKey->setTooltip("Change the sign");
+	signKey->setEnabled(minimum < 0.0); // Pointless when the object cannot represent a negative value
 	add_key("0", [this]() { append('0'); });
 	add_key(".", [this]() { append('.'); })->setEnabled(0 != decimals);
+	confirmKey = add_key(String::fromUTF8("\xe2\x9c\x93"), [this]() { confirm(); });
+	confirmKey->setTooltip("Confirm");
+	confirmKey->setColour(TextButton::buttonColourId, Colour(0xff2e7d32));
 
+	setWantsKeyboardFocus(true);
 	refresh_display();
 
 	setSize((NUMBER_OF_COLUMNS * KEY_SIZE) + ((NUMBER_OF_COLUMNS + 1) * KEY_GAP),
@@ -77,6 +84,7 @@ TextButton *NumericKeypadComponent::add_key(const String &text, std::function<vo
 
 	key->onClick = std::move(action);
 	key->setWantsKeyboardFocus(false);
+	key->setLookAndFeel(&keyLookAndFeel);
 	addAndMakeVisible(key);
 	keys.add(key);
 	return key;
@@ -143,17 +151,35 @@ void NumericKeypadComponent::clear()
 	refresh_display();
 }
 
+void NumericKeypadComponent::confirm()
+{
+	if (has_value() && is_within_range() && onConfirm)
+	{
+		onConfirm();
+	}
+}
+
+bool NumericKeypadComponent::has_value() const
+{
+	return entry.containsAnyOf("0123456789");
+}
+
 void NumericKeypadComponent::refresh_display()
 {
-	entryLabel.setText(entry.isEmpty() ? "0" : entry, dontSendNotification);
+	// An empty entry stays empty rather than showing 0, which might not be a valid value
+	const bool outOfRange = has_value() && !is_within_range();
 
-	// Out of range entries are still accepted and clamped when the dialog is confirmed, but the
-	// operator gets told before that happens
+	entryLabel.setText(entry, dontSendNotification);
 	entryLabel.setColour(Label::textColourId,
-	                     is_within_range() ? getLookAndFeel().findColour(Label::textColourId) : Colours::red);
+	                     outOfRange ? Colours::red : getLookAndFeel().findColour(Label::textColourId));
 	rangeLabel.setColour(Label::textColourId,
-	                     getLookAndFeel().findColour(Label::textColourId).withAlpha(is_within_range() ? 0.6f : 1.0f));
+	                     getLookAndFeel().findColour(Label::textColourId).withAlpha(outOfRange ? 1.0f : 0.6f));
 	rangeLabel.repaint();
+
+	if (nullptr != confirmKey)
+	{
+		confirmKey->setEnabled(has_value() && is_within_range());
+	}
 }
 
 double NumericKeypadComponent::get_value() const
@@ -186,10 +212,9 @@ void NumericKeypadComponent::resized()
 	rangeLabel.setBounds(displayArea.removeFromBottom(18));
 	entryLabel.setBounds(displayArea);
 
-	// Rows of three digits plus an editing key
 	int index = 0;
 
-	for (int row = 0; row < NUMBER_OF_ROWS - 1; row++)
+	for (int row = 0; row < NUMBER_OF_ROWS; row++)
 	{
 		const int y = bounds.getY() + KEY_GAP + (row * (KEY_SIZE + KEY_GAP));
 
@@ -199,11 +224,39 @@ void NumericKeypadComponent::resized()
 			index++;
 		}
 	}
+}
 
-	// Bottom row: zero spans the first two columns, the decimal point sits in the third
-	const int lastRowY = bounds.getY() + KEY_GAP + ((NUMBER_OF_ROWS - 1) * (KEY_SIZE + KEY_GAP));
+bool NumericKeypadComponent::keyPressed(const KeyPress &key)
+{
+	const auto character = key.getTextCharacter();
 
-	keys[index]->setBounds(KEY_GAP, lastRowY, (2 * KEY_SIZE) + KEY_GAP, KEY_SIZE);
-	index++;
-	keys[index]->setBounds(KEY_GAP + (2 * (KEY_SIZE + KEY_GAP)), lastRowY, KEY_SIZE, KEY_SIZE);
+	if (key.isKeyCode(KeyPress::returnKey))
+	{
+		confirm();
+	}
+	else if (key.isKeyCode(KeyPress::escapeKey))
+	{
+		if (onCancel)
+		{
+			onCancel();
+		}
+	}
+	else if (key.isKeyCode(KeyPress::backspaceKey))
+	{
+		backspace();
+	}
+	else if (CharacterFunctions::isDigit(character) || ('.' == character))
+	{
+		append(character);
+	}
+	else
+	{
+		return false;
+	}
+	return true;
+}
+
+Font NumericKeypadComponent::KeyLookAndFeel::getTextButtonFont(TextButton &, int buttonHeight)
+{
+	return Font(static_cast<float>(buttonHeight) * 0.42f);
 }
