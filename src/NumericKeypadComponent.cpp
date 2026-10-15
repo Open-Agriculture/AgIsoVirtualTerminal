@@ -59,7 +59,7 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 	keys.getLast()->setColour(TextButton::buttonColourId, Colour(0xffc62828));
 
 	// Bottom row: sign, zero, decimal point and confirm
-	auto *signKey = add_key(String::fromUTF8("\xc2\xb1"), [this]() {
+	auto *signKey = add_key("+/-", [this]() {
 		entry = entry.startsWith("-") ? entry.substring(1) : ("-" + entry);
 		refresh_display();
 	});

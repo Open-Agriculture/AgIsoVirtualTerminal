@@ -290,7 +290,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 						if (clickedNumber->get_option2(isobus::InputNumber::Options2::Enabled))
 						{
-							inputNumberModal.reset(new AlertWindow("Input Number", "Enter a value for this input number.", MessageBoxIconType::QuestionIcon));
+							inputNumberModal.reset(new AlertWindow("Input Number", "Enter a value for this input number.", MessageBoxIconType::NoIcon));
 
 							float scaledValue = (clickedNumber->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
 							std::uint32_t currentRawValue = clickedNumber->get_value();
