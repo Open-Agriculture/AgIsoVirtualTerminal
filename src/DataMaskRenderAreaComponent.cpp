@@ -290,7 +290,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 						if (clickedNumber->get_option2(isobus::InputNumber::Options2::Enabled))
 						{
-							inputNumberModal.reset(new AlertWindow("Input Number", "Enter a value for this input number, then press OK.", MessageBoxIconType::QuestionIcon));
+							inputNumberModal.reset(new AlertWindow("Input Number", "Enter a value for this input number.", MessageBoxIconType::QuestionIcon));
 
 							float scaledValue = (clickedNumber->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
 							std::uint32_t currentRawValue = clickedNumber->get_value();
@@ -322,8 +322,11 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							// anything cannot write a stale value from a previous edit
 							inputNumberListener.set_last_value(currentRawValue);
 							inputNumberModal->addCustomComponent(inputNumberKeypad.get());
-							inputNumberModal->addButton("OK", 0);
-							inputNumberModal->addButton("Cancel", 1); // TODO catch ESC as cancel
+							inputNumberKeypad->onConfirm = [this]() { inputNumberModal->exitModalState(0); };
+							inputNumberKeypad->onCancel = [this]() { inputNumberModal->exitModalState(1); };
+
+							// The keypad handles Escape as cancel. The window's own handling would confirm.
+							inputNumberModal->setEscapeKeyCancels(false);
 							auto resultCallback = [this, clickedNumber](int result) {
 								this->inputNumberModal->exitModalState();
 
@@ -403,6 +406,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								ownerServer.process_macro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
 							};
 							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+							inputNumberKeypad->grabKeyboardFocus();
 							ownerServer.send_select_input_object_message(clickedNumber->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (parentWorkingSet)
 							{

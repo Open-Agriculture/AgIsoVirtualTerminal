@@ -15,6 +15,7 @@
 #include "JuceHeader.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -36,14 +37,18 @@ public:
 	/// @returns The entered value in displayed units
 	double get_value() const;
 
-	/// @brief Checks if what has been typed is inside the object's range. Out of range entries are
-	/// still accepted and clamped, but the display shows them in red beforehand.
+	/// @brief Checks if what has been typed is inside the object's range
 	/// @returns True if the typed value needs no clamping
 	bool is_within_range() const;
 
 	void paint(Graphics &graphics) override;
 
 	void resized() override;
+
+	bool keyPressed(const KeyPress &key) override;
+
+	std::function<void()> onConfirm; ///< Called by the confirm key, only with a value inside the range
+	std::function<void()> onCancel; ///< Called by the cancel key
 
 private:
 	/// @brief Appends a character to what has been typed, if it makes sense to do so
@@ -55,6 +60,13 @@ private:
 
 	/// @brief Clears the entry back to empty
 	void clear();
+
+	/// @brief Calls onConfirm if what has been typed can be written
+	void confirm();
+
+	/// @brief Checks if a number has been typed, not just a sign or a decimal point
+	/// @returns True if the entry contains a digit
+	bool has_value() const;
 
 	/// @brief Redraws the entry and recolours it when the value is out of range
 	void refresh_display();
@@ -71,7 +83,16 @@ private:
 	static constexpr int NUMBER_OF_COLUMNS = 4; ///< Digits take three columns, edit keys the fourth
 	static constexpr int NUMBER_OF_ROWS = 4; ///< Three digit rows plus the bottom row
 
+	/// @brief Draws the key labels large enough to read at arm's length
+	class KeyLookAndFeel : public LookAndFeel_V4
+	{
+	public:
+		Font getTextButtonFont(TextButton &, int buttonHeight) override;
+	};
+
+	KeyLookAndFeel keyLookAndFeel; ///< Declared before the keys, so it outlives them
 	OwnedArray<TextButton> keys;
+	TextButton *confirmKey = nullptr;
 	Label entryLabel;
 	Label rangeLabel;
 	String entry;
