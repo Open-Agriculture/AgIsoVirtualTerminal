@@ -16,6 +16,7 @@
 #include "VtRenderFonts.h"
 #include "git.h"
 
+#include "DesignatorFit.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "PictureGraphicComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
@@ -799,7 +800,8 @@ namespace
 			Component column;
 			column.setSize(WorkingSetSelectorComponent::WIDTH, button.getBottom() + padding);
 			designator->setTopLeftPosition(button.getPosition());
-			WorkingSetComponent::fit_designator_to_button(*designator, button);
+			// Same placement as the working set selector, which enlarges artwork smaller than the button
+			fit_designator_to_button(*designator, button, juce::RectanglePlacement::centred);
 			column.addAndMakeVisible(*designator);
 
 			const auto vtColour = workingSet->get_colour(std::static_pointer_cast<isobus::WorkingSet>(workingSetObject)->get_background_color());

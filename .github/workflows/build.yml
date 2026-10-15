@@ -6,6 +6,7 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_call:
 
 jobs:
   windows_build:
@@ -32,6 +33,7 @@ jobs:
         with:
           name: 'Windows Installer'
           path: build/_CPack_Packages/win64/NSIS/*.exe
+          if-no-files-found: error
   mac_build:
     name: MacOS Build
     runs-on: macos-latest
@@ -51,7 +53,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: 'OSX dmg package'
-          path: build/_CPack_Packages/OSX/DragNDrop/*.dmg
+          path: build/*.dmg
+          if-no-files-found: error
   ubuntu_22_04_build:
     name: Ubuntu 22.04 Build
     runs-on: ubuntu-22.04
@@ -77,6 +80,7 @@ jobs:
         with:
           name: 'Ubuntu 22.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
+          if-no-files-found: error
   ubuntu_24_04_build:
     name: Ubuntu 24.04 Build
     runs-on: ubuntu-24.04
@@ -100,6 +104,7 @@ jobs:
         with:
           name: 'Ubuntu 24.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
+          if-no-files-found: error
   ubuntu_26_04_build:
     name: Ubuntu 26.04 Build
     runs-on: ubuntu-26.04
@@ -123,3 +128,4 @@ jobs:
         with:
           name: 'Ubuntu 26.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
+          if-no-files-found: error

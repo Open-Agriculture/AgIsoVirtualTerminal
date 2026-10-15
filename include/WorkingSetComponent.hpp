@@ -22,9 +22,6 @@ public:
 
 	void paint(Graphics &g) override;
 
-	/// @brief Scales a designator (or any stand-in for one) so that what it draws fits the selector button
-	static void fit_designator_to_button(Component &designator, juce::Rectangle<int> button);
-
 	/// @brief Draws the highlight that marks the active working set's selector button
 	static void paint_active_highlight(Graphics &g, juce::Rectangle<int> button);
 

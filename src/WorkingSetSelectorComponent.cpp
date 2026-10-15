@@ -4,6 +4,7 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "WorkingSetSelectorComponent.hpp"
+#include "DesignatorFit.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 #include "WorkingSetLoadingIndicatorComponent.hpp"
@@ -192,7 +193,9 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	const auto bounds = button_bounds(workingSetIndex);
 
 	workingSetComponent->setTopLeftPosition(bounds.getPosition());
-	WorkingSetComponent::fit_designator_to_button(*workingSetComponent, bounds);
+	// Unlike a soft key, a working set designator is the only thing in its button, so artwork
+	// smaller than the button is enlarged to fill it.
+	fit_designator_to_button(*workingSetComponent, bounds, juce::RectanglePlacement::centred);
 	addAndMakeVisible(*workingSetComponent);
 	return workingSetComponent;
 }

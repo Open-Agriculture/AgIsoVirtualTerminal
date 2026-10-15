@@ -62,16 +62,20 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 	    (0xFF == static_cast<std::uint8_t>(value.at(0))) &&
 	    (0xFE == static_cast<std::uint8_t>(value.at(1))))
 	{
-		// String is UTF-16 encoded, font type is ignored.
-		if (0 != (value.length() % 2))
+		std::size_t i = 0;
+		for (; i + 1 < value.size(); i += 2)
 		{
-			// If the length attribute does not indicate an even number of bytes the last byte is ignored
-			value.pop_back();
+			if (value[i] == '\0' && value[i + 1] == '\0')
+			{
+				break;
+			}
 		}
+		value = value.substr(0, i);
 		decodedValue = String::createStringFromData(value.c_str(), value.size());
 	}
 	else
 	{
+		value = value.substr(0, value.find('\0'));
 		auto it = fontTypeToEncodingMap.find(fontType);
 		if (it != fontTypeToEncodingMap.end())
 		{

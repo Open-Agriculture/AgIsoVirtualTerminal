@@ -522,6 +522,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						break;
 				}
 			}
+			ownerServer.release_held_buttons();
 		}
 	}
 }

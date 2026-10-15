@@ -6,7 +6,9 @@
 ///
 /// @copyright The Open-Agriculture Developers
 //================================================================================================
-#pragma once
+
+#ifndef ACK_SETTINGS_WINDOW_HPP
+#define ACK_SETTINGS_WINDOW_HPP
 
 #include "JuceHeader.h"
 
@@ -34,3 +36,5 @@ private:
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AckSettingsWindow)
 };
+
+#endif // ACK_SETTINGS_WINDOW_HPP
