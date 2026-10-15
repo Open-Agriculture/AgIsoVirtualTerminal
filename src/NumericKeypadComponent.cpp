@@ -19,7 +19,7 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 	entry = String(initialValue, static_cast<int>(decimals));
 
 	entryLabel.setJustificationType(Justification::centredRight);
-	entryLabel.setFont(Font(34.0f, Font::bold));
+	entryLabel.setFont(Font(32.0f, Font::bold));
 	addAndMakeVisible(entryLabel);
 
 	rangeLabel.setJustificationType(Justification::centredRight);
