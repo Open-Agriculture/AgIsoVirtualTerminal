@@ -36,6 +36,7 @@
 .vscode/
 out
 build
+build-*/
 
 # QtCreator cmake temp files
 CMakeLists.txt.user*
