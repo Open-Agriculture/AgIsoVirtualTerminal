@@ -116,6 +116,7 @@ public:
 
 	void paint(juce::Graphics &g) override;
 	void resized() override;
+	void parentHierarchyChanged() override;
 
 	ApplicationCommandTarget *getNextCommandTarget() override;
 	void getAllCommands(juce::Array<juce::CommandID> &allCommands) override;
@@ -283,6 +284,8 @@ private:
 	LoggerComponent logger;
 	Viewport loggerViewport;
 	VT_NumberComponent vtNumberComponent;
+	static constexpr int RESIZE_GRIP_SIZE = 44; ///< Big enough to drag with a finger, unlike the window's own 18 pixel corner
+	std::unique_ptr<juce::ResizableCornerComponent> resizeGrip; ///< Resizes the window from its bottom right corner, for touch screens
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<isobus::TimeDateInterface> timeServingInterface;

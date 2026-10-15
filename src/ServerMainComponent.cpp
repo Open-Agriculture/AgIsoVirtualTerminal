@@ -810,6 +810,14 @@ void ServerMainComponent::resized()
 	loggerViewport.setBounds(0, loggerTop, getWidth(), juce::jmax(0, getHeight() - loggerTop));
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight).withTrimmedRight(CAN_STATUS_INDICATOR_WIDTH));
 
+	if (nullptr != resizeGrip)
+	{
+		// A maximised or full screen window is not resized from its corner, so the grip is hidden then
+		const auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+		resizeGrip->setVisible((nullptr != window) && window->isResizable() && !window->isFullScreen() && !window->isKioskMode());
+		resizeGrip->setBounds(getLocalBounds().removeFromBottom(RESIZE_GRIP_SIZE).removeFromRight(RESIZE_GRIP_SIZE));
+	}
+
 	// The visible sizes exclude any scroll bars, which keeps the log text from triggering a
 	// horizontal scroll bar of its own.
 	logger.setSize(loggerViewport.getMaximumVisibleWidth(), logger.getHeight());
@@ -817,6 +825,21 @@ void ServerMainComponent::resized()
 	if (logger.getHeight() < loggerViewport.getMaximumVisibleHeight())
 	{
 		logger.setSize(loggerViewport.getMaximumVisibleWidth(), loggerViewport.getMaximumVisibleHeight());
+	}
+}
+
+void ServerMainComponent::parentHierarchyChanged()
+{
+	// The masks always fit the window, so resizing it is how they are scaled. The window's own corner is
+	// too small to grab on a touch screen, so a larger grip is added once this is inside the window.
+	auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+
+	if ((nullptr != window) && (nullptr == resizeGrip))
+	{
+		resizeGrip = std::make_unique<juce::ResizableCornerComponent>(window, window->getConstrainer());
+		resizeGrip->setAlwaysOnTop(true);
+		addChildComponent(*resizeGrip);
+		resized();
 	}
 }
 
