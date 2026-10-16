@@ -91,8 +91,6 @@ ServerMainComponent::ServerMainComponent(
 	setSize(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width(),
 	        minimum_height() + LoggerComponent::HEIGHT);
 
-	workingSetSelector.setTopLeftPosition(0, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
-
 	logger.setSize(getWidth(), LoggerComponent::HEIGHT);
 	loggerViewport.setViewedComponent(&logger, false);
 
