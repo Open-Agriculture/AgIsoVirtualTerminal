@@ -858,6 +858,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::CheckForUpdates));
 	allCommands.add(static_cast<int>(CommandIDs::AutoCheckForUpdates));
 	allCommands.add(static_cast<int>(CommandIDs::AlwaysOnTop));
+	allCommands.add(static_cast<int>(CommandIDs::FitMasksToWindow));
 #ifdef JUCE_WINDOWS
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
 #elif JUCE_LINUX
@@ -956,6 +957,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::AlwaysOnTop:
 		{
 			result.setInfo("Always on top", "Keeps the VT window in front of other windows", "Control", alwaysOnTop ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::FitMasksToWindow:
+		{
+			result.setInfo("Fit masks to window", "Scales the data and soft key masks to fill the window", "Control", fitMasksToWindow ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -1269,6 +1276,16 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::FitMasksToWindow):
+		{
+			fitMasksToWindow = !fitMasksToWindow;
+			resized();
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -1291,6 +1308,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::StartStop));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoStart));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AlwaysOnTop));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::FitMasksToWindow));
 		}
 		break;
 
@@ -1616,6 +1634,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 				mParent.logger.setVisible(false);
 				mParent.loggerViewport.setVisible(false);
 			}
+			mParent.resized(); // The masks fit around the logging window
 
 			ASCIILogFile::set_logging_enabled(1 == mParent.popupMenu->getComboBoxComponent("CAN Traffic Log")->getSelectedItemIndex());
 			mParent.saveIopBeforeParse = (mParent.popupMenu->getComboBoxComponent("Save IOP data before parsing")->getSelectedItemIndex() == 1);
@@ -2123,6 +2142,11 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				// The window does not exist yet at this point, so this is applied by the timer
 				alwaysOnTop = static_cast<bool>(static_cast<int>(child.getProperty("AlwaysOnTop")));
 			}
+
+			if (!child.getProperty("FitMasksToWindow").isVoid())
+			{
+				fitMasksToWindow = static_cast<bool>(static_cast<int>(child.getProperty("FitMasksToWindow")));
+			}
 		}
 		index++;
 		child = settings->getChild(index);
@@ -2334,6 +2358,7 @@ void ServerMainComponent::save_settings()
 		loggingSettings.setProperty("LogCANTraffic", static_cast<int>(ASCIILogFile::is_logging_enabled()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlwaysOnTop", alwaysOnTop, nullptr);
+		controlSettings.setProperty("FitMasksToWindow", fitMasksToWindow, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("ShowAckButton", showAckButton, nullptr);
 		controlSettings.setProperty("CheckForUpdates", checkForUpdatesOnStartup, nullptr);
@@ -2497,6 +2522,11 @@ int ServerMainComponent::minimum_height() const
 
 double ServerMainComponent::display_scale() const
 {
+	if (!fitMasksToWindow)
+	{
+		return 1.0;
+	}
+
 	// The picker's floored scale is not part of the fit, so in a tiny window it may be slightly wider than assumed
 	const int isoWidth = get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width();
 	const int isoHeight = get_data_mask_area_size_y_pixels();

@@ -154,7 +154,7 @@ public:
 	static constexpr double MINIMUM_DISPLAY_SCALE = 0.25; ///< Lower bound when fitting to the window
 	static constexpr double MAXIMUM_DISPLAY_SCALE = 6.0; ///< Upper bound when fitting to the window
 
-	/// @brief Returns how much the masks are magnified to fit the window. Clients still get the reported size.
+	/// @brief Returns how much the masks are magnified to fit the window, or 1 when that is turned off. Clients still get the reported size.
 	/// @returns The display scale, where 1.0 is the reported size
 	double display_scale() const;
 
@@ -182,7 +182,8 @@ private:
 		AutoStart,
 		CheckForUpdates,
 		AutoCheckForUpdates,
-		AlwaysOnTop
+		AlwaysOnTop,
+		FitMasksToWindow
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -306,6 +307,7 @@ private:
 	bool saveIopBeforeParse = false;
 	bool checkForUpdatesOnStartup = true;
 	bool alwaysOnTop = false;
+	bool fitMasksToWindow = false; ///< Scale the masks to fill the window instead of drawing them at their reported size
 	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
 	juce::String savedWindowState; ///< The window geometry loaded from the settings file
 	bool needToApplyWindowState = true; ///< Set until the saved geometry has been given to the window
