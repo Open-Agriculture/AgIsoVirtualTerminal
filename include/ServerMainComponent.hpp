@@ -164,6 +164,10 @@ public:
 	/// @returns The working-set picker's display scale
 	double working_set_selector_scale() const;
 
+	/// @brief Stops the window from being made smaller than the masks need: their reported size, or the smallest
+	/// scale when they are fitted to the window
+	void apply_window_size_limits();
+
 private:
 	enum class CommandIDs : int
 	{

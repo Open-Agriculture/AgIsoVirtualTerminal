@@ -830,6 +830,7 @@ void ServerMainComponent::parentHierarchyChanged()
 
 	if ((nullptr != window) && (nullptr == resizeGrip))
 	{
+		apply_window_size_limits(); // First, so the grip gets the window's constrainer
 		resizeGrip = std::make_unique<juce::ResizableCornerComponent>(window, window->getConstrainer());
 		resizeGrip->setAlwaysOnTop(true);
 		addChildComponent(*resizeGrip);
@@ -1279,6 +1280,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		case static_cast<int>(CommandIDs::FitMasksToWindow):
 		{
 			fitMasksToWindow = !fitMasksToWindow;
+			apply_window_size_limits();
 			resized();
 			mCommandManager.commandStatusChanged();
 			save_settings();
@@ -1616,6 +1618,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			}
 
 			mParent.save_settings();
+			mParent.apply_window_size_limits();
 			mParent.resized();
 			mParent.repaint_data_and_soft_key_mask();
 		}
@@ -2550,6 +2553,25 @@ double ServerMainComponent::display_scale() const
 	                    MAXIMUM_DISPLAY_SCALE,
 	                    juce::jmin(static_cast<double>(availableWidth) / isoWidth,
 	                               static_cast<double>(availableHeight) / isoHeight));
+}
+
+void ServerMainComponent::apply_window_size_limits()
+{
+	auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+
+	if (nullptr == window)
+	{
+		return;
+	}
+
+	const double maskScale = fitMasksToWindow ? MINIMUM_DISPLAY_SCALE : 1.0;
+	const double pickerScale = fitMasksToWindow ? MINIMUM_WORKING_SET_SELECTOR_SCALE : 1.0;
+	const int minimumWidth = juce::roundToInt(WorkingSetSelectorComponent::WIDTH * pickerScale) +
+	  juce::roundToInt((get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width()) * maskScale);
+	const int minimumHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() +
+	  juce::roundToInt(get_data_mask_area_size_y_pixels() * maskScale);
+
+	window->setResizeLimits(minimumWidth, minimumHeight, 32768, 32768);
 }
 
 double ServerMainComponent::working_set_selector_scale() const
