@@ -729,6 +729,7 @@ void ServerMainComponent::timerCallback()
 	if (needToApplyWindowState)
 	{
 		apply_window_state();
+		apply_window_size_limits(); // Again, now that the window has its native frame and saved size
 	}
 
 	if (needToApplyAlwaysOnTop)
@@ -2571,7 +2572,14 @@ void ServerMainComponent::apply_window_size_limits()
 	const int minimumHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() +
 	  juce::roundToInt(get_data_mask_area_size_y_pixels() * maskScale);
 
-	window->setResizeLimits(minimumWidth, minimumHeight, 32768, 32768);
+	// The limits apply to the whole window, including a native title bar and borders
+	juce::BorderSize<int> frame;
+
+	if (auto *peer = window->getPeer())
+	{
+		frame = peer->getFrameSize();
+	}
+	window->setResizeLimits(minimumWidth + frame.getLeftAndRight(), minimumHeight + frame.getTopAndBottom(), 32768, 32768);
 }
 
 double ServerMainComponent::working_set_selector_scale() const
