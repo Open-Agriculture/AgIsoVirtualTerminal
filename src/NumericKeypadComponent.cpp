@@ -11,10 +11,12 @@
 NumericKeypadComponent::NumericKeypadComponent(double initialValue,
                                                double minimumValue,
                                                double maximumValue,
-                                               std::uint8_t numberOfDecimals) :
+                                               std::uint8_t numberOfDecimals,
+                                               juce::juce_wchar decimalSeparator) :
   minimum(std::min(minimumValue, maximumValue)),
   maximum(std::max(minimumValue, maximumValue)),
-  decimals(numberOfDecimals)
+  decimals(numberOfDecimals),
+  separator(decimalSeparator)
 {
 	entry = String(initialValue, static_cast<int>(decimals));
 
@@ -24,8 +26,8 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 
 	rangeLabel.setJustificationType(Justification::centredRight);
 	rangeLabel.setFont(Font(13.0f));
-	rangeLabel.setText("Range " + String(minimum, static_cast<int>(decimals)) +
-	                     " to " + String(maximum, static_cast<int>(decimals)),
+	rangeLabel.setText("Range " + String(minimum, static_cast<int>(decimals)).replaceCharacter('.', separator) +
+	                     " to " + String(maximum, static_cast<int>(decimals)).replaceCharacter('.', separator),
 	                   dontSendNotification);
 	addAndMakeVisible(rangeLabel);
 
@@ -66,7 +68,7 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 	signKey->setTooltip("Change the sign");
 	signKey->setEnabled(minimum < 0.0); // Pointless when the object cannot represent a negative value
 	add_key("0", [this]() { append('0'); });
-	add_key(".", [this]() { append('.'); })->setEnabled(0 != decimals);
+	add_key(String::charToString(separator), [this]() { append('.'); })->setEnabled(0 != decimals);
 	confirmKey = add_key(String::fromUTF8("\xe2\x9c\x93"), [this]() { confirm(); });
 	confirmKey->setTooltip("Confirm");
 	confirmKey->setColour(TextButton::buttonColourId, Colour(0xff2e7d32));
@@ -169,7 +171,7 @@ void NumericKeypadComponent::refresh_display()
 	// An empty entry stays empty rather than showing 0, which might not be a valid value
 	const bool outOfRange = has_value() && !is_within_range();
 
-	entryLabel.setText(entry, dontSendNotification);
+	entryLabel.setText(entry.replaceCharacter('.', separator), dontSendNotification);
 	entryLabel.setColour(Label::textColourId,
 	                     outOfRange ? Colours::red : getLookAndFeel().findColour(Label::textColourId));
 	rangeLabel.setColour(Label::textColourId,
@@ -245,9 +247,13 @@ bool NumericKeypadComponent::keyPressed(const KeyPress &key)
 	{
 		backspace();
 	}
-	else if (CharacterFunctions::isDigit(character) || ('.' == character))
+	else if (CharacterFunctions::isDigit(character))
 	{
 		append(character);
+	}
+	else if (('.' == character) || (',' == character))
+	{
+		append('.');
 	}
 	else
 	{

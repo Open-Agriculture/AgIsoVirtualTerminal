@@ -28,10 +28,12 @@ public:
 	/// @param[in] maximumValue The highest value the object accepts, in displayed units
 	/// @param[in] numberOfDecimals How many decimals the object displays. Zero means the decimal
 	/// point key is disabled, because a fractional value could not be represented.
+	/// @param[in] decimalSeparator The character shown as the decimal separator, '.' or ','
 	NumericKeypadComponent(double initialValue,
 	                       double minimumValue,
 	                       double maximumValue,
-	                       std::uint8_t numberOfDecimals);
+	                       std::uint8_t numberOfDecimals,
+	                       juce::juce_wchar decimalSeparator);
 
 	/// @brief Returns what has been typed, clamped into the object's range
 	/// @returns The entered value in displayed units
@@ -99,6 +101,7 @@ private:
 	double minimum;
 	double maximum;
 	std::uint8_t decimals;
+	juce::juce_wchar separator; ///< Shown in place of the '.' the entry is kept with
 	bool hasTypedSinceOpening = false; ///< The keypad opens showing the object's current value, not something the operator typed. The first digit/decimal-point press should overwrite it rather than append to it, or an operator has to press Clear first to get the same result - see append().
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NumericKeypadComponent)

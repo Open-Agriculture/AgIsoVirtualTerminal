@@ -314,7 +314,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							inputNumberKeypad.reset(new NumericKeypadComponent(scaledValue,
 							                                                   (static_cast<double>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
 							                                                   (static_cast<double>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
-							                                                   clickedNumber->get_number_of_decimals()));
+							                                                   clickedNumber->get_number_of_decimals(),
+							                                                   (isobus::LanguageCommandInterface::DecimalSymbols::Comma == ownerServer.get_language_command_interface().get_commanded_decimal_symbol()) ? ',' : '.'));
 
 							inputNumberListener.set_target(clickedNumber);
 
