@@ -191,6 +191,11 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 			break;
 
 			case isobus::VirtualTerminalObjectType::OutputArchedBarGraph:
+			{
+				retVal = std::make_shared<OutputArchedBarGraphComponent>(workingSet, *std::static_pointer_cast<isobus::OutputArchedBarGraph>(sourceObject));
+			}
+			break;
+
 			case isobus::VirtualTerminalObjectType::GraphicsContext:
 			case isobus::VirtualTerminalObjectType::Animation:
 			{
