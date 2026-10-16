@@ -42,7 +42,9 @@ WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &se
   parentServer(server)
 {
 	setOpaque(false);
-	setBounds(0, 0, WIDTH, server.minimum_height());
+
+	// The server is not fully constructed yet, so it sets the real bounds when it lays itself out
+	setSize(WIDTH, 0);
 	ackButton.onStateChange = [this]() {
 		const auto isPressed = ackButton.isDown();
 		if (ackButtonPressed != isPressed)
@@ -125,7 +127,7 @@ void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
 
 void WorkingSetSelectorComponent::resized()
 {
-	setBounds(0, 0, WIDTH, parentServer.minimum_height());
+	// The owner positions this column; setting bounds here used to move it over the menu bar
 	update_ack_button_bounds();
 }
 
