@@ -204,6 +204,12 @@ private:
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
 
+	/// @brief Redraws the soft keys when a client changes the soft key mask of the mask on screen
+	/// @param[in] affectedWorkingSet The working set whose mask was changed
+	/// @param[in] mask The data or alarm mask that was given a new soft key mask
+	/// @param[in] newSoftKeyMask The new soft key mask
+	void on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask);
+
 	/// @brief Restores the window position, size and maximised state which were saved the last
 	/// time the program ran.
 	/// @attention Like the always on top setting, this cannot be done during construction,
