@@ -34,8 +34,7 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type()))
 		{
 			auto font = std::static_pointer_cast<isobus::FontAttributes>(child);
-			// Bit 6 (Flashing) has priority over bit 5 (FlashingHidden)
-			if (font->get_style(isobus::FontAttributes::FontStyleBits::FlashingHidden) && !show && !font->get_style(isobus::FontAttributes::FontStyleBits::Flashing))
+			if (font->get_style(isobus::FontAttributes::FontStyleBits::FlashingHidden) && !show)
 			{
 				return;
 			}
@@ -46,7 +45,7 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 		}
 	}
 
-	float scaledValue = (sourceNumber->get_value() + sourceNumber->get_offset()) * sourceNumber->get_scale();
+	double scaledValue = (static_cast<double>(sourceNumber->get_value()) + sourceNumber->get_offset()) * sourceNumber->get_scale();
 	if (isobus::NULL_OBJECT_ID != sourceNumber->get_variable_reference())
 	{
 		auto child = sourceNumber->get_object_by_id(sourceNumber->get_variable_reference(), parentWorkingSet->get_object_tree());
@@ -54,16 +53,8 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 		if ((nullptr != child) &&
 		    (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 		{
-			scaledValue = (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() + sourceNumber->get_offset()) * sourceNumber->get_scale();
+			scaledValue = (static_cast<double>(std::static_pointer_cast<isobus::NumberVariable>(child)->get_value()) + sourceNumber->get_offset()) * sourceNumber->get_scale();
 		}
-	}
-
-	if (sourceNumber->get_option(isobus::NumberVTObject::Options::DisplayZeroAsBlank) &&
-	    scaledValue == 0.0)
-	{
-		// When this option bit is set, a blank field is displayed if and only if
-		// the displayed value of the object is exactly zero.
-		return;
 	}
 
 	if (!sourceNumber->get_option(isobus::NumberVTObject::Options::Transparent))
@@ -72,13 +63,16 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 	}
 	g.setColour(drawColour);
 
-	std::ostringstream valueText;
-	valueText << std::fixed << std::setprecision(sourceNumber->get_number_of_decimals()) << scaledValue;
-	g.drawText(valueText.str(), 0, 0, sourceNumber->get_width(), sourceNumber->get_height(), convert_justification(sourceNumber->get_horizontal_justification(), sourceNumber->get_vertical_justification()), false);
-
-	if (strikeThrough)
+	if ((0.0 != scaledValue) || !sourceNumber->get_option(isobus::NumberVTObject::Options::DisplayZeroAsBlank))
 	{
-		drawStrikeThrough(g, sourceNumber->get_width(), sourceNumber->get_height(), valueText.str(), sourceNumber->get_horizontal_justification());
+		std::ostringstream valueText;
+		valueText << std::fixed << std::setprecision(sourceNumber->get_number_of_decimals()) << scaledValue;
+		g.drawText(valueText.str(), 0, 0, sourceNumber->get_width(), sourceNumber->get_height(), convert_justification(sourceNumber->get_horizontal_justification(), sourceNumber->get_vertical_justification()), false);
+
+		if (strikeThrough)
+		{
+			drawStrikeThrough(g, sourceNumber->get_width(), sourceNumber->get_height(), valueText.str(), sourceNumber->get_horizontal_justification());
+		}
 	}
 
 	// If disabled, try and show that by drawing some semi-transparent grey
