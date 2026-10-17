@@ -4,6 +4,8 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "DataMaskRenderAreaComponent.hpp"
+
+#include <cmath>
 #include "AppImages.h"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
@@ -288,9 +290,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 						if (clickedNumber->get_option2(isobus::InputNumber::Options2::Enabled))
 						{
-							inputNumberModal.reset(new AlertWindow("Input Number", "Enter a value for this input number, then press OK.", MessageBoxIconType::QuestionIcon));
+							inputNumberModal.reset(new AlertWindow("Input Number", "", MessageBoxIconType::NoIcon));
 
 							float scaledValue = (clickedNumber->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
+							std::uint32_t currentRawValue = clickedNumber->get_value();
 
 							if (isobus::NULL_OBJECT_ID != clickedNumber->get_variable_reference())
 							{
@@ -301,30 +304,47 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 									{
 										scaledValue = (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
+										currentRawValue = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
 									}
 								}
 							}
 
-							inputNumberSlider.reset(new Slider(Slider::SliderStyle::LinearHorizontal, Slider::TextBoxAbove));
-							inputNumberSlider->setRange((static_cast<float>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
-							                            (static_cast<float>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale());
-							inputNumberSlider->setNumDecimalPlacesToDisplay(clickedNumber->get_number_of_decimals());
-							inputNumberSlider->setValue(scaledValue, NotificationType::dontSendNotification);
-							inputNumberSlider->setSize(400, 80);
+							// A keypad rather than a slider, because an exact value cannot be hit by
+							// dragging a finger, especially over the ranges an input number can have
+							inputNumberKeypad.reset(new NumericKeypadComponent(scaledValue,
+							                                                   (static_cast<double>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
+							                                                   (static_cast<double>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
+							                                                   clickedNumber->get_number_of_decimals(),
+							                                                   (isobus::LanguageCommandInterface::DecimalSymbols::Comma == ownerServer.get_language_command_interface().get_commanded_decimal_symbol()) ? ',' : '.'));
 
-							inputNumberListener.set_last_value(inputNumberSlider->getValue());
 							inputNumberListener.set_target(clickedNumber);
-							inputNumberSlider->addListener(&inputNumberListener);
 
-							inputNumberModal->addCustomComponent(inputNumberSlider.get());
-							inputNumberModal->addButton("OK", 0);
-							inputNumberModal->addButton("Cancel", 1); // TODO catch ESC as cancel
+							// Seeded with what the object holds now, so confirming without typing
+							// anything cannot write a stale value from a previous edit
+							inputNumberListener.set_last_value(currentRawValue);
+							inputNumberModal->addCustomComponent(inputNumberKeypad.get());
+							inputNumberKeypad->onConfirm = [this]() { inputNumberModal->exitModalState(0); };
+							inputNumberKeypad->onCancel = [this]() { inputNumberModal->exitModalState(1); };
+
+							// The keypad handles Escape as cancel. The window's own handling would confirm.
+							inputNumberModal->setEscapeKeyCancels(false);
 							auto resultCallback = [this, clickedNumber](int result) {
 								this->inputNumberModal->exitModalState();
 
 								std::uint16_t varNumID = 0xFFFF;
 								if (0 == result)
 								{
+									// Back from what the operator sees to what the object stores.
+									// Rounded rather than truncated, and clamped, so the value can
+									// never land outside what the object said it accepts.
+									if ((nullptr != inputNumberKeypad) && (0 != clickedNumber->get_scale()))
+									{
+										const double rawValue = (inputNumberKeypad->get_value() / clickedNumber->get_scale()) - clickedNumber->get_offset();
+										const double clamped = std::min(std::max(rawValue, static_cast<double>(clickedNumber->get_minimum_value())),
+										                                static_cast<double>(clickedNumber->get_maximum_value()));
+										inputNumberListener.set_last_value(static_cast<std::uint32_t>(std::llround(clamped)));
+									}
+
 									ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
 
 									if (isobus::NULL_OBJECT_ID != clickedNumber->get_variable_reference())
@@ -359,7 +379,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 								inputNumberListener.set_target(nullptr);
 								inputNumberModal.reset();
-								inputNumberSlider.reset();
+								inputNumberKeypad.reset();
 								ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 
 								if (0 == result)
@@ -387,6 +407,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								ownerServer.process_macro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
 							};
 							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+							inputNumberKeypad->grabKeyboardFocus();
 							ownerServer.send_select_input_object_message(clickedNumber->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (parentWorkingSet)
 							{
@@ -536,15 +557,6 @@ void DataMaskRenderAreaComponent::set_has_started(bool started)
 {
 	hasStarted = started;
 	repaint();
-}
-
-void DataMaskRenderAreaComponent::InputNumberListener::sliderValueChanged(Slider *slider)
-{
-	if ((nullptr != slider) && (nullptr != targetObject) && (0 != targetObject->get_scale()))
-	{
-		float scaledValue = (slider->getValue() / targetObject->get_scale()) - targetObject->get_offset();
-		lastValue = static_cast<std::uint32_t>(scaledValue);
-	}
 }
 
 std::uint32_t DataMaskRenderAreaComponent::InputNumberListener::get_last_value() const
