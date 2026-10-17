@@ -220,6 +220,7 @@ private:
 	/// not inside its window yet at that point.
 	void apply_always_on_top();
 
+	void play_alarm_mask_audio(const std::shared_ptr<isobus::VTObject> &mask);
 	void repaint_data_and_soft_key_mask();
 	bool is_active_alarm_mask() const;
 	void update_ack_button_visibility();
@@ -274,6 +275,7 @@ private:
 	std::set<std::string> loadedNames;
 	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
+	std::uint8_t displacedWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	juce::int64 lastUpdateCheck = 0;
 	juce::String skippedUpdateVersion;
