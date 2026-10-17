@@ -88,8 +88,9 @@ ServerMainComponent::ServerMainComponent(
 
 	// Make sure you set the size of the component after
 	// you add any child components.
+	// Includes the menu bar, so a new window opens at exactly 100 %
 	setSize(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width(),
-	        minimum_height() + LoggerComponent::HEIGHT);
+	        juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() + minimum_height() + LoggerComponent::HEIGHT);
 
 	logger.setSize(getWidth(), LoggerComponent::HEIGHT);
 	loggerViewport.setViewedComponent(&logger, false);
@@ -726,6 +727,7 @@ void ServerMainComponent::timerCallback()
 	if (needToApplyWindowState)
 	{
 		apply_window_state();
+		apply_window_size_limits(); // Again, now that the window has its native frame and saved size
 	}
 
 	if (needToApplyAlwaysOnTop)
@@ -769,21 +771,46 @@ void ServerMainComponent::resized()
 	auto lMenuBarHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight();
 	auto lBounds = getLocalBounds();
 
-	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, minimum_height());
-	dataMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH, lMenuBarHeight, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
-	vtNumberComponent.setBounds(dataMaskRenderer.getBounds().getX() + (dataMaskRenderer.getWidth() / 4.0),
-	                            dataMaskRenderer.getBounds().getY() + (dataMaskRenderer.getHeight() / 10.0),
-	                            dataMaskRenderer.getBounds().getWidth() / 2.0,
-	                            (dataMaskRenderer.getBounds().getHeight() / 10.0) * 8);
-	softKeyMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels(),
-	                              lMenuBarHeight,
-	                              softKeyMaskDimensions.total_width(),
-	                              get_data_mask_area_size_y_pixels());
+	// Each area keeps its native size and is magnified around its own top left corner
+	const auto scale = static_cast<float>(display_scale());
+	const auto pickerScale = static_cast<float>(working_set_selector_scale());
+	const int dataMaskWidth = get_data_mask_area_size_x_pixels();
+	const int dataMaskHeight = get_data_mask_area_size_y_pixels();
+	const int softKeyWidth = softKeyMaskDimensions.total_width();
+	const int pickerLeft = juce::roundToInt(WorkingSetSelectorComponent::WIDTH * pickerScale);
+	const int dataMaskLeft = pickerLeft;
+	const int softKeyLeft = dataMaskLeft + juce::roundToInt(dataMaskWidth * scale);
+
+	// Derived from the scaled mask height, so the picker lines up with the masks whatever its own scale
+	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, juce::roundToInt((dataMaskHeight * scale) / pickerScale));
+	workingSetSelector.setTransform(juce::AffineTransform::scale(pickerScale, pickerScale, 0.0f, static_cast<float>(lMenuBarHeight)));
+
+	dataMaskRenderer.setBounds(dataMaskLeft, lMenuBarHeight, dataMaskWidth, dataMaskHeight);
+	dataMaskRenderer.setTransform(juce::AffineTransform::scale(scale, scale, static_cast<float>(dataMaskLeft), static_cast<float>(lMenuBarHeight)));
+
+	softKeyMaskRenderer.setBounds(softKeyLeft, lMenuBarHeight, softKeyWidth, dataMaskHeight);
+	softKeyMaskRenderer.setTransform(juce::AffineTransform::scale(scale, scale, static_cast<float>(softKeyLeft), static_cast<float>(lMenuBarHeight)));
+
+	// Not part of a pool, so placed against the scaled rectangle
+	const auto scaledDataMask = juce::Rectangle<int>(dataMaskLeft, lMenuBarHeight, juce::roundToInt(dataMaskWidth * scale), juce::roundToInt(dataMaskHeight * scale));
+	vtNumberComponent.setBounds(scaledDataMask.getX() + (scaledDataMask.getWidth() / 4),
+	                            scaledDataMask.getY() + (scaledDataMask.getHeight() / 10),
+	                            scaledDataMask.getWidth() / 2,
+	                            (scaledDataMask.getHeight() / 10) * 8);
+
 	// The logging area occupies everything below the mask render areas. The viewport needs an
 	// explicit size, otherwise it stays 0 x 0 and nothing is drawn even when it is made visible.
 	const int loggerTop = lMenuBarHeight + minimum_height();
 	loggerViewport.setBounds(0, loggerTop, getWidth(), juce::jmax(0, getHeight() - loggerTop));
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight).withTrimmedRight(CAN_STATUS_INDICATOR_WIDTH));
+
+	if (nullptr != resizeGrip)
+	{
+		// Hidden while maximised or full screen
+		const auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+		resizeGrip->setVisible((nullptr != window) && window->isResizable() && !window->isFullScreen() && !window->isKioskMode());
+		resizeGrip->setBounds(getLocalBounds().removeFromBottom(RESIZE_GRIP_SIZE).removeFromRight(RESIZE_GRIP_SIZE));
+	}
 
 	// The visible sizes exclude any scroll bars, which keeps the log text from triggering a
 	// horizontal scroll bar of its own.
@@ -792,6 +819,21 @@ void ServerMainComponent::resized()
 	if (logger.getHeight() < loggerViewport.getMaximumVisibleHeight())
 	{
 		logger.setSize(loggerViewport.getMaximumVisibleWidth(), loggerViewport.getMaximumVisibleHeight());
+	}
+}
+
+void ServerMainComponent::parentHierarchyChanged()
+{
+	// The window's own corner resizer is too small for touch, so a larger one is added once in a window
+	auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+
+	if ((nullptr != window) && (nullptr == resizeGrip))
+	{
+		apply_window_size_limits(); // First, so the grip gets the window's constrainer
+		resizeGrip = std::make_unique<juce::ResizableCornerComponent>(window, window->getConstrainer());
+		resizeGrip->setAlwaysOnTop(true);
+		addChildComponent(*resizeGrip);
+		resized();
 	}
 }
 
@@ -816,6 +858,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::CheckForUpdates));
 	allCommands.add(static_cast<int>(CommandIDs::AutoCheckForUpdates));
 	allCommands.add(static_cast<int>(CommandIDs::AlwaysOnTop));
+	allCommands.add(static_cast<int>(CommandIDs::FitMasksToWindow));
 #ifdef JUCE_WINDOWS
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
 #elif JUCE_LINUX
@@ -914,6 +957,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::AlwaysOnTop:
 		{
 			result.setInfo("Always on top", "Keeps the VT window in front of other windows", "Control", alwaysOnTop ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::FitMasksToWindow:
+		{
+			result.setInfo("Fit masks to window", "Scales the data and soft key masks to fill the window", "Control", fitMasksToWindow ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -1227,6 +1276,17 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::FitMasksToWindow):
+		{
+			fitMasksToWindow = !fitMasksToWindow;
+			apply_window_size_limits();
+			resized();
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -1249,6 +1309,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::StartStop));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoStart));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AlwaysOnTop));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::FitMasksToWindow));
 		}
 		break;
 
@@ -1556,6 +1617,8 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			}
 
 			mParent.save_settings();
+			mParent.apply_window_size_limits();
+			mParent.resized();
 			mParent.repaint_data_and_soft_key_mask();
 		}
 		break;
@@ -1573,6 +1636,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 				mParent.logger.setVisible(false);
 				mParent.loggerViewport.setVisible(false);
 			}
+			mParent.resized(); // The masks fit around the logging window
 
 			ASCIILogFile::set_logging_enabled(1 == mParent.popupMenu->getComboBoxComponent("CAN Traffic Log")->getSelectedItemIndex());
 			mParent.saveIopBeforeParse = (mParent.popupMenu->getComboBoxComponent("Save IOP data before parsing")->getSelectedItemIndex() == 1);
@@ -2080,6 +2144,11 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				// The window does not exist yet at this point, so this is applied by the timer
 				alwaysOnTop = static_cast<bool>(static_cast<int>(child.getProperty("AlwaysOnTop")));
 			}
+
+			if (!child.getProperty("FitMasksToWindow").isVoid())
+			{
+				fitMasksToWindow = static_cast<bool>(static_cast<int>(child.getProperty("FitMasksToWindow")));
+			}
 		}
 		index++;
 		child = settings->getChild(index);
@@ -2291,6 +2360,7 @@ void ServerMainComponent::save_settings()
 		loggingSettings.setProperty("LogCANTraffic", static_cast<int>(ASCIILogFile::is_logging_enabled()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlwaysOnTop", alwaysOnTop, nullptr);
+		controlSettings.setProperty("FitMasksToWindow", fitMasksToWindow, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("ShowAckButton", showAckButton, nullptr);
 		controlSettings.setProperty("CheckForUpdates", checkForUpdatesOnStartup, nullptr);
@@ -2448,9 +2518,71 @@ void ServerMainComponent::screen_capture(std::uint8_t item, std::uint8_t path, s
 
 int ServerMainComponent::minimum_height() const
 {
-	if (dataMaskRenderer.getHeight() > softKeyMaskDimensions.total_height())
-		return dataMaskRenderer.getHeight();
-	return softKeyMaskDimensions.total_height();
+	// Both areas are drawn at the data mask's height; soft key rows past it are clipped anyway
+	return juce::roundToInt(get_data_mask_area_size_y_pixels() * display_scale());
+}
+
+double ServerMainComponent::display_scale() const
+{
+	if (!fitMasksToWindow)
+	{
+		return 1.0;
+	}
+
+	// The picker's floored scale is not part of the fit, so in a tiny window it may be slightly wider than assumed
+	const int isoWidth = get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width();
+	const int isoHeight = get_data_mask_area_size_y_pixels();
+
+	if ((isoWidth <= 0) || (isoHeight <= 0) || (getWidth() <= 0) || (getHeight() <= 0))
+	{
+		return 1.0; // Not sized yet
+	}
+
+	const int availableWidth = getWidth() - WorkingSetSelectorComponent::WIDTH;
+	const int availableHeight = getHeight() -
+	  juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() -
+	  (loggerViewport.isVisible() ? LoggerComponent::HEIGHT : 0);
+
+	if ((availableWidth <= 0) || (availableHeight <= 0))
+	{
+		return MINIMUM_DISPLAY_SCALE;
+	}
+
+	return juce::jlimit(MINIMUM_DISPLAY_SCALE,
+	                    MAXIMUM_DISPLAY_SCALE,
+	                    juce::jmin(static_cast<double>(availableWidth) / isoWidth,
+	                               static_cast<double>(availableHeight) / isoHeight));
+}
+
+void ServerMainComponent::apply_window_size_limits()
+{
+	auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+
+	if (nullptr == window)
+	{
+		return;
+	}
+
+	const double maskScale = fitMasksToWindow ? MINIMUM_DISPLAY_SCALE : 1.0;
+	const double pickerScale = fitMasksToWindow ? MINIMUM_WORKING_SET_SELECTOR_SCALE : 1.0;
+	const int minimumWidth = juce::roundToInt(WorkingSetSelectorComponent::WIDTH * pickerScale) +
+	  juce::roundToInt((get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width()) * maskScale);
+	const int minimumHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() +
+	  juce::roundToInt(get_data_mask_area_size_y_pixels() * maskScale);
+
+	// The limits apply to the whole window, including a native title bar and borders
+	juce::BorderSize<int> frame;
+
+	if (auto *peer = window->getPeer())
+	{
+		frame = peer->getFrameSize();
+	}
+	window->setResizeLimits(minimumWidth + frame.getLeftAndRight(), minimumHeight + frame.getTopAndBottom(), 32768, 32768);
+}
+
+double ServerMainComponent::working_set_selector_scale() const
+{
+	return juce::jmax(MINIMUM_WORKING_SET_SELECTOR_SCALE, display_scale());
 }
 
 void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
