@@ -1397,6 +1397,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
 		ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); }));
 		ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
+		ws->save_callback_handle(get_on_change_active_softkey_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask) { this->on_change_active_softkey_mask_callback(affectedWorkingSet, mask, newSoftKeyMask); }));
 
 		if (send_status_message())
 		{
@@ -1785,6 +1786,39 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 			}
 		}
 	}
+}
+
+void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask)
+{
+	// Called from the CAN thread, so the work is handed to the message thread
+	juce::Component::SafePointer<ServerMainComponent> safeThis(this);
+
+	juce::MessageManager::callAsync([safeThis, affectedWorkingSet, mask, newSoftKeyMask]() {
+		if ((nullptr == safeThis) || (nullptr == affectedWorkingSet) || (affectedWorkingSet != safeThis->activeWorkingSet))
+		{
+			return;
+		}
+
+		// A mask that is not on screen shows its new soft keys when it becomes active
+		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(affectedWorkingSet->get_working_set_object());
+
+		if ((nullptr == workingSetObject) || (mask != workingSetObject->get_active_mask()))
+		{
+			return;
+		}
+
+		safeThis->activeWorkingSetSoftkeyMaskObjectID = newSoftKeyMask;
+		safeThis->softKeyMaskRenderer.on_change_active_mask(affectedWorkingSet);
+
+		if (safeThis->send_status_message())
+		{
+			safeThis->statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+		}
+		else
+		{
+			safeThis->statusMessageTimestamp_ms = 0;
+		}
+	});
 }
 
 void ServerMainComponent::repaint_data_and_soft_key_mask()
