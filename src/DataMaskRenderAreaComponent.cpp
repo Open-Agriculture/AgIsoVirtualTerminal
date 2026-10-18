@@ -5,14 +5,103 @@
 *******************************************************************************/
 #include "DataMaskRenderAreaComponent.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include "AppImages.h"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 
+/// Data mask sizes object pools are commonly drawn for; 200 is the ISO 11783-6 minimum.
+constexpr int DESIGNED_MASK_SIZES[] = { 200, 240, 480 };
+
+/// Pools often draw a few percent past their mask and rely on the VT clipping it, which must not be
+/// read as a larger design.
+constexpr int MASK_OVERHANG_TOLERANCE_DIVISOR = 20;
+
+/// @brief Estimates the data mask size an object pool was drawn for
+/// @details Pools do not declare it, so it is measured. The median mask is used because pools park
+/// objects outside the mask and wrap children in oversized containers, which inflates the largest.
+/// @param[in] workingSet The working set whose object pool should be measured
+/// @param[in] renderAreaSize The size in pixels of this VT's data mask render area
+/// @returns The estimated size in pixels of the data mask the pool was designed for
+static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, int renderAreaSize)
+{
+	std::vector<int> maskExtents;
+
+	for (const auto &currentObject : workingSet->get_object_tree())
+	{
+		auto object = currentObject.second;
+
+		if ((nullptr == object) ||
+		    ((isobus::VirtualTerminalObjectType::DataMask != object->get_object_type()) &&
+		     (isobus::VirtualTerminalObjectType::AlarmMask != object->get_object_type())))
+		{
+			continue;
+		}
+
+		int extent = 0;
+
+		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
+		{
+			auto child = object->get_object_by_id(object->get_child_id(i), workingSet->get_object_tree());
+
+			if ((nullptr == child) ||
+			    (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
+			{
+				continue;
+			}
+			extent = std::max(extent, object->get_child_x(i) + static_cast<int>(child->get_width()));
+			extent = std::max(extent, object->get_child_y(i) + static_cast<int>(child->get_height()));
+		}
+
+		// Empty masks would drag the median down to the smallest size.
+		if (0 != extent)
+		{
+			maskExtents.push_back(extent);
+		}
+	}
+
+	auto retVal = renderAreaSize;
+
+	if (!maskExtents.empty())
+	{
+		auto medianPosition = maskExtents.begin() + (maskExtents.size() / 2);
+		std::nth_element(maskExtents.begin(), medianPosition, maskExtents.end());
+
+		// The render area is a candidate so that a pool laid out for our reported size is never scaled.
+		std::vector<int> candidateSizes(std::begin(DESIGNED_MASK_SIZES), std::end(DESIGNED_MASK_SIZES));
+		candidateSizes.push_back(renderAreaSize);
+		std::sort(candidateSizes.begin(), candidateSizes.end());
+
+		retVal = *medianPosition;
+
+		for (auto designedSize : candidateSizes)
+		{
+			if (*medianPosition <= (designedSize + (designedSize / MASK_OVERHANG_TOLERANCE_DIVISOR)))
+			{
+				retVal = designedSize;
+				break;
+			}
+		}
+	}
+	return retVal;
+}
+
 DataMaskRenderAreaComponent::DataMaskRenderAreaComponent(ServerMainComponent &parentServer) :
   ownerServer(parentServer)
 {
+}
+
+int DataMaskRenderAreaComponent::to_pool_coordinate(int renderedCoordinate) const
+{
+	auto retVal = renderedCoordinate;
+
+	if (0 != designedMaskSize)
+	{
+		// Integer ratio, because the inverse of the float scale rounds an object's edge pixel into its neighbour.
+		retVal = (renderedCoordinate * designedMaskSize) / ownerServer.get_data_mask_area_size_x_pixels();
+	}
+	return retVal;
 }
 
 void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
@@ -20,6 +109,7 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 	needToRepaintActiveArea = false;
 	childComponents.clear();
 	parentWorkingSet = workingSet;
+	designedMaskSize = 0;
 
 	if (parentWorkingSet)
 	{
@@ -27,12 +117,17 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 
 		if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 		{
+			designedMaskSize = detect_designed_mask_size(parentWorkingSet, ownerServer.get_data_mask_area_size_x_pixels());
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 			childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, activeMask));
 
 			if (nullptr != childComponents.back())
 			{
 				addAndMakeVisible(*childComponents.back());
+
+				// The cache builds every mask at 480, which clips a larger design and leaves a larger area uncovered.
+				childComponents.back()->setSize(designedMaskSize, designedMaskSize);
+				childComponents.back()->setTransform(AffineTransform::scale(static_cast<float>(ownerServer.get_data_mask_area_size_x_pixels()) / designedMaskSize));
 			}
 		}
 	}
@@ -83,7 +178,9 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 
 			auto relativeEvent = event.getEventRelativeTo(this);
-			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
+			auto clickedObject = getClickedChildRecursive(activeMask,
+			                                              to_pool_coordinate(relativeEvent.getMouseDownX()),
+			                                              to_pool_coordinate(relativeEvent.getMouseDownY()));
 
 			if (nullptr != clickedObject)
 			{
@@ -126,7 +223,9 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 
 			auto relativeEvent = event.getEventRelativeTo(this);
-			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
+			auto clickedObject = getClickedChildRecursive(activeMask,
+			                                              to_pool_coordinate(relativeEvent.getMouseDownX()),
+			                                              to_pool_coordinate(relativeEvent.getMouseDownY()));
 
 			if (nullptr != clickedObject)
 			{
@@ -673,6 +772,6 @@ bool DataMaskRenderAreaComponent::objectCanBeClicked(std::shared_ptr<isobus::VTO
 
 bool DataMaskRenderAreaComponent::isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight)
 {
-	return ((clickXRelative >= objectX) && (clickXRelative <= (objectX + objectWidth))) &&
-	  ((clickYRelative >= objectY) && (clickYRelative <= (objectY + objectHeight)));
+	return ((clickXRelative >= objectX) && (clickXRelative < (objectX + objectWidth))) &&
+	  ((clickYRelative >= objectY) && (clickYRelative < (objectY + objectHeight)));
 }
