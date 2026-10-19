@@ -58,9 +58,6 @@ private:
 		std::uint32_t lastValue = 0;
 	};
 
-	/// @brief Takes a coordinate in this component's space back into the object pool's coordinates
-	/// @param[in] renderedCoordinate The coordinate as rendered, relative to this component
-	/// @returns The equivalent coordinate in the object pool's own coordinate space
 	int to_pool_coordinate(float renderedCoordinate) const;
 
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
