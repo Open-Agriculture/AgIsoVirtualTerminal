@@ -116,6 +116,7 @@ public:
 
 	void paint(juce::Graphics &g) override;
 	void resized() override;
+	void parentHierarchyChanged() override;
 
 	ApplicationCommandTarget *getNextCommandTarget() override;
 	void getAllCommands(juce::Array<juce::CommandID> &allCommands) override;
@@ -156,9 +157,26 @@ public:
 	static void release_text_input_focus();
 	/**
    * @brief minimum_height
-   * @return the height of the softkey- or the datamask size, whichever is bigger
+   * @return the on-screen height of the mask render areas, at the current display scale
    */
 	int minimum_height() const;
+
+	static constexpr double MINIMUM_DISPLAY_SCALE = 0.25; ///< Lower bound when fitting to the window
+	static constexpr double MAXIMUM_DISPLAY_SCALE = 6.0; ///< Upper bound when fitting to the window
+
+	/// @brief Returns how much the masks are magnified to fit the window, or 1 when that is turned off. Clients still get the reported size.
+	/// @returns The display scale, where 1.0 is the reported size
+	double display_scale() const;
+
+	static constexpr double MINIMUM_WORKING_SET_SELECTOR_SCALE = 0.75; ///< Floor for the picker column's own scale
+
+	/// @brief Returns display_scale(), floored so the working-set picker stays usable on a touch screen
+	/// @returns The working-set picker's display scale
+	double working_set_selector_scale() const;
+
+	/// @brief Stops the window from being made smaller than the masks need: their reported size, or the smallest
+	/// scale when they are fitted to the window
+	void apply_window_size_limits();
 
 private:
 	enum class CommandIDs : int
@@ -178,7 +196,8 @@ private:
 		AutoStart,
 		CheckForUpdates,
 		AutoCheckForUpdates,
-		AlwaysOnTop
+		AlwaysOnTop,
+		FitMasksToWindow
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -272,6 +291,8 @@ private:
 	LoggerComponent logger;
 	Viewport loggerViewport;
 	VT_NumberComponent vtNumberComponent;
+	static constexpr int RESIZE_GRIP_SIZE = 44; ///< Large enough to drag with a finger
+	std::unique_ptr<juce::ResizableCornerComponent> resizeGrip; ///< Replaces the window's 18 pixel corner resizer
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<isobus::TimeDateInterface> timeServingInterface;
@@ -300,6 +321,7 @@ private:
 	bool saveIopBeforeParse = false;
 	bool checkForUpdatesOnStartup = true;
 	bool alwaysOnTop = false;
+	bool fitMasksToWindow = false; ///< Scale the masks to fill the window instead of drawing them at their reported size
 	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
 	juce::String savedWindowState; ///< The window geometry loaded from the settings file
 	bool needToApplyWindowState = true; ///< Set until the saved geometry has been given to the window
