@@ -78,7 +78,15 @@ static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTermin
 
 		for (auto designedSize : candidateSizes)
 		{
-			if (*medianPosition <= (designedSize + (designedSize / MASK_OVERHANG_TOLERANCE_DIVISOR)))
+			const auto toleratedSize = designedSize + (designedSize / MASK_OVERHANG_TOLERANCE_DIVISOR);
+
+			// A size whose overhang reaches the render area would take a pool drawn for the render area and clip it.
+			if ((renderAreaSize != designedSize) && (toleratedSize >= renderAreaSize))
+			{
+				continue;
+			}
+
+			if (*medianPosition <= toleratedSize)
 			{
 				retVal = designedSize;
 				break;
@@ -93,16 +101,16 @@ DataMaskRenderAreaComponent::DataMaskRenderAreaComponent(ServerMainComponent &pa
 {
 }
 
-int DataMaskRenderAreaComponent::to_pool_coordinate(int renderedCoordinate) const
+int DataMaskRenderAreaComponent::to_pool_coordinate(float renderedCoordinate) const
 {
-	auto retVal = renderedCoordinate;
+	double poolCoordinate = renderedCoordinate;
 
 	if (0 != designedMaskSize)
 	{
-		// Integer ratio, because the inverse of the float scale rounds an object's edge pixel into its neighbour.
-		retVal = (renderedCoordinate * designedMaskSize) / ownerServer.get_data_mask_area_size_x_pixels();
+		poolCoordinate = poolCoordinate * designedMaskSize / ownerServer.get_data_mask_area_size_x_pixels();
 	}
-	return retVal;
+	// Floored once, after the whole inverse, because rounding any earlier can land an edge pixel in the neighbouring object.
+	return static_cast<int>(std::floor(poolCoordinate));
 }
 
 void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
@@ -190,8 +198,8 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 
 			auto relativeEvent = event.getEventRelativeTo(this);
 			auto clickedObject = getClickedChildRecursive(activeMask,
-			                                              to_pool_coordinate(relativeEvent.getMouseDownX()),
-			                                              to_pool_coordinate(relativeEvent.getMouseDownY()));
+			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.x),
+			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.y));
 
 			if (nullptr != clickedObject)
 			{
@@ -235,8 +243,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 			auto relativeEvent = event.getEventRelativeTo(this);
 			auto clickedObject = getClickedChildRecursive(activeMask,
-			                                              to_pool_coordinate(relativeEvent.getMouseDownX()),
-			                                              to_pool_coordinate(relativeEvent.getMouseDownY()));
+			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.x),
+			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.y));
 
 			if (nullptr != clickedObject)
 			{
