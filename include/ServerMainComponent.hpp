@@ -327,7 +327,7 @@ private:
 	bool checkForUpdatesOnStartup = true;
 	bool alwaysOnTop = false;
 	bool fitMasksToWindow = false; ///< Scale the masks to fill the window instead of drawing them at their reported size
-	bool scalePoolsToDataMask = false; ///< Scale pools drawn for another data mask size, which ISO 11783-6 leaves to the working set
+	bool scalePoolsToDataMask = false; ///< Scale pools drawn for another data mask size to the reported one
 	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
 	juce::String savedWindowState; ///< The window geometry loaded from the settings file
 	bool needToApplyWindowState = true; ///< Set until the saved geometry has been given to the window

@@ -12,19 +12,12 @@
 #include "ServerMainComponent.hpp"
 #include "isobus/isobus/can_stack_logger.hpp"
 
-/// Data mask sizes object pools are commonly drawn for; 200 is the ISO 11783-6 minimum.
 constexpr int DESIGNED_MASK_SIZES[] = { 200, 240, 480 };
 
-/// Pools often draw a few percent past their mask and rely on the VT clipping it, which must not be
-/// read as a larger design.
+// Pools often overhang their mask by a few percent and rely on the VT to clip it.
 constexpr int MASK_OVERHANG_TOLERANCE_DIVISOR = 20;
 
-/// @brief Estimates the data mask size an object pool was drawn for
-/// @details Pools do not declare it, so it is measured. The median mask is used because pools park
-/// objects outside the mask and wrap children in oversized containers, which inflates the largest.
-/// @param[in] workingSet The working set whose object pool should be measured
-/// @param[in] renderAreaSize The size in pixels of this VT's data mask render area
-/// @returns The estimated size in pixels of the data mask the pool was designed for
+// The median, because pools park objects outside the mask and wrap children in oversized containers.
 static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, int renderAreaSize)
 {
 	std::vector<int> maskExtents;
@@ -55,7 +48,6 @@ static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTermin
 			extent = std::max(extent, object->get_child_y(i) + static_cast<int>(child->get_height()));
 		}
 
-		// Empty masks would drag the median down to the smallest size.
 		if (0 != extent)
 		{
 			maskExtents.push_back(extent);
@@ -69,24 +61,17 @@ static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTermin
 		auto medianPosition = maskExtents.begin() + (maskExtents.size() / 2);
 		std::nth_element(maskExtents.begin(), medianPosition, maskExtents.end());
 
-		// The render area is a candidate so that a pool laid out for our reported size is never scaled.
-		std::vector<int> candidateSizes(std::begin(DESIGNED_MASK_SIZES), std::end(DESIGNED_MASK_SIZES));
-		candidateSizes.push_back(renderAreaSize);
-		std::sort(candidateSizes.begin(), candidateSizes.end());
+		if (*medianPosition > renderAreaSize + (renderAreaSize / MASK_OVERHANG_TOLERANCE_DIVISOR))
+		{
+			retVal = *medianPosition;
+		}
 
-		retVal = *medianPosition;
-
-		for (auto designedSize : candidateSizes)
+		for (auto designedSize : DESIGNED_MASK_SIZES)
 		{
 			const auto toleratedSize = designedSize + (designedSize / MASK_OVERHANG_TOLERANCE_DIVISOR);
 
-			// A size whose overhang reaches the render area would take a pool drawn for the render area and clip it.
-			if ((renderAreaSize != designedSize) && (toleratedSize >= renderAreaSize))
-			{
-				continue;
-			}
-
-			if (*medianPosition <= toleratedSize)
+			// A size whose overhang reaches the render area would clip a pool drawn for the render area.
+			if ((toleratedSize < renderAreaSize) && (*medianPosition <= toleratedSize))
 			{
 				retVal = designedSize;
 				break;
@@ -109,7 +94,7 @@ int DataMaskRenderAreaComponent::to_pool_coordinate(float renderedCoordinate) co
 	{
 		poolCoordinate = poolCoordinate * designedMaskSize / ownerServer.get_data_mask_area_size_x_pixels();
 	}
-	// Floored once, after the whole inverse, because rounding any earlier can land an edge pixel in the neighbouring object.
+	// Rounding before the whole inverse is done can land an edge pixel in the neighbouring object.
 	return static_cast<int>(std::floor(poolCoordinate));
 }
 
@@ -131,7 +116,7 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 			const int renderAreaSize = ownerServer.get_data_mask_area_size_x_pixels();
 			designedMaskSize = ownerServer.get_scale_pools_to_data_mask() ? detect_designed_mask_size(parentWorkingSet, renderAreaSize) : renderAreaSize;
 
-			// This runs on every mask change, so only a new working set or a new size is logged.
+			// Runs on every mask change, so log only a new working set or size.
 			if ((renderAreaSize != designedMaskSize) &&
 			    ((previousWorkingSet != parentWorkingSet) || (previousDesignedMaskSize != designedMaskSize)))
 			{
@@ -144,7 +129,7 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 			{
 				addAndMakeVisible(*childComponents.back());
 
-				// The cache builds every mask at 480, which clips a larger design and leaves a larger area uncovered.
+				// The cache builds every mask at 480.
 				childComponents.back()->setSize(designedMaskSize, designedMaskSize);
 				childComponents.back()->setTransform(AffineTransform::scale(static_cast<float>(renderAreaSize) / designedMaskSize));
 			}
