@@ -10,6 +10,7 @@
 #include "AppImages.h"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
+#include "isobus/isobus/can_stack_logger.hpp"
 
 /// Data mask sizes object pools are commonly drawn for; 200 is the ISO 11783-6 minimum.
 constexpr int DESIGNED_MASK_SIZES[] = { 200, 240, 480 };
@@ -106,6 +107,8 @@ int DataMaskRenderAreaComponent::to_pool_coordinate(int renderedCoordinate) cons
 
 void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
+	const auto previousWorkingSet = parentWorkingSet;
+	const auto previousDesignedMaskSize = designedMaskSize;
 	needToRepaintActiveArea = false;
 	childComponents.clear();
 	parentWorkingSet = workingSet;
@@ -117,7 +120,15 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 
 		if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 		{
-			designedMaskSize = detect_designed_mask_size(parentWorkingSet, ownerServer.get_data_mask_area_size_x_pixels());
+			const int renderAreaSize = ownerServer.get_data_mask_area_size_x_pixels();
+			designedMaskSize = ownerServer.get_scale_pools_to_data_mask() ? detect_designed_mask_size(parentWorkingSet, renderAreaSize) : renderAreaSize;
+
+			// This runs on every mask change, so only a new working set or a new size is logged.
+			if ((renderAreaSize != designedMaskSize) &&
+			    ((previousWorkingSet != parentWorkingSet) || (previousDesignedMaskSize != designedMaskSize)))
+			{
+				LOG_INFO("[VT Server]: Object pool appears drawn for a %d px data mask, scaling it to %d px", designedMaskSize, renderAreaSize);
+			}
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 			childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, activeMask));
 
@@ -127,7 +138,7 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 
 				// The cache builds every mask at 480, which clips a larger design and leaves a larger area uncovered.
 				childComponents.back()->setSize(designedMaskSize, designedMaskSize);
-				childComponents.back()->setTransform(AffineTransform::scale(static_cast<float>(ownerServer.get_data_mask_area_size_x_pixels()) / designedMaskSize));
+				childComponents.back()->setTransform(AffineTransform::scale(static_cast<float>(renderAreaSize) / designedMaskSize));
 			}
 		}
 	}
