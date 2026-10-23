@@ -973,7 +973,7 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 
 		case CommandIDs::ScalePoolsToDataMask:
 		{
-			result.setInfo("Scale pools to data mask size", "Scales object pools drawn for another data mask size to the configured one", "Control", scalePoolsToDataMask ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+			result.setInfo("Scale pools to data mask size", "Scales object pools drawn for another data mask size to the configured one, which can also enlarge a pool that leaves space on purpose", "Control", scalePoolsToDataMask ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
