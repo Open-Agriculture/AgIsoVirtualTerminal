@@ -73,6 +73,8 @@ private:
 	std::vector<std::shared_ptr<Component>> currentModalComponentCache;
 	ServerMainComponent &ownerServer;
 	InputNumberListener inputNumberListener;
+	std::shared_ptr<isobus::WorkingSet> measuredWorkingSetObject;
+	int medianMaskExtent = 0;
 	int designedMaskSize = 0;
 	bool needToRepaintActiveArea = false;
 	bool hasStarted = false;

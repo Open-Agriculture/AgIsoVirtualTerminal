@@ -18,7 +18,7 @@ constexpr int DESIGNED_MASK_SIZES[] = { 200, 240, 480 };
 constexpr int MASK_OVERHANG_TOLERANCE_DIVISOR = 20;
 
 // The median, because pools park objects outside the mask and wrap children in oversized containers.
-static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, int renderAreaSize)
+static int measure_median_mask_extent(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet)
 {
 	std::vector<int> maskExtents;
 
@@ -39,6 +39,11 @@ static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTermin
 		{
 			auto child = object->get_object_by_id(object->get_child_id(i), workingSet->get_object_tree());
 
+			if ((nullptr != child) && (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type()))
+			{
+				child = object->get_object_by_id(std::static_pointer_cast<isobus::ObjectPointer>(child)->get_value(), workingSet->get_object_tree());
+			}
+
 			if ((nullptr == child) ||
 			    (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
 			{
@@ -54,16 +59,28 @@ static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTermin
 		}
 	}
 
-	auto retVal = renderAreaSize;
+	auto retVal = 0;
 
 	if (!maskExtents.empty())
 	{
 		auto medianPosition = maskExtents.begin() + (maskExtents.size() / 2);
 		std::nth_element(maskExtents.begin(), medianPosition, maskExtents.end());
+		retVal = *medianPosition;
+	}
+	return retVal;
+}
 
-		if (*medianPosition > renderAreaSize + (renderAreaSize / MASK_OVERHANG_TOLERANCE_DIVISOR))
+static int detect_designed_mask_size(int medianMaskExtent, int renderAreaSize)
+{
+	auto retVal = renderAreaSize;
+
+	if (0 != medianMaskExtent)
+	{
+		const bool drawnLargerThanRenderArea = (medianMaskExtent > renderAreaSize + (renderAreaSize / MASK_OVERHANG_TOLERANCE_DIVISOR));
+
+		if (drawnLargerThanRenderArea)
 		{
-			retVal = *medianPosition;
+			retVal = medianMaskExtent;
 		}
 
 		for (auto designedSize : DESIGNED_MASK_SIZES)
@@ -71,7 +88,7 @@ static int detect_designed_mask_size(const std::shared_ptr<isobus::VirtualTermin
 			const auto toleratedSize = designedSize + (designedSize / MASK_OVERHANG_TOLERANCE_DIVISOR);
 
 			// A size whose overhang reaches the render area would clip a pool drawn for the render area.
-			if ((toleratedSize < renderAreaSize) && (*medianPosition <= toleratedSize))
+			if ((drawnLargerThanRenderArea || (toleratedSize < renderAreaSize)) && (medianMaskExtent <= toleratedSize))
 			{
 				retVal = designedSize;
 				break;
@@ -114,7 +131,18 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 		if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 		{
 			const int renderAreaSize = ownerServer.get_data_mask_area_size_x_pixels();
-			designedMaskSize = ownerServer.get_scale_pools_to_data_mask() ? detect_designed_mask_size(parentWorkingSet, renderAreaSize) : renderAreaSize;
+			designedMaskSize = renderAreaSize;
+
+			if (ownerServer.get_scale_pools_to_data_mask())
+			{
+				// Measured once per pool, so commands that move objects cannot flip the scale. Switching working sets measures again.
+				if (measuredWorkingSetObject != workingSetObject)
+				{
+					measuredWorkingSetObject = workingSetObject;
+					medianMaskExtent = measure_median_mask_extent(parentWorkingSet);
+				}
+				designedMaskSize = detect_designed_mask_size(medianMaskExtent, renderAreaSize);
+			}
 
 			// Runs on every mask change, so log only a new working set or size.
 			if ((renderAreaSize != designedMaskSize) &&
