@@ -36,30 +36,3 @@ ContainerComponent::ContainerComponent(std::shared_ptr<isobus::VirtualTerminalSe
 		}
 	}
 }
-
-void ContainerComponent::paint(Graphics &)
-{
-	// g.fillAll(Colour::fromFloatRGBA(0.0, 0.0, 0.0, 0.0));
-	if (get_hidden())
-	{
-		for (auto &child : childComponents)
-		{
-			if (nullptr != child)
-			{
-				child->setVisible(false);
-			}
-		}
-		this->setVisible(false);
-	}
-	else
-	{
-		for (auto &child : childComponents)
-		{
-			if (nullptr != child)
-			{
-				child->setVisible(true);
-			}
-		}
-		this->setVisible(true);
-	}
-}
