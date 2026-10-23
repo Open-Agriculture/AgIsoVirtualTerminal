@@ -58,6 +58,8 @@ private:
 		std::uint32_t lastValue = 0;
 	};
 
+	int to_pool_coordinate(float renderedCoordinate) const;
+
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
@@ -71,6 +73,9 @@ private:
 	std::vector<std::shared_ptr<Component>> currentModalComponentCache;
 	ServerMainComponent &ownerServer;
 	InputNumberListener inputNumberListener;
+	std::shared_ptr<isobus::WorkingSet> measuredWorkingSetObject;
+	int medianMaskExtent = 0;
+	int designedMaskSize = 0;
 	bool needToRepaintActiveArea = false;
 	bool hasStarted = false;
 

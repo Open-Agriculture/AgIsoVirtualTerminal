@@ -168,6 +168,10 @@ public:
 	/// @returns The display scale, where 1.0 is the reported size
 	double display_scale() const;
 
+	/// @brief Returns if object pools drawn for another data mask size should be scaled to the reported size
+	/// @returns true when the pools should be scaled, false to draw them exactly as the working set sent them
+	bool get_scale_pools_to_data_mask() const;
+
 	static constexpr double MINIMUM_WORKING_SET_SELECTOR_SCALE = 0.75; ///< Floor for the picker column's own scale
 
 	/// @brief Returns display_scale(), floored so the working-set picker stays usable on a touch screen
@@ -197,7 +201,8 @@ private:
 		CheckForUpdates,
 		AutoCheckForUpdates,
 		AlwaysOnTop,
-		FitMasksToWindow
+		FitMasksToWindow,
+		ScalePoolsToDataMask
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -322,6 +327,7 @@ private:
 	bool checkForUpdatesOnStartup = true;
 	bool alwaysOnTop = false;
 	bool fitMasksToWindow = false; ///< Scale the masks to fill the window instead of drawing them at their reported size
+	bool scalePoolsToDataMask = false; ///< Scale pools drawn for another data mask size to the reported one
 	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
 	juce::String savedWindowState; ///< The window geometry loaded from the settings file
 	bool needToApplyWindowState = true; ///< Set until the saved geometry has been given to the window

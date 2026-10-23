@@ -863,6 +863,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::AutoCheckForUpdates));
 	allCommands.add(static_cast<int>(CommandIDs::AlwaysOnTop));
 	allCommands.add(static_cast<int>(CommandIDs::FitMasksToWindow));
+	allCommands.add(static_cast<int>(CommandIDs::ScalePoolsToDataMask));
 #ifdef JUCE_WINDOWS
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
 #elif JUCE_LINUX
@@ -967,6 +968,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::FitMasksToWindow:
 		{
 			result.setInfo("Fit masks to window", "Scales the data and soft key masks to fill the window", "Control", fitMasksToWindow ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::ScalePoolsToDataMask:
+		{
+			result.setInfo("Scale pools to data mask size", "Scales object pools drawn for another data mask size to the configured one, which can also enlarge a pool that leaves space on purpose", "Control", scalePoolsToDataMask ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -1291,6 +1298,16 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::ScalePoolsToDataMask):
+		{
+			scalePoolsToDataMask = !scalePoolsToDataMask;
+			dataMaskRenderer.on_change_active_mask(get_active_working_set());
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -1314,6 +1331,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoStart));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AlwaysOnTop));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::FitMasksToWindow));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ScalePoolsToDataMask));
 		}
 		break;
 
@@ -2156,6 +2174,11 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			{
 				fitMasksToWindow = static_cast<bool>(static_cast<int>(child.getProperty("FitMasksToWindow")));
 			}
+
+			if (!child.getProperty("ScalePoolsToDataMask").isVoid())
+			{
+				scalePoolsToDataMask = static_cast<bool>(static_cast<int>(child.getProperty("ScalePoolsToDataMask")));
+			}
 		}
 		index++;
 		child = settings->getChild(index);
@@ -2368,6 +2391,7 @@ void ServerMainComponent::save_settings()
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlwaysOnTop", alwaysOnTop, nullptr);
 		controlSettings.setProperty("FitMasksToWindow", fitMasksToWindow, nullptr);
+		controlSettings.setProperty("ScalePoolsToDataMask", scalePoolsToDataMask, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("ShowAckButton", showAckButton, nullptr);
 		controlSettings.setProperty("CheckForUpdates", checkForUpdatesOnStartup, nullptr);
@@ -2527,6 +2551,11 @@ int ServerMainComponent::minimum_height() const
 {
 	// Both areas are drawn at the data mask's height; soft key rows past it are clipped anyway
 	return juce::roundToInt(get_data_mask_area_size_y_pixels() * display_scale());
+}
+
+bool ServerMainComponent::get_scale_pools_to_data_mask() const
+{
+	return scalePoolsToDataMask;
 }
 
 double ServerMainComponent::display_scale() const
