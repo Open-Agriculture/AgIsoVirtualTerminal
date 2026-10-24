@@ -4,6 +4,7 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "OutputPolygonComponent.hpp"
+#include "LineArt.hpp"
 
 OutputPolygonComponent::OutputPolygonComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputPolygon sourceObject) :
   isobus::OutputPolygon(sourceObject),
@@ -19,6 +20,7 @@ void OutputPolygonComponent::paint(Graphics &g)
 	{
 		Path polygonPath;
 		float lineWidth = 0.0f;
+		std::uint16_t lineArt = line_art::SOLID;
 		auto lineColour = Colour::fromFloatRGBA(0.0f, 0.0f, 0.0f, 1.0);
 
 		if (isobus::NULL_OBJECT_ID != get_line_attributes())
@@ -29,6 +31,7 @@ void OutputPolygonComponent::paint(Graphics &g)
 			{
 				auto line = std::static_pointer_cast<isobus::LineAttributes>(child);
 				lineWidth = line->get_width();
+				lineArt = line->get_line_art_bit_pattern();
 				auto lineAttributeColour = parentWorkingSet->get_colour(line->get_background_color());
 
 				lineColour = Colour::fromFloatRGBA(lineAttributeColour.r, lineAttributeColour.g, lineAttributeColour.b, 1.0);
@@ -85,6 +88,6 @@ void OutputPolygonComponent::paint(Graphics &g)
 
 		g.resetToDefaultState();
 		g.setColour(lineColour);
-		g.strokePath(polygonPath, PathStrokeType(lineWidth));
+		line_art::stroke_path(g, polygonPath, lineWidth, lineArt);
 	}
 }
