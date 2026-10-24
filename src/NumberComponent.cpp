@@ -26,7 +26,6 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 	auto sourceNumber = static_cast<const isobus::NumberVTObject *>(vtObject());
 	auto fontAttrID = sourceNumber->get_font_attributes();
 
-	// Get font data
 	if (isobus::NULL_OBJECT_ID != sourceNumber->get_font_attributes())
 	{
 		auto child = parentWorkingSet->get_object_by_id(fontAttrID);
@@ -67,7 +66,11 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 	{
 		std::ostringstream valueText;
 		valueText << std::fixed << std::setprecision(sourceNumber->get_number_of_decimals()) << scaledValue;
-		g.drawText(valueText.str(), 0, 0, sourceNumber->get_width(), sourceNumber->get_height(), convert_justification(sourceNumber->get_horizontal_justification(), sourceNumber->get_vertical_justification()), false);
+		// Not drawText, which drops glyphs that don't fit; ISO 11783-6 4.6.19.2 clips overflow by pixel
+		GlyphArrangement glyphs;
+		glyphs.addLineOfText(g.getCurrentFont(), valueText.str(), 0.0f, 0.0f);
+		glyphs.justifyGlyphs(0, glyphs.getNumGlyphs(), 0.0f, 0.0f, static_cast<float>(sourceNumber->get_width()), static_cast<float>(sourceNumber->get_height()), convert_justification(sourceNumber->get_horizontal_justification(), sourceNumber->get_vertical_justification()));
+		glyphs.draw(g);
 
 		if (strikeThrough)
 		{
@@ -75,7 +78,6 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 		}
 	}
 
-	// If disabled, try and show that by drawing some semi-transparent grey
 	if (!enabled)
 	{
 		g.fillAll(Colour::fromFloatRGBA(0.5f, 0.5f, 0.5f, 0.5f));
