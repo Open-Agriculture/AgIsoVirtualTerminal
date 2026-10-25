@@ -92,22 +92,31 @@ public:
 	/// @returns True if the version was deleted from VT non-volatile storage, otherwise false.
 	bool delete_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME) override;
 
-	/// @brief This function is called when the client wants the server to delete ALL stored object pools associated to it's NAME.
-	/// All object pool files matching the specified client NAME should then be deleted from the VT's
-	/// non-volatile storage.
+	/// @brief Returns the 32 byte version labels stored for a client
+	std::vector<std::array<std::uint8_t, 32>> get_extended_versions(isobus::NAME clientNAME) override;
+
+	/// @brief This function is called when the client wants the server to delete ALL stored object pools of one label length associated to its NAME.
+	/// @param[in] versionLabelLength 7 for the Delete Version command, 32 for the Extended Delete Version command
 	/// @param[in] clientNAME The NAME of the client that is requesting deletion
 	/// @returns True if all relevant object pools were deleted from VT non-volatile storage, otherwise false.
-	bool delete_all_versions(isobus::NAME clientNAME) override;
+	bool delete_all_versions(std::uint8_t versionLabelLength, isobus::NAME clientNAME) override;
 
-	/// @brief This function is called when the client wants the server to deactivate its object pool.
-	/// You should treat this as a disconnection by the client, as it may be moving to another VT.
-	/// @attention This does not mean to delete the pool from non-volatile memory!!! This only deactivates the active pool.
-	/// @details This command is used to delete the entire object pool of this Working Set from volatile storage.
-	/// This command can be used by an implement when it wants to move its object pool to another VT,
-	/// or when it is shutting down or during the development of object pools.
+	/// @brief Nothing to do, the server deletes the pool and then calls object_pool_deleted()
 	/// @param[in] clientNAME The NAME of the client that is requesting deletion
-	/// @returns True if the client's active object pool was deactivated and removed from volatile storage, otherwise false.
+	/// @returns Always true
 	bool delete_object_pool(isobus::NAME clientNAME) override;
+
+	/// @brief Stops presenting a working set whose master shut down unexpectedly
+	void handle_unexpected_working_set_shutdown(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, UnexpectedShutdownReason) override;
+
+	/// @brief Draws the working set in the selector, and remembers if its object pool was rejected
+	void object_pool_parse_finished(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, bool success) override;
+
+	/// @brief Activates a working set while none is active
+	void select_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) override;
+
+	/// @brief Stops presenting a working set whose object pool the client deleted
+	void object_pool_deleted(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) override;
 
 	std::uint8_t get_user_layout_datamask_bg_color() const override;
 	std::uint8_t get_user_layout_softkeymask_bg_color() const override;
@@ -233,6 +242,9 @@ private:
 
 	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
 
+	/// @brief The client's stored object pool directory, which may not exist yet
+	std::string get_client_iso_data_path(isobus::NAME clientNAME) const;
+
 	bool timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDateToPopulate);
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
@@ -278,7 +290,8 @@ private:
 	/// @brief Starts the CAN interface, and stops it again with an alert if a channel could not be opened
 	void start_can_interface();
 
-	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
+	/// @brief Removes a working set from the renderers and the selector, and selects another one if none is active
+	void stop_presenting_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 	void clear_iso_data();
 
 	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
@@ -308,7 +321,7 @@ private:
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;
-	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
+	std::set<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> rejectedWorkingSets; ///< Their last object pool was rejected, so they are never selected automatically
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	juce::int64 lastUpdateCheck = 0;

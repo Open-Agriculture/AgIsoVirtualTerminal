@@ -27,6 +27,7 @@ extern "C" __declspec(dllimport) int __stdcall DestroyCaret(void);
 #endif
 #include "isobus/isobus/can_stack_logger.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <fstream>
@@ -282,54 +283,78 @@ void ServerMainComponent::send_alarm_ack_command(KeyActivationCode activationCod
 	}
 }
 
-std::vector<std::array<std::uint8_t, 7>> ServerMainComponent::get_versions(isobus::NAME clientNAME)
+// A .iopx file is a 7 byte version label then the pool, a .iopx32 file a 32 byte one
+static std::string get_version_file_extension(std::size_t versionLabelLength)
 {
-	std::ostringstream nameString;
-	std::vector<std::array<std::uint8_t, 7>> retVal;
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-	File isoDirectory(getAppDataDir() +
-	                  File::getSeparatorString() +
-	                  ISO_DATA_PATH +
-	                  File::getSeparatorString() +
-	                  nameString.str());
+	return (32 == versionLabelLength) ? ".iopx32" : ".iopx";
+}
 
-	if (isoDirectory.exists() && isoDirectory.isDirectory())
+static std::vector<std::filesystem::path> list_version_files(const std::string &directory, std::size_t versionLabelLength)
+{
+	std::vector<std::filesystem::path> retVal;
+
+	if (std::filesystem::is_directory(directory))
 	{
-		auto directoryFiles = isoDirectory.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iopx");
-
-		for (auto &file : directoryFiles)
+		for (const auto &entry : std::filesystem::directory_iterator(directory))
 		{
-			std::ifstream iopxFile(file.getFullPathName().toStdString(), std::ios::binary);
-
-			if (iopxFile.is_open())
+			if (entry.path().extension() == get_version_file_extension(versionLabelLength))
 			{
-				iopxFile.unsetf(std::ios::skipws);
-				std::array<std::uint8_t, 7> versionLabel;
-				iopxFile.read(reinterpret_cast<char *>(versionLabel.data()), 7);
-
-				// Only add the version label if it is not already in the list
-				bool versionAlreadyInList = false;
-				for (const auto &version : retVal)
-				{
-					if (version == versionLabel)
-					{
-						versionAlreadyInList = true;
-						break;
-					}
-				}
-
-				if (!versionAlreadyInList)
-				{
-					retVal.push_back(versionLabel);
-				}
+				retVal.push_back(entry.path());
 			}
 		}
 	}
 	else
 	{
-		isobus::CANStackLogger::info("[VT Server]: No saved object pool data for client: " + nameString.str());
+		isobus::CANStackLogger::info("[VT Server]: No saved object pool data in " + directory);
 	}
 	return retVal;
+}
+
+template<std::size_t LabelLength>
+static std::vector<std::array<std::uint8_t, LabelLength>> read_version_labels(const std::string &directory)
+{
+	std::vector<std::array<std::uint8_t, LabelLength>> retVal;
+
+	for (const auto &file : list_version_files(directory, LabelLength))
+	{
+		std::ifstream iopxFile(file, std::ios::binary);
+		std::array<std::uint8_t, LabelLength> versionLabel;
+
+		if (iopxFile.read(reinterpret_cast<char *>(versionLabel.data()), LabelLength) &&
+		    (retVal.end() == std::find(retVal.begin(), retVal.end(), versionLabel)))
+		{
+			retVal.push_back(versionLabel);
+		}
+	}
+	return retVal;
+}
+
+static std::vector<std::filesystem::path> find_version_files(const std::string &directory, const std::vector<std::uint8_t> &versionLabel)
+{
+	std::vector<std::filesystem::path> retVal;
+
+	for (const auto &file : list_version_files(directory, versionLabel.size()))
+	{
+		std::ifstream iopxFile(file, std::ios::binary);
+		std::vector<std::uint8_t> storedVersionLabel(versionLabel.size());
+
+		if (iopxFile.read(reinterpret_cast<char *>(storedVersionLabel.data()), static_cast<std::streamsize>(storedVersionLabel.size())) &&
+		    (storedVersionLabel == versionLabel))
+		{
+			retVal.push_back(file);
+		}
+	}
+	return retVal;
+}
+
+std::vector<std::array<std::uint8_t, 7>> ServerMainComponent::get_versions(isobus::NAME clientNAME)
+{
+	return read_version_labels<7>(get_client_iso_data_path(clientNAME));
+}
+
+std::vector<std::array<std::uint8_t, 32>> ServerMainComponent::get_extended_versions(isobus::NAME clientNAME)
+{
+	return read_version_labels<32>(get_client_iso_data_path(clientNAME));
 }
 
 std::vector<std::uint8_t> ServerMainComponent::get_supported_objects() const
@@ -340,51 +365,17 @@ std::vector<std::uint8_t> ServerMainComponent::get_supported_objects() const
 
 std::vector<std::uint8_t> ServerMainComponent::load_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
-	std::ostringstream nameString;
 	std::vector<std::uint8_t> loadedIOPData;
-	std::vector<std::uint8_t> loadedVersionLabel(7);
-	std::string path = (getAppDataDir() +
-	                    File::getSeparatorString() +
-	                    ISO_DATA_PATH +
-	                    File::getSeparatorString())
-	                     .toStdString();
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
 
-	if ((std::filesystem::is_directory(path + nameString.str()) ||
-	     std::filesystem::exists(path + nameString.str())) &&
-	    (7 == versionLabel.size()))
+	for (const auto &file : find_version_files(get_client_iso_data_path(clientNAME), versionLabel))
 	{
-		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
+		std::ifstream iopxFile(file, std::ios::binary);
+
+		if (iopxFile.is_open())
 		{
-			if (entry.path().has_extension() && entry.path().extension() == ".iopx")
-			{
-				std::ifstream iopxFile(entry.path(), std::ios::binary);
-
-				if (iopxFile.is_open())
-				{
-					iopxFile.unsetf(std::ios::skipws);
-					iopxFile.read(reinterpret_cast<char *>(loadedVersionLabel.data()), 7);
-
-					if (7 == loadedVersionLabel.size())
-					{
-						bool versionMatches = true;
-						for (std::uint8_t i = 0; i < 7; i++)
-						{
-							if (loadedVersionLabel.at(i) != versionLabel.at(i))
-							{
-								versionMatches = false;
-								break;
-							}
-						}
-
-						if (versionMatches)
-						{
-							iopxFile.seekg(7, std::ios::beg);
-							loadedIOPData.insert(loadedIOPData.end(), std::istream_iterator<std::uint8_t>(iopxFile), std::istream_iterator<std::uint8_t>());
-						}
-					}
-				}
-			}
+			iopxFile.unsetf(std::ios::skipws);
+			iopxFile.seekg(static_cast<std::streamoff>(versionLabel.size()), std::ios::beg);
+			loadedIOPData.insert(loadedIOPData.end(), std::istream_iterator<std::uint8_t>(iopxFile), std::istream_iterator<std::uint8_t>());
 		}
 	}
 	return loadedIOPData;
@@ -393,28 +384,12 @@ std::vector<std::uint8_t> ServerMainComponent::load_version(const std::vector<st
 bool ServerMainComponent::save_version(const std::vector<std::uint8_t> &objectPool, const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
 	bool retVal = false;
-	std::string path = (getAppDataDir() +
-	                    File::getSeparatorString() +
-	                    String(ISO_DATA_PATH))
-	                     .toStdString();
+	const auto path = get_client_iso_data_path(clientNAME);
+	std::filesystem::create_directories(path);
 
-	// Main saved data folder
-	if (!std::filesystem::is_directory(path) || !std::filesystem::exists(path))
-	{
-		std::filesystem::create_directory(path);
-	}
-
-	// NAME specific folder
-	std::ostringstream nameString;
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-
-	if (!std::filesystem::is_directory(path + "/" + nameString.str()) || !std::filesystem::exists(path + "/" + nameString.str()))
-	{ // Check if src folder exists
-		std::filesystem::create_directory(path + "/" + nameString.str()); // create src folder
-	}
-
-	std::ofstream iopxFile(path + "/" + nameString.str() + "/object_pool_with_label_" + std::to_string(number_of_iop_files_in_directory(path + "/" + nameString.str())) + ".iopx", std::ios::trunc | std::ios::binary);
-	std::ofstream iopFile(path + "/" + nameString.str() + "/object_pool_" + std::to_string(number_of_iop_files_in_directory(path + "/" + nameString.str())) + ".iop", std::ios::trunc | std::ios::binary);
+	const auto fileNumber = std::to_string(number_of_iop_files_in_directory(path));
+	std::ofstream iopxFile(path + "/object_pool_with_label_" + fileNumber + get_version_file_extension(versionLabel.size()), std::ios::trunc | std::ios::binary);
+	std::ofstream iopFile(path + "/object_pool_" + fileNumber + ".iop", std::ios::trunc | std::ios::binary);
 
 	if (iopxFile.is_open())
 	{
@@ -433,109 +408,42 @@ bool ServerMainComponent::save_version(const std::vector<std::uint8_t> &objectPo
 
 bool ServerMainComponent::delete_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
-	bool retVal = false;
-	std::ostringstream nameString;
-	std::vector<std::uint8_t> loadedVersionLabel(7);
-	std::vector<std::filesystem::directory_entry> filesToRemove;
-	std::string path = (getAppDataDir() +
-	                    File::getSeparatorString() +
-	                    ISO_DATA_PATH +
-	                    File::getSeparatorString())
-	                     .toStdString();
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
+	auto filesToRemove = find_version_files(get_client_iso_data_path(clientNAME), versionLabel);
+	bool retVal = !filesToRemove.empty();
 
-	if ((std::filesystem::is_directory(path + nameString.str()) ||
-	     std::filesystem::exists(path + nameString.str())) &&
-	    (7 == versionLabel.size()))
+	for (const auto &file : filesToRemove)
 	{
-		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
-		{
-			if (entry.path().has_extension() && entry.path().extension() == ".iopx")
-			{
-				std::ifstream iopxFile(entry.path(), std::ios::binary);
-
-				if (iopxFile.is_open())
-				{
-					iopxFile.unsetf(std::ios::skipws);
-					iopxFile.read(reinterpret_cast<char *>(loadedVersionLabel.data()), 7);
-
-					if (7 == loadedVersionLabel.size())
-					{
-						bool versionMatches = true;
-						for (std::uint8_t i = 0; i < 7; i++)
-						{
-							if (loadedVersionLabel.at(i) != versionLabel.at(i))
-							{
-								versionMatches = false;
-								break;
-							}
-						}
-
-						if (versionMatches)
-						{
-							iopxFile.close();
-							filesToRemove.push_back(entry);
-							retVal = true;
-						}
-					}
-				}
-			}
-		}
-
-		for (const auto &entry : filesToRemove)
-		{
-			retVal &= std::filesystem::remove(entry);
-		}
+		retVal &= std::filesystem::remove(file);
 	}
 	return retVal;
 }
 
-bool ServerMainComponent::delete_all_versions(isobus::NAME clientNAME)
+bool ServerMainComponent::delete_all_versions(std::uint8_t versionLabelLength, isobus::NAME clientNAME)
 {
-	bool retVal = false;
-	std::ostringstream nameString;
-	std::vector<std::uint8_t> loadedVersionLabel(7);
-	std::vector<std::filesystem::directory_entry> filesToRemove;
-	auto path = (getAppDataDir() +
-	             File::getSeparatorString() +
-	             ISO_DATA_PATH +
-	             File::getSeparatorString())
-	              .toStdString();
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
+	bool retVal = true;
 
-	if ((std::filesystem::is_directory(path + nameString.str()) ||
-	     std::filesystem::exists(path + nameString.str())))
+	for (const auto &file : list_version_files(get_client_iso_data_path(clientNAME), versionLabelLength))
 	{
-		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
-		{
-			if (entry.path().has_extension() && entry.path().extension() == ".iopx")
-			{
-				filesToRemove.push_back(entry);
-			}
-		}
-
-		for (const auto &entry : filesToRemove)
-		{
-			retVal &= std::filesystem::remove(entry);
-		}
+		retVal &= std::filesystem::remove(file);
 	}
 	return retVal;
 }
 
-bool ServerMainComponent::delete_object_pool(isobus::NAME clientNAME)
+std::string ServerMainComponent::get_client_iso_data_path(isobus::NAME clientNAME) const
 {
-	bool retVal = false;
+	std::ostringstream nameString;
+	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
+	return (getAppDataDir() +
+	        File::getSeparatorString() +
+	        ISO_DATA_PATH +
+	        File::getSeparatorString() +
+	        nameString.str())
+	  .toStdString();
+}
 
-	for (auto &ws : managedWorkingSetList)
-	{
-		if (ws->get_control_function()->get_NAME() == clientNAME)
-		{
-			ws->request_deletion(); // We'll delete it on our next update on our normal thread.
-			retVal = true;
-			break;
-		}
-	}
-	return retVal;
+bool ServerMainComponent::delete_object_pool(isobus::NAME)
+{
+	return true;
 }
 
 std::uint8_t ServerMainComponent::get_user_layout_datamask_bg_color() const
@@ -552,11 +460,7 @@ std::uint8_t ServerMainComponent::get_user_layout_softkeymask_bg_color() const
 
 void ServerMainComponent::timerCallback()
 {
-	if ((isobus::SystemTiming::time_expired_ms(statusMessageTimestamp_ms, 1000)) &&
-	    (send_status_message()))
-	{
-		statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
-	}
+	update();
 
 	auto activeCANDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
 	bool isAdapterConnected = (nullptr != activeCANDriver) && activeCANDriver->get_is_valid();
@@ -576,107 +480,9 @@ void ServerMainComponent::timerCallback()
 	}
 
 	bool hasIopLoadInProgress = false;
-	int wsIndex = 0;
 	for (auto &ws : managedWorkingSetList)
 	{
-		if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Success == ws->get_object_pool_processing_state())
-		{
-			ws->join_parsing_thread();
-
-			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
-
-			auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
-			if ((isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress) &&
-			    (nullptr != workingSetObject) &&
-			    (workingSetObject->get_selectable()))
-			{
-				ws->set_working_set_maintenance_message_timestamp_ms(isobus::SystemTiming::get_timestamp_ms());
-				change_selected_working_set(wsIndex);
-			}
-
-			// A Load Version response is only valid for the initial pool restored
-			// from non-volatile memory. A subsequently transferred IOP component
-			// must receive the normal End of Object Pool response.
-			const bool isInitialNonVolatileLoadResponse =
-			  ws->get_was_object_pool_loaded_from_non_volatile_memory() &&
-			  loadVersionResponsesSent.insert(ws.get()).second;
-			if (isInitialNonVolatileLoadResponse)
-			{
-				send_load_version_response(0, ws->get_control_function());
-			}
-			else
-			{
-				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, isobus::NULL_OBJECT_ID, 0, ws->get_control_function());
-			}
-
-			std::ostringstream nameString;
-			nameString << std::hex << std::setfill('0') << std::setw(16) << ws->get_control_function()->get_NAME().get_full_name();
-			loadedNames.insert(nameString.str());
-		}
-		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Fail == ws->get_object_pool_processing_state())
-		{
-			ws->join_parsing_thread();
-
-			const bool isInitialNonVolatileLoadResponse =
-			  ws->get_was_object_pool_loaded_from_non_volatile_memory() &&
-			  loadVersionResponsesSent.insert(ws.get()).second;
-			if (isInitialNonVolatileLoadResponse)
-			{
-				send_load_version_response(1, ws->get_control_function());
-			}
-			else
-			{
-				///  @todo Get the parent object ID of the faulting object
-				send_end_of_object_pool_response(false, isobus::NULL_OBJECT_ID, ws->get_object_pool_faulting_object_id(), static_cast<std::uint8_t>(1U << static_cast<std::uint8_t>(ObjectPoolErrorBit::AnyOtherError)), ws->get_control_function());
-			}
-		}
-		else if (isobus::SystemTiming::time_expired_ms(ws->get_working_set_maintenance_message_timestamp_ms(), 3000) || ws->is_deletion_requested())
-		{
-			managedWorkingSetIopLoadStateMap[ws] = false;
-			dataMaskRenderer.on_working_set_disconnect(ws);
-			softKeyMaskRenderer.on_working_set_disconnect(ws);
-
-			if (managedWorkingSetList.empty())
-			{
-				activeWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
-				activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
-			}
-			else if (ws->get_control_function()->get_address() == activeWorkingSetMasterAddress)
-			{
-				bool newWorkingSetFound = false;
-
-				for (auto &nextWorkingSet : managedWorkingSetList)
-				{
-					if (nextWorkingSet->get_control_function()->get_address() != activeWorkingSetMasterAddress)
-					{
-						activeWorkingSetMasterAddress = nextWorkingSet->get_control_function()->get_address();
-						auto nextWorkingSetObject = nextWorkingSet->get_working_set_object();
-						if (nextWorkingSetObject)
-						{
-							activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSetObject)->get_active_mask();
-							newWorkingSetFound = true;
-						}
-						else
-						{
-							activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
-							newWorkingSetFound = false;
-						}
-						break;
-					}
-				}
-
-				if (!newWorkingSetFound)
-				{
-					activeWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
-					activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
-				}
-			}
-			remove_working_set(ws);
-			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
-			update_ack_button_visibility();
-			break;
-		}
-		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state())
+		if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state())
 		{
 			if (dataMaskRenderer.needsRepaint() || needToRepaint)
 			{
@@ -719,7 +525,6 @@ void ServerMainComponent::timerCallback()
 				hasIopLoadInProgress = true;
 			}
 		}
-		wsIndex++;
 	}
 
 	if (hasIopLoadInProgress)
@@ -1876,6 +1681,61 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 	}
 }
 
+void ServerMainComponent::object_pool_parse_finished(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, bool success)
+{
+	if (success)
+	{
+		rejectedWorkingSets.erase(workingSet);
+		workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
+
+		std::ostringstream nameString;
+		nameString << std::hex << std::setfill('0') << std::setw(16) << workingSet->get_control_function()->get_NAME().get_full_name();
+		loadedNames.insert(nameString.str());
+	}
+	else
+	{
+		rejectedWorkingSets.insert(workingSet);
+	}
+}
+
+void ServerMainComponent::select_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	auto position = std::find(managedWorkingSetList.begin(), managedWorkingSetList.end(), workingSet);
+	change_selected_working_set(static_cast<std::uint8_t>(std::distance(managedWorkingSetList.begin(), position)));
+}
+
+void ServerMainComponent::object_pool_deleted(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	stop_presenting_working_set(workingSet);
+}
+
+void ServerMainComponent::handle_unexpected_working_set_shutdown(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, UnexpectedShutdownReason)
+{
+	stop_presenting_working_set(workingSet);
+}
+
+void ServerMainComponent::stop_presenting_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	rejectedWorkingSets.erase(workingSet);
+	workingSet->clear_callback_handles();
+	dataMaskRenderer.on_working_set_disconnect(workingSet);
+	softKeyMaskRenderer.on_working_set_disconnect(workingSet);
+
+	// The stack already cleared activeWorkingSet if this one was active
+	for (std::size_t i = 0; (nullptr == activeWorkingSet) && (i < managedWorkingSetList.size()); i++)
+	{
+		const auto &nextWorkingSet = managedWorkingSetList.at(i);
+
+		if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == nextWorkingSet->get_object_pool_processing_state()) &&
+		    (0 == rejectedWorkingSets.count(nextWorkingSet)))
+		{
+			change_selected_working_set(static_cast<std::uint8_t>(i));
+		}
+	}
+	workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
+	update_ack_button_visibility();
+}
+
 void ServerMainComponent::repaint_data_and_soft_key_mask()
 {
 	dataMaskRenderer.on_change_active_mask(activeWorkingSet);
@@ -2619,20 +2479,6 @@ void ServerMainComponent::apply_window_size_limits()
 double ServerMainComponent::working_set_selector_scale() const
 {
 	return juce::jmax(MINIMUM_WORKING_SET_SELECTOR_SCALE, display_scale());
-}
-
-void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
-{
-	loadVersionResponsesSent.erase(workingSetToRemove.get());
-	for (auto it = managedWorkingSetList.begin(); it != managedWorkingSetList.end(); it++)
-	{
-		if (workingSetToRemove == *it)
-		{
-			managedWorkingSetIopLoadStateMap.erase(*it);
-			managedWorkingSetList.erase(it);
-			break;
-		}
-	}
 }
 
 void ServerMainComponent::release_text_input_focus()
