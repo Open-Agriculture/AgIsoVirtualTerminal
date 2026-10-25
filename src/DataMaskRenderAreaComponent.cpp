@@ -119,10 +119,12 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 {
 	const auto previousWorkingSet = parentWorkingSet;
 	const auto previousDesignedMaskSize = designedMaskSize;
+	const auto previousActiveMaskID = activeMaskID;
 	needToRepaintActiveArea = false;
 	childComponents.clear();
 	parentWorkingSet = workingSet;
 	designedMaskSize = 0;
+	activeMaskID = isobus::NULL_OBJECT_ID;
 
 	if (parentWorkingSet)
 	{
@@ -130,6 +132,7 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 
 		if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 		{
+			activeMaskID = workingSetObject->get_active_mask();
 			const int renderAreaSize = ownerServer.get_data_mask_area_size_x_pixels();
 			designedMaskSize = renderAreaSize;
 
@@ -163,6 +166,12 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 			}
 		}
 	}
+
+	// Every repaint comes through here, so only a new mask or working set ends the edit
+	if ((previousWorkingSet != parentWorkingSet) || (previousActiveMaskID != activeMaskID))
+	{
+		close_input_dialogs();
+	}
 	repaint();
 }
 
@@ -172,7 +181,20 @@ void DataMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<isob
 	{
 		childComponents.clear();
 		parentWorkingSet.reset();
+		close_input_dialogs();
 		repaint();
+	}
+}
+
+void DataMaskRenderAreaComponent::close_input_dialogs()
+{
+	// 1 is the cancel result of all three dialogs. Their callbacks run later, so each one holds the working set it was opened on.
+	for (auto *dialog : { inputListModal.get(), inputNumberModal.get(), inputStringModal.get() })
+	{
+		if (nullptr != dialog)
+		{
+			dialog->exitModalState(1);
+		}
 	}
 }
 
@@ -347,61 +369,61 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							}
 
 							inputListModal->addButton("OK", 0);
-							auto resultCallback = [this, clickedList](int result) {
-								auto inputCombo = inputListModal->getComboBoxComponent("Input List Combo");
-								result = inputCombo->getSelectedItemIndex();
-
-								// Remap the visible index to the actual index
-								std::uint16_t numberOfNonNullsSeen = 0;
-								for (std::uint16_t i = 0; i < clickedList->get_number_children(); i++)
+							auto resultCallback = [this, clickedList, workingSet = parentWorkingSet](int result) {
+								if (0 == result)
 								{
-									if (isobus::NULL_OBJECT_ID != clickedList->get_child_id(i))
-									{
-										numberOfNonNullsSeen++;
-									}
+									auto inputCombo = inputListModal->getComboBoxComponent("Input List Combo");
+									result = inputCombo->getSelectedItemIndex();
 
-									if (numberOfNonNullsSeen == result + 1)
+									// Remap the visible index to the actual index
+									std::uint16_t numberOfNonNullsSeen = 0;
+									for (std::uint16_t i = 0; i < clickedList->get_number_children(); i++)
 									{
-										result = i;
-										break;
-									}
-								}
-
-								if (isobus::NULL_OBJECT_ID != clickedList->get_variable_reference())
-								{
-									auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
-
-									if (nullptr != child)
-									{
-										if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
+										if (isobus::NULL_OBJECT_ID != clickedList->get_child_id(i))
 										{
-											if (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() != static_cast<std::uint32_t>(result))
+											numberOfNonNullsSeen++;
+										}
+
+										if (numberOfNonNullsSeen == result + 1)
+										{
+											result = i;
+											break;
+										}
+									}
+
+									if (isobus::NULL_OBJECT_ID != clickedList->get_variable_reference())
+									{
+										auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), workingSet->get_object_tree());
+
+										if (nullptr != child)
+										{
+											if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 											{
-												std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(result);
-												ownerServer.send_change_numeric_value_message(child->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-												ownerServer.process_macro(child, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, parentWorkingSet);
+												if (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() != static_cast<std::uint32_t>(result))
+												{
+													std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(result);
+													ownerServer.send_change_numeric_value_message(child->get_id(), result, ownerServer.get_client_control_function_for_working_set(workingSet));
+													ownerServer.process_macro(child, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, workingSet);
+												}
 											}
 										}
 									}
-								}
-								else
-								{
-									ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
-									if (clickedList->get_value() != result)
+									else
 									{
-										ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
-										clickedList->set_value(static_cast<std::uint8_t>(result));
-										ownerServer.send_change_numeric_value_message(clickedList->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(clickedList, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
+										ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
+										if (clickedList->get_value() != result)
+										{
+											ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
+											clickedList->set_value(static_cast<std::uint8_t>(result));
+											ownerServer.send_change_numeric_value_message(clickedList->get_id(), result, ownerServer.get_client_control_function_for_working_set(workingSet));
+											ownerServer.process_macro(clickedList, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
+										}
 									}
 								}
 								this->inputListModal->exitModalState();
-								if (nullptr != parentWorkingSet)
-								{
-									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
-								}
+								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
 								ownerServer.repaint_on_next_update();
-								ownerServer.process_macro(clickedList, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
+								ownerServer.process_macro(clickedList, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputList, workingSet);
 								inputListModal.reset();
 								repaint();
 							};
@@ -459,7 +481,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 							// The keypad handles Escape as cancel. The window's own handling would confirm.
 							inputNumberModal->setEscapeKeyCancels(false);
-							auto resultCallback = [this, clickedNumber](int result) {
+							auto resultCallback = [this, clickedNumber, workingSet = parentWorkingSet](int result) {
 								this->inputNumberModal->exitModalState();
 
 								std::uint16_t varNumID = 0xFFFF;
@@ -476,11 +498,11 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										inputNumberListener.set_last_value(static_cast<std::uint32_t>(std::llround(clamped)));
 									}
 
-									ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+									ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 
 									if (isobus::NULL_OBJECT_ID != clickedNumber->get_variable_reference())
 									{
-										auto child = clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree());
+										auto child = clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree());
 
 										if ((nullptr != child) && (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 										{
@@ -490,19 +512,19 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 									if (isobus::NULL_OBJECT_ID != varNumID)
 									{
-										if (std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()))->get_value() != inputNumberListener.get_last_value())
+										if (std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree()))->get_value() != inputNumberListener.get_last_value())
 										{
-											ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+											ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 										}
-										std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()))->set_value(inputNumberListener.get_last_value());
+										std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree()))->set_value(inputNumberListener.get_last_value());
 									}
 									else
 									{
 										if (clickedNumber->get_value() != inputNumberListener.get_last_value())
 										{
-											ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+											ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 											clickedNumber->set_value(inputNumberListener.get_last_value());
-											ownerServer.process_macro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+											ownerServer.process_macro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 										}
 									}
 
@@ -511,31 +533,27 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								inputNumberListener.set_target(nullptr);
 								inputNumberModal.reset();
 								inputNumberKeypad.reset();
-								ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+								ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
 
 								if (0 == result)
 								{
 									if (0xFFFF != varNumID)
 									{
-										ownerServer.send_change_numeric_value_message(varNumID, std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()))->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()), isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, parentWorkingSet);
+										ownerServer.send_change_numeric_value_message(varNumID, std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree()))->get_value(), ownerServer.get_client_control_function_for_working_set(workingSet));
+										ownerServer.process_macro(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree()), isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, workingSet);
 									}
 									else
 									{
-										ownerServer.send_change_numeric_value_message(clickedNumber->get_id(), clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+										ownerServer.send_change_numeric_value_message(clickedNumber->get_id(), clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(workingSet));
+										ownerServer.process_macro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 									}
 								}
 								else
 								{
 									// TODO ESC
 								}
-
-								if (parentWorkingSet)
-								{
-									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
-								}
-								ownerServer.process_macro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								ownerServer.process_macro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 							};
 							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
 							inputNumberKeypad->grabKeyboardFocus();
@@ -614,14 +632,14 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							inputStringModal->addTextEditor("Input String", hasStringVariable ? stringVariable->get_value() : clickedString->get_value());
 							inputStringModal->addButton("OK", 0);
 							inputStringModal->addButton("Cancel", 1); // TODO catch ESC as cancel
-							auto resultCallback = [this, clickedString, stringVariable](int result) {
+							auto resultCallback = [this, clickedString, stringVariable, workingSet = parentWorkingSet](int result) {
 								this->inputStringModal->exitModalState();
-								ownerServer.send_select_input_object_message(clickedString->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+								ownerServer.send_select_input_object_message(clickedString->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
 
 								if (0 == result) //OK
 								{
 									String newContent = this->inputStringModal->getTextEditor("Input String")->getText();
-									ownerServer.process_macro(clickedString, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
+									ownerServer.process_macro(clickedString, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputString, workingSet);
 
 									if (nullptr != stringVariable)
 									{
@@ -631,8 +649,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 											newContent.append(" ", 1);
 										}
 										stringVariable->set_value(newContent.toStdString());
-										ownerServer.send_change_string_value_message(stringVariable->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(stringVariable, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::StringVariable, parentWorkingSet);
+										ownerServer.send_change_string_value_message(stringVariable->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(workingSet));
+										ownerServer.process_macro(stringVariable, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::StringVariable, workingSet);
 									}
 									else
 									{
@@ -643,11 +661,11 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										}
 										if (clickedString->get_value() != newContent)
 										{
-											ownerServer.process_macro(clickedString, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
+											ownerServer.process_macro(clickedString, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputString, workingSet);
 										}
 										clickedString->set_value(newContent.toStdString());
-										ownerServer.send_change_string_value_message(clickedString->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(clickedString, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
+										ownerServer.send_change_string_value_message(clickedString->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(workingSet));
+										ownerServer.process_macro(clickedString, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputString, workingSet);
 									}
 									needToRepaintActiveArea = true;
 								}
@@ -657,11 +675,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								// Make sure no text caret survives the dialog, otherwise Windows
 								// keeps re-invoking the touch keyboard on every later tap
 								ServerMainComponent::release_text_input_focus();
-								if (parentWorkingSet)
-								{
-									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
-								}
-								ownerServer.process_macro(clickedString, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
+								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								ownerServer.process_macro(clickedString, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputString, workingSet);
 							};
 							inputStringModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
 							ownerServer.send_select_input_object_message(clickedString->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));

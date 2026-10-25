@@ -60,6 +60,8 @@ private:
 
 	int to_pool_coordinate(float renderedCoordinate) const;
 
+	void close_input_dialogs();
+
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
@@ -76,6 +78,7 @@ private:
 	std::shared_ptr<isobus::WorkingSet> measuredWorkingSetObject;
 	int medianMaskExtent = 0;
 	int designedMaskSize = 0;
+	std::uint16_t activeMaskID = isobus::NULL_OBJECT_ID;
 	bool needToRepaintActiveArea = false;
 	bool hasStarted = false;
 
