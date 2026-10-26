@@ -8,10 +8,11 @@
 
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 
-SoftKeyMaskComponent::SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject, SoftKeyMaskDimensions dimensions) :
+SoftKeyMaskComponent::SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject, SoftKeyMaskDimensions dimensions, std::uint16_t firstKeyIndex) :
   isobus::SoftKeyMask(sourceObject),
   parentWorkingSet(workingSet),
-  dimensionInfo(dimensions)
+  dimensionInfo(dimensions),
+  firstKey(firstKeyIndex)
 {
 	setOpaque(true);
 	setBounds(0, 0, dimensions.total_width(), dimensions.height);
@@ -20,13 +21,12 @@ SoftKeyMaskComponent::SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTermin
 
 void SoftKeyMaskComponent::on_content_changed(bool initial)
 {
-	int row = 0;
-	int x = dimensionInfo.PADDING + (dimensionInfo.columnCount - 1) * (dimensionInfo.PADDING + dimensionInfo.keyWidth);
-	int y = dimensionInfo.PADDING;
+	const int lastKey = firstKey + dimensionInfo.key_count();
 
-	for (std::uint16_t i = 0; i < this->get_number_children(); i++)
+	for (int i = firstKey; (i < get_number_children()) && (i < lastKey); i++)
 	{
-		auto child = get_object_by_id(get_child_id(i), parentWorkingSet->get_object_tree());
+		const auto position = dimensionInfo.key_position(i - firstKey);
+		auto child = get_object_by_id(get_child_id(static_cast<std::uint16_t>(i)), parentWorkingSet->get_object_tree());
 
 		if (nullptr != child)
 		{
@@ -40,18 +40,8 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 			if (nullptr != childComponents.back())
 			{
 				addAndMakeVisible(*childComponents.back());
-				childComponents.back()->setTopLeftPosition(x, y);
+				childComponents.back()->setTopLeftPosition(position);
 			}
-		}
-
-		// Unresolved children keep their slot too, so the hit test counts the same
-		y += (dimensionInfo.PADDING + dimensionInfo.keyHeight);
-		row++;
-		if (row >= dimensionInfo.rowCount)
-		{
-			row = 0;
-			x -= (dimensionInfo.PADDING + dimensionInfo.keyWidth);
-			y = dimensionInfo.PADDING;
 		}
 	}
 
@@ -85,6 +75,12 @@ void SoftKeyMaskComponent::paint(Graphics &g)
 int SoftKeyMaskDimensions::key_count() const
 {
 	return columnCount * rowCount;
+}
+
+Point<int> SoftKeyMaskDimensions::key_position(int slot) const
+{
+	return { PADDING + (columnCount - 1 - (slot / rowCount)) * (PADDING + keyWidth),
+		       PADDING + (slot % rowCount) * (PADDING + keyHeight) };
 }
 
 int SoftKeyMaskDimensions::total_width() const

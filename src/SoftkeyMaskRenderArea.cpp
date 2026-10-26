@@ -7,49 +7,116 @@
 #include "ServerMainComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 
-SoftKeyMaskRenderAreaComponent::SoftKeyMaskRenderAreaComponent(ServerMainComponent &parentServer) :
-  ownerServer(parentServer)
+static int count_used_soft_keys(std::shared_ptr<isobus::VTObject> softKeyMask, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
+	const auto &objectTree = workingSet->get_object_tree();
+	int usedKeyCount = softKeyMask->get_number_children();
+
+	while (0 < usedKeyCount)
+	{
+		auto child = isobus::VTObject::get_object_by_id(softKeyMask->get_child_id(static_cast<std::uint16_t>(usedKeyCount - 1)), objectTree);
+
+		// Capped, since pointers can form a cycle
+		for (std::size_t hops = 0; (nullptr != child) && (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type()) && (hops < objectTree.size()); hops++)
+		{
+			child = isobus::VTObject::get_object_by_id(std::static_pointer_cast<isobus::ObjectPointer>(child)->get_value(), objectTree);
+		}
+
+		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::ObjectPointer != child->get_object_type()))
+		{
+			break;
+		}
+		usedKeyCount--;
+	}
+	return usedKeyCount;
+}
+
+SoftKeyMaskRenderAreaComponent::SoftKeyMaskRenderAreaComponent(ServerMainComponent &parentServer) :
+  ownerServer(parentServer),
+  previousPageButton(juce::String::fromUTF8("\xe2\x97\x80")),
+  nextPageButton(juce::String::fromUTF8("\xe2\x96\xb6"))
+{
+	previousPageButton.onClick = [this]() { change_page(-1); };
+	nextPageButton.onClick = [this]() { change_page(1); };
+	for (auto button : { &previousPageButton, &nextPageButton })
+	{
+		button->setWantsKeyboardFocus(false);
+		button->setLookAndFeel(&pageButtonLookAndFeel);
+		button->setColour(juce::TextButton::buttonColourId, juce::Colours::lightgrey);
+		button->setColour(juce::TextButton::textColourOffId, juce::Colours::black);
+		addChildComponent(*button);
+	}
 }
 
 void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
-	childComponents.clear();
-	parentWorkingSet = workingSet;
+	std::uint16_t activeMaskID = isobus::NULL_OBJECT_ID;
+	std::shared_ptr<isobus::VTObject> softKeyMask;
 
-	if (parentWorkingSet)
+	if (workingSet)
 	{
-		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
+		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(workingSet->get_working_set_object());
 
 		if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 		{
-			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
+			activeMaskID = workingSetObject->get_active_mask();
+			auto activeMask = workingSet->get_object_by_id(activeMaskID);
 
 			if (nullptr != activeMask)
 			{
 				if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
 				{
-					auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
-
-					if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
-					{
-						childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
-						addAndMakeVisible(*childComponents.back());
-					}
+					softKeyMask = activeMask->get_object_by_id(std::static_pointer_cast<isobus::AlarmMask>(activeMask)->get_soft_key_mask(), workingSet->get_object_tree());
 				}
 				else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
 				{
-					auto child = activeMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeMask)->get_soft_key_mask(), parentWorkingSet->get_object_tree());
+					softKeyMask = activeMask->get_object_by_id(std::static_pointer_cast<isobus::DataMask>(activeMask)->get_soft_key_mask(), workingSet->get_object_tree());
+				}
 
-					if ((nullptr != child) && (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
-					{
-						childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
-						addAndMakeVisible(*childComponents.back());
-					}
+				if ((nullptr != softKeyMask) && (isobus::VirtualTerminalObjectType::SoftKeyMask != softKeyMask->get_object_type()))
+				{
+					softKeyMask = nullptr;
 				}
 			}
 		}
 	}
+
+	const std::uint16_t softKeyMaskID = (nullptr != softKeyMask) ? softKeyMask->get_id() : isobus::NULL_OBJECT_ID;
+
+	if ((workingSet != parentWorkingSet) || (activeMaskID != previousActiveMaskID) || (softKeyMaskID != previousSoftKeyMaskID))
+	{
+		currentPage = 0;
+	}
+	previousActiveMaskID = activeMaskID;
+	previousSoftKeyMaskID = softKeyMaskID;
+	childComponents.clear();
+	parentWorkingSet = workingSet;
+
+	int pageCount = 0;
+
+	if (nullptr != softKeyMask)
+	{
+		const SoftKeyMaskDimensions &dimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
+		const int slots = dimensions.key_count();
+		std::uint16_t firstKey = 0;
+
+		if (0 < slots)
+		{
+			pageCount = (count_used_soft_keys(softKeyMask, parentWorkingSet) + slots - 1) / slots;
+
+			if (currentPage >= pageCount)
+			{
+				currentPage = static_cast<std::uint16_t>(std::max(pageCount - 1, 0));
+			}
+			firstKey = static_cast<std::uint16_t>(currentPage * slots);
+		}
+
+		auto softKeyMaskComponent = std::make_shared<SoftKeyMaskComponent>(parentWorkingSet, *std::static_pointer_cast<isobus::SoftKeyMask>(softKeyMask), dimensions, firstKey);
+		softKeyMaskComponent->setInterceptsMouseClicks(false, false);
+		childComponents.emplace_back(softKeyMaskComponent);
+		addAndMakeVisible(*childComponents.back());
+	}
+	update_page_buttons(pageCount);
 	repaint();
 }
 
@@ -59,8 +126,56 @@ void SoftKeyMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<i
 	{
 		parentWorkingSet = nullptr;
 		childComponents.clear();
+		update_page_buttons(0);
 		repaint();
 	}
+}
+
+void SoftKeyMaskRenderAreaComponent::change_page(int delta)
+{
+	currentPage = static_cast<std::uint16_t>(currentPage + delta);
+	on_change_active_mask(parentWorkingSet);
+}
+
+void SoftKeyMaskRenderAreaComponent::update_page_buttons(int pageCount)
+{
+	const SoftKeyMaskDimensions &dimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
+	const bool showButtons = (1 < pageCount);
+	const int y = dimensions.total_height();
+	const int width = (dimensions.total_width() - 2 * SoftKeyMaskDimensions::PADDING - PAGE_BUTTON_GAP) / 2;
+
+	previousPageButton.setBounds(SoftKeyMaskDimensions::PADDING, y, width, PAGE_BUTTON_HEIGHT);
+	nextPageButton.setBounds(SoftKeyMaskDimensions::PADDING + width + PAGE_BUTTON_GAP, y, width, PAGE_BUTTON_HEIGHT);
+	previousPageButton.setEnabled(0 < currentPage);
+	nextPageButton.setEnabled(currentPage + 1 < pageCount);
+	previousPageButton.setVisible(showButtons);
+	nextPageButton.setVisible(showButtons);
+
+	// The mask component is re-added on every rebuild and would cover them
+	previousPageButton.toFront(false);
+	nextPageButton.toFront(false);
+}
+
+void SoftKeyMaskRenderAreaComponent::PageButtonLookAndFeel::drawButtonBackground(Graphics &g, Button &button, const Colour &backgroundColour, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
+{
+	// LookAndFeel_V4 fades a disabled face, which lets the mask colour show through
+	auto colour = backgroundColour;
+	if (shouldDrawButtonAsDown || shouldDrawButtonAsHighlighted)
+	{
+		colour = colour.contrasting(shouldDrawButtonAsDown ? 0.2f : 0.05f);
+	}
+	const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
+	g.setColour(colour);
+	g.fillRoundedRectangle(bounds, 6.0f);
+	g.setColour(button.findColour(ComboBox::outlineColourId));
+	g.drawRoundedRectangle(bounds, 6.0f, 1.0f);
+}
+
+void SoftKeyMaskRenderAreaComponent::PageButtonLookAndFeel::drawButtonText(Graphics &g, TextButton &button, bool, bool)
+{
+	g.setFont(Font(std::min(0.4f * button.getWidth(), static_cast<float>(button.getHeight()))));
+	g.setColour(button.findColour(TextButton::textColourOffId).withMultipliedAlpha(button.isEnabled() ? 1.0f : 0.35f));
+	g.drawText(button.getButtonText(), button.getLocalBounds(), Justification::centred, false);
 }
 
 void SoftKeyMaskRenderAreaComponent::paint(Graphics &g)
@@ -223,34 +338,28 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 	}
 	else
 	{
-		int row = 0, col = (keyDimensions.columnCount - 1);
-		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
-		{
-			auto child = object->get_object_by_id(object->get_child_id(i), parentWorkingSet->get_object_tree());
+		const int slots = keyDimensions.key_count();
+		const int firstKey = currentPage * slots;
 
-			// Must match SoftKeyMaskComponent's layout, not the advertised key size
-			int colX = SoftKeyMaskDimensions::PADDING + col * (keyDimensions.keyWidth + SoftKeyMaskDimensions::PADDING);
-			int rowY = SoftKeyMaskDimensions::PADDING + row * (keyDimensions.keyHeight + SoftKeyMaskDimensions::PADDING);
+		for (int i = firstKey; (i < object->get_number_children()) && (i < firstKey + slots); i++)
+		{
+			auto child = object->get_object_by_id(object->get_child_id(static_cast<std::uint16_t>(i)), parentWorkingSet->get_object_tree());
+			const auto position = keyDimensions.key_position(i - firstKey);
+
 			if ((nullptr != child) &&
 			    (objectCanBeClicked(child)) &&
-			    (isClickWithinBounds(x, y, colX, rowY, keyDimensions.keyWidth, keyDimensions.keyHeight)))
+			    (isClickWithinBounds(x, y, position.x, position.y, keyDimensions.keyWidth, keyDimensions.keyHeight)))
 			{
 				return child;
 			}
 			else if (!objectCanBeClicked(child))
 			{
-				retVal = getClickedChildRecursive(child, x - colX, y - rowY);
+				retVal = getClickedChildRecursive(child, x - position.x, y - position.y);
 
 				if (nullptr != retVal)
 				{
 					break;
 				}
-			}
-			row++;
-			if (row >= keyDimensions.rowCount)
-			{
-				row = 0;
-				col--;
 			}
 		}
 	}
