@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include "AppImages.h"
+#include "ButtonComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 #include "isobus/isobus/can_stack_logger.hpp"
@@ -98,6 +99,21 @@ static int detect_designed_mask_size(int medianMaskExtent, int renderAreaSize)
 	return retVal;
 }
 
+// A pool can show the same Button more than once, so every copy is updated.
+static void show_button_pressed(Component &parent, std::uint16_t buttonID, bool pressed)
+{
+	for (auto child : parent.getChildren())
+	{
+		auto button = dynamic_cast<ButtonComponent *>(child);
+
+		if ((nullptr != button) && (buttonID == button->get_id()))
+		{
+			button->set_pressed(pressed);
+		}
+		show_button_pressed(*child, buttonID, pressed);
+	}
+}
+
 DataMaskRenderAreaComponent::DataMaskRenderAreaComponent(ServerMainComponent &parentServer) :
   ownerServer(parentServer)
 {
@@ -166,6 +182,8 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 			}
 		}
 	}
+	// The mask is rebuilt on every repaint, so a Button still held would lose its pressed look
+	show_button_pressed(*this, pressedButtonID, true);
 
 	// Every repaint comes through here, so only a new mask or working set ends the edit
 	if ((previousWorkingSet != parentWorkingSet) || (previousActiveMaskID != activeMaskID))
@@ -240,11 +258,27 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 			{
 				if (isobus::VirtualTerminalObjectType::Button == clickedObject->get_object_type())
 				{
+					auto clickedButton = std::static_pointer_cast<isobus::Button>(clickedObject);
+
+					if ((false == clickedButton->get_option(isobus::Button::Options::Disabled)) &&
+					    (true == clickedButton->get_option(isobus::Button::Options::Latchable)))
+					{
+						// Latched is sent as pressed and unlatched as released, and latchable Buttons never repeat (ISO 11783-6 H.4)
+						const bool latched = (false == clickedButton->get_option(isobus::Button::Options::CurrentButtonStateIfLatchable));
+						clickedButton->set_option(isobus::Button::Options::CurrentButtonStateIfLatchable, latched);
+						ownerServer.process_macro(clickedObject, latched ? isobus::EventID::OnKeyPress : isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
+						ownerServer.send_button_activation_message(latched ? isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched : isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+						                                           clickedObject->get_id(),
+						                                           activeMask->get_id(),
+						                                           clickedButton->get_key_code(),
+						                                           ownerServer.get_active_working_set()->get_control_function());
+						needToRepaintActiveArea = true;
+					}
 					// A disabled button is ignored here, the same way the release below ignores
 					// it, so that a press can never be sent without its matching release
-					if (false == std::static_pointer_cast<isobus::Button>(clickedObject)->get_option(isobus::Button::Options::Disabled))
+					else if (false == clickedButton->get_option(isobus::Button::Options::Disabled))
 					{
-						std::uint8_t keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+						std::uint8_t keyCode = clickedButton->get_key_code();
 						ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyPress, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
 
 						ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched,
@@ -257,6 +291,8 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 						                            activeMask->get_id(),
 						                            keyCode,
 						                            false);
+						pressedButtonID = clickedObject->get_id();
+						show_button_pressed(*this, pressedButtonID, true);
 					}
 				}
 			}
@@ -267,6 +303,9 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 // Used to calculate button release events
 void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 {
+	show_button_pressed(*this, pressedButtonID, false);
+	pressedButtonID = isobus::NULL_OBJECT_ID;
+
 	if (nullptr != parentWorkingSet)
 	{
 		// Do a top down search to see if they clicked on some interactable object
@@ -287,9 +326,12 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 				{
 					case isobus::VirtualTerminalObjectType::Button:
 					{
-						if (false == std::static_pointer_cast<isobus::Button>(clickedObject)->get_option(isobus::Button::Options::Disabled))
+						auto clickedButton = std::static_pointer_cast<isobus::Button>(clickedObject);
+
+						if ((false == clickedButton->get_option(isobus::Button::Options::Disabled)) &&
+						    (false == clickedButton->get_option(isobus::Button::Options::Latchable)))
 						{
-							std::uint8_t keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
+							std::uint8_t keyCode = clickedButton->get_key_code();
 							ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 							                                           clickedObject->get_id(),
 							                                           activeMask->get_id(),
