@@ -223,7 +223,7 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 	}
 	else
 	{
-		int row = 0, col = (ownerServer.get_physical_soft_key_columns() - 1);
+		int row = 0, col = (keyDimensions.columnCount - 1);
 		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
 		{
 			auto child = object->get_object_by_id(object->get_child_id(i), parentWorkingSet->get_object_tree());
@@ -247,7 +247,7 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 				}
 			}
 			row++;
-			if (row >= ownerServer.get_physical_soft_key_rows())
+			if (row >= keyDimensions.rowCount)
 			{
 				row = 0;
 				col--;
