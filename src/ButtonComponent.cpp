@@ -57,14 +57,15 @@ void ButtonComponent::paintOverChildren(Graphics &g)
 	if (false == get_option(Options::NoBorder) && false == get_option(Options::SuppressBorder))
 	{
 		auto vtColour = parentWorkingSet->get_colour(get_border_colour());
-		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
-		g.drawRect(0, 0, get_width(), get_height(), 4);
-	}
+		auto borderColour = Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
 
-	if ((true == pressed) || ((true == get_option(Options::Latchable)) && (true == get_option(Options::CurrentButtonStateIfLatchable))))
-	{
-		auto vtColour = parentWorkingSet->get_colour(backgroundColor);
-		g.fillAll(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f).contrasting().withAlpha(0.3f));
+		// Only the border shows the state: B.14 bits 2 and 5 draw no border "even when pressed momentarily or latched"
+		if ((true == pressed) || ((true == get_option(Options::Latchable)) && (true == get_option(Options::CurrentButtonStateIfLatchable))))
+		{
+			borderColour = borderColour.contrasting();
+		}
+		g.setColour(borderColour);
+		g.drawRect(0, 0, get_width(), get_height(), 4);
 	}
 }
 

@@ -182,14 +182,14 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 			}
 		}
 	}
-	// The mask is rebuilt on every repaint, so a Button still held would lose its pressed look
-	show_button_pressed(*this, pressedButtonID, true);
-
-	// Every repaint comes through here, so only a new mask or working set ends the edit
+	// Every repaint comes through here, so only a new mask or working set ends the edit or the press
 	if ((previousWorkingSet != parentWorkingSet) || (previousActiveMaskID != activeMaskID))
 	{
+		pressedButtonID = isobus::NULL_OBJECT_ID;
 		close_input_dialogs();
 	}
+	// The mask is rebuilt on every repaint, so a Button still held would lose its pressed look
+	show_button_pressed(*this, pressedButtonID, true);
 	repaint();
 }
 
@@ -303,6 +303,7 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 // Used to calculate button release events
 void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 {
+	const auto releasedButtonID = pressedButtonID;
 	show_button_pressed(*this, pressedButtonID, false);
 	pressedButtonID = isobus::NULL_OBJECT_ID;
 
@@ -326,12 +327,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 				{
 					case isobus::VirtualTerminalObjectType::Button:
 					{
-						auto clickedButton = std::static_pointer_cast<isobus::Button>(clickedObject);
-
-						if ((false == clickedButton->get_option(isobus::Button::Options::Disabled)) &&
-						    (false == clickedButton->get_option(isobus::Button::Options::Latchable)))
+						// Only the press mouseDown sent on this mask. release_held_buttons() below sends one cut off by a mask change
+						if (releasedButtonID == clickedObject->get_id())
 						{
-							std::uint8_t keyCode = clickedButton->get_key_code();
+							std::uint8_t keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
 							ownerServer.send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
 							                                           clickedObject->get_id(),
 							                                           activeMask->get_id(),
