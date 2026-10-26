@@ -40,7 +40,7 @@ public:
 	int keyHeight = 60;
 	int keyWidth = 60;
 	int rowCount = 6;
-	int columnCount = 1;
+	int columnCount = 2;
 	int height = 480;
 	static constexpr std::uint8_t PADDING = 10;
 };
