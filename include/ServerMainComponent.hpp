@@ -292,6 +292,7 @@ private:
 
 	/// @brief Removes a working set from the renderers and the selector, and selects another one if none is active
 	void stop_presenting_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
+	void send_held_button_release(const HeldButtonData &button);
 	void clear_iso_data();
 
 	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
