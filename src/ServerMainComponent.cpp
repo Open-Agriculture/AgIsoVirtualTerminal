@@ -1339,26 +1339,31 @@ void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTer
 
 void ServerMainComponent::release_held_buttons()
 {
-	for (auto &button : heldButtons)
+	for (const auto &button : heldButtons)
 	{
-		if (button.isSoftKey)
-		{
-			send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
-			                                 button.buttonObjectID,
-			                                 button.activeMaskObjectID,
-			                                 button.buttonKeyCode,
-			                                 get_active_working_set()->get_control_function());
-		}
-		else
-		{
-			send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
-			                               button.buttonObjectID,
-			                               button.activeMaskObjectID,
-			                               button.buttonKeyCode,
-			                               get_active_working_set()->get_control_function());
-		}
+		send_held_button_release(button);
 	}
 	heldButtons.clear();
+}
+
+void ServerMainComponent::send_held_button_release(const HeldButtonData &button)
+{
+	if (button.isSoftKey)
+	{
+		send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+		                                 button.buttonObjectID,
+		                                 button.activeMaskObjectID,
+		                                 button.buttonKeyCode,
+		                                 button.associatedWorkingSet->get_control_function());
+	}
+	else
+	{
+		send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+		                               button.buttonObjectID,
+		                               button.activeMaskObjectID,
+		                               button.buttonKeyCode,
+		                               button.associatedWorkingSet->get_control_function());
+	}
 }
 
 void ServerMainComponent::repaint_on_next_update()
@@ -1718,6 +1723,9 @@ void ServerMainComponent::stop_presenting_working_set(std::shared_ptr<isobus::Vi
 {
 	rejectedWorkingSets.erase(workingSet);
 	workingSet->clear_callback_handles();
+	auto removedButtons = std::stable_partition(heldButtons.begin(), heldButtons.end(), [&workingSet](const HeldButtonData &button) { return workingSet != button.associatedWorkingSet; });
+	std::for_each(removedButtons, heldButtons.end(), [this](const HeldButtonData &button) { send_held_button_release(button); });
+	heldButtons.erase(removedButtons, heldButtons.end());
 	dataMaskRenderer.on_working_set_disconnect(workingSet);
 	softKeyMaskRenderer.on_working_set_disconnect(workingSet);
 
