@@ -42,7 +42,7 @@ public:
 	 * @param slot The key position, counted down each column from the right
 	 * @return The top left corner of that key position
 	 */
-	Point<int> key_position(int slot) const;
+	juce::Point<int> key_position(int slot) const;
 
 	int keyHeight = 60;
 	int keyWidth = 60;

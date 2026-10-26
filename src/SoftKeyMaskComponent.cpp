@@ -77,7 +77,7 @@ int SoftKeyMaskDimensions::key_count() const
 	return columnCount * rowCount;
 }
 
-Point<int> SoftKeyMaskDimensions::key_position(int slot) const
+juce::Point<int> SoftKeyMaskDimensions::key_position(int slot) const
 {
 	return { PADDING + (columnCount - 1 - (slot / rowCount)) * (PADDING + keyWidth),
 		       PADDING + (slot % rowCount) * (PADDING + keyHeight) };
