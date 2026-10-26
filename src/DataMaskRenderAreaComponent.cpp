@@ -4,20 +4,127 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "DataMaskRenderAreaComponent.hpp"
+
+#include <algorithm>
+#include <cmath>
 #include "AppImages.h"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
+#include "isobus/isobus/can_stack_logger.hpp"
+
+constexpr int DESIGNED_MASK_SIZES[] = { 200, 240, 480 };
+
+// Pools often overhang their mask by a few percent and rely on the VT to clip it.
+constexpr int MASK_OVERHANG_TOLERANCE_DIVISOR = 20;
+
+// The median, because pools park objects outside the mask and wrap children in oversized containers.
+static int measure_median_mask_extent(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet)
+{
+	std::vector<int> maskExtents;
+
+	for (const auto &currentObject : workingSet->get_object_tree())
+	{
+		auto object = currentObject.second;
+
+		if ((nullptr == object) ||
+		    ((isobus::VirtualTerminalObjectType::DataMask != object->get_object_type()) &&
+		     (isobus::VirtualTerminalObjectType::AlarmMask != object->get_object_type())))
+		{
+			continue;
+		}
+
+		int extent = 0;
+
+		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
+		{
+			auto child = object->get_object_by_id(object->get_child_id(i), workingSet->get_object_tree());
+
+			if ((nullptr != child) && (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type()))
+			{
+				child = object->get_object_by_id(std::static_pointer_cast<isobus::ObjectPointer>(child)->get_value(), workingSet->get_object_tree());
+			}
+
+			if ((nullptr == child) ||
+			    (isobus::VirtualTerminalObjectType::SoftKeyMask == child->get_object_type()))
+			{
+				continue;
+			}
+			extent = std::max(extent, object->get_child_x(i) + static_cast<int>(child->get_width()));
+			extent = std::max(extent, object->get_child_y(i) + static_cast<int>(child->get_height()));
+		}
+
+		if (0 != extent)
+		{
+			maskExtents.push_back(extent);
+		}
+	}
+
+	auto retVal = 0;
+
+	if (!maskExtents.empty())
+	{
+		auto medianPosition = maskExtents.begin() + (maskExtents.size() / 2);
+		std::nth_element(maskExtents.begin(), medianPosition, maskExtents.end());
+		retVal = *medianPosition;
+	}
+	return retVal;
+}
+
+static int detect_designed_mask_size(int medianMaskExtent, int renderAreaSize)
+{
+	auto retVal = renderAreaSize;
+
+	if (0 != medianMaskExtent)
+	{
+		const bool drawnLargerThanRenderArea = (medianMaskExtent > renderAreaSize + (renderAreaSize / MASK_OVERHANG_TOLERANCE_DIVISOR));
+
+		if (drawnLargerThanRenderArea)
+		{
+			retVal = medianMaskExtent;
+		}
+
+		for (auto designedSize : DESIGNED_MASK_SIZES)
+		{
+			const auto toleratedSize = designedSize + (designedSize / MASK_OVERHANG_TOLERANCE_DIVISOR);
+
+			// A size whose overhang reaches the render area would clip a pool drawn for the render area.
+			if ((drawnLargerThanRenderArea || (toleratedSize < renderAreaSize)) && (medianMaskExtent <= toleratedSize))
+			{
+				retVal = designedSize;
+				break;
+			}
+		}
+	}
+	return retVal;
+}
 
 DataMaskRenderAreaComponent::DataMaskRenderAreaComponent(ServerMainComponent &parentServer) :
   ownerServer(parentServer)
 {
 }
 
+int DataMaskRenderAreaComponent::to_pool_coordinate(float renderedCoordinate) const
+{
+	double poolCoordinate = renderedCoordinate;
+
+	if (0 != designedMaskSize)
+	{
+		poolCoordinate = poolCoordinate * designedMaskSize / ownerServer.get_data_mask_area_size_x_pixels();
+	}
+	// Rounding before the whole inverse is done can land an edge pixel in the neighbouring object.
+	return static_cast<int>(std::floor(poolCoordinate));
+}
+
 void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
+	const auto previousWorkingSet = parentWorkingSet;
+	const auto previousDesignedMaskSize = designedMaskSize;
+	const auto previousActiveMaskID = activeMaskID;
 	needToRepaintActiveArea = false;
 	childComponents.clear();
 	parentWorkingSet = workingSet;
+	designedMaskSize = 0;
+	activeMaskID = isobus::NULL_OBJECT_ID;
 
 	if (parentWorkingSet)
 	{
@@ -25,14 +132,45 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 
 		if ((nullptr != workingSetObject) && (isobus::NULL_OBJECT_ID != workingSetObject->get_active_mask()))
 		{
+			activeMaskID = workingSetObject->get_active_mask();
+			const int renderAreaSize = ownerServer.get_data_mask_area_size_x_pixels();
+			designedMaskSize = renderAreaSize;
+
+			if (ownerServer.get_scale_pools_to_data_mask())
+			{
+				// Measured once per pool, so commands that move objects cannot flip the scale. Switching working sets measures again.
+				if (measuredWorkingSetObject != workingSetObject)
+				{
+					measuredWorkingSetObject = workingSetObject;
+					medianMaskExtent = measure_median_mask_extent(parentWorkingSet);
+				}
+				designedMaskSize = detect_designed_mask_size(medianMaskExtent, renderAreaSize);
+			}
+
+			// Runs on every mask change, so log only a new working set or size.
+			if ((renderAreaSize != designedMaskSize) &&
+			    ((previousWorkingSet != parentWorkingSet) || (previousDesignedMaskSize != designedMaskSize)))
+			{
+				LOG_INFO("[VT Server]: Object pool appears drawn for a %d px data mask, scaling it to %d px", designedMaskSize, renderAreaSize);
+			}
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 			childComponents.emplace_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, activeMask));
 
 			if (nullptr != childComponents.back())
 			{
 				addAndMakeVisible(*childComponents.back());
+
+				// The cache builds every mask at 480.
+				childComponents.back()->setSize(designedMaskSize, designedMaskSize);
+				childComponents.back()->setTransform(AffineTransform::scale(static_cast<float>(renderAreaSize) / designedMaskSize));
 			}
 		}
+	}
+
+	// Every repaint comes through here, so only a new mask or working set ends the edit
+	if ((previousWorkingSet != parentWorkingSet) || (previousActiveMaskID != activeMaskID))
+	{
+		close_input_dialogs();
 	}
 	repaint();
 }
@@ -43,7 +181,20 @@ void DataMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<isob
 	{
 		childComponents.clear();
 		parentWorkingSet.reset();
+		close_input_dialogs();
 		repaint();
+	}
+}
+
+void DataMaskRenderAreaComponent::close_input_dialogs()
+{
+	// 1 is the cancel result of all three dialogs. Their callbacks run later, so each one holds the working set it was opened on.
+	for (auto *dialog : { inputListModal.get(), inputNumberModal.get(), inputStringModal.get() })
+	{
+		if (nullptr != dialog)
+		{
+			dialog->exitModalState(1);
+		}
 	}
 }
 
@@ -81,7 +232,9 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 
 			auto relativeEvent = event.getEventRelativeTo(this);
-			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
+			auto clickedObject = getClickedChildRecursive(activeMask,
+			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.x),
+			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.y));
 
 			if (nullptr != clickedObject)
 			{
@@ -124,7 +277,9 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 			auto activeMask = parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask());
 
 			auto relativeEvent = event.getEventRelativeTo(this);
-			auto clickedObject = getClickedChildRecursive(activeMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
+			auto clickedObject = getClickedChildRecursive(activeMask,
+			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.x),
+			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.y));
 
 			if (nullptr != clickedObject)
 			{
@@ -214,61 +369,61 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							}
 
 							inputListModal->addButton("OK", 0);
-							auto resultCallback = [this, clickedList](int result) {
-								auto inputCombo = inputListModal->getComboBoxComponent("Input List Combo");
-								result = inputCombo->getSelectedItemIndex();
-
-								// Remap the visible index to the actual index
-								std::uint16_t numberOfNonNullsSeen = 0;
-								for (std::uint16_t i = 0; i < clickedList->get_number_children(); i++)
+							auto resultCallback = [this, clickedList, workingSet = parentWorkingSet](int result) {
+								if (0 == result)
 								{
-									if (isobus::NULL_OBJECT_ID != clickedList->get_child_id(i))
-									{
-										numberOfNonNullsSeen++;
-									}
+									auto inputCombo = inputListModal->getComboBoxComponent("Input List Combo");
+									result = inputCombo->getSelectedItemIndex();
 
-									if (numberOfNonNullsSeen == result + 1)
+									// Remap the visible index to the actual index
+									std::uint16_t numberOfNonNullsSeen = 0;
+									for (std::uint16_t i = 0; i < clickedList->get_number_children(); i++)
 									{
-										result = i;
-										break;
-									}
-								}
-
-								if (isobus::NULL_OBJECT_ID != clickedList->get_variable_reference())
-								{
-									auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), parentWorkingSet->get_object_tree());
-
-									if (nullptr != child)
-									{
-										if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
+										if (isobus::NULL_OBJECT_ID != clickedList->get_child_id(i))
 										{
-											if (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() != static_cast<std::uint32_t>(result))
+											numberOfNonNullsSeen++;
+										}
+
+										if (numberOfNonNullsSeen == result + 1)
+										{
+											result = i;
+											break;
+										}
+									}
+
+									if (isobus::NULL_OBJECT_ID != clickedList->get_variable_reference())
+									{
+										auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), workingSet->get_object_tree());
+
+										if (nullptr != child)
+										{
+											if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 											{
-												std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(result);
-												ownerServer.send_change_numeric_value_message(child->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-												ownerServer.process_macro(child, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, parentWorkingSet);
+												if (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() != static_cast<std::uint32_t>(result))
+												{
+													std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(result);
+													ownerServer.send_change_numeric_value_message(child->get_id(), result, ownerServer.get_client_control_function_for_working_set(workingSet));
+													ownerServer.process_macro(child, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, workingSet);
+												}
 											}
 										}
 									}
-								}
-								else
-								{
-									ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
-									if (clickedList->get_value() != result)
+									else
 									{
-										ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
-										clickedList->set_value(static_cast<std::uint8_t>(result));
-										ownerServer.send_change_numeric_value_message(clickedList->get_id(), result, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(clickedList, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
+										ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
+										if (clickedList->get_value() != result)
+										{
+											ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
+											clickedList->set_value(static_cast<std::uint8_t>(result));
+											ownerServer.send_change_numeric_value_message(clickedList->get_id(), result, ownerServer.get_client_control_function_for_working_set(workingSet));
+											ownerServer.process_macro(clickedList, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
+										}
 									}
 								}
 								this->inputListModal->exitModalState();
-								if (nullptr != parentWorkingSet)
-								{
-									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
-								}
+								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
 								ownerServer.repaint_on_next_update();
-								ownerServer.process_macro(clickedList, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputList, parentWorkingSet);
+								ownerServer.process_macro(clickedList, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputList, workingSet);
 								inputListModal.reset();
 								repaint();
 							};
@@ -288,9 +443,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 						if (clickedNumber->get_option2(isobus::InputNumber::Options2::Enabled))
 						{
-							inputNumberModal.reset(new AlertWindow("Input Number", "Enter a value for this input number, then press OK.", MessageBoxIconType::QuestionIcon));
+							inputNumberModal.reset(new AlertWindow("Input Number", "", MessageBoxIconType::NoIcon));
 
 							float scaledValue = (clickedNumber->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
+							std::uint32_t currentRawValue = clickedNumber->get_value();
 
 							if (isobus::NULL_OBJECT_ID != clickedNumber->get_variable_reference())
 							{
@@ -301,35 +457,52 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 									{
 										scaledValue = (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
+										currentRawValue = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
 									}
 								}
 							}
 
-							inputNumberSlider.reset(new Slider(Slider::SliderStyle::LinearHorizontal, Slider::TextBoxAbove));
-							inputNumberSlider->setRange((static_cast<float>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
-							                            (static_cast<float>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale());
-							inputNumberSlider->setNumDecimalPlacesToDisplay(clickedNumber->get_number_of_decimals());
-							inputNumberSlider->setValue(scaledValue, NotificationType::dontSendNotification);
-							inputNumberSlider->setSize(400, 80);
+							// A keypad rather than a slider, because an exact value cannot be hit by
+							// dragging a finger, especially over the ranges an input number can have
+							inputNumberKeypad.reset(new NumericKeypadComponent(scaledValue,
+							                                                   (static_cast<double>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
+							                                                   (static_cast<double>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
+							                                                   clickedNumber->get_number_of_decimals(),
+							                                                   (isobus::LanguageCommandInterface::DecimalSymbols::Comma == ownerServer.get_language_command_interface().get_commanded_decimal_symbol()) ? ',' : '.'));
 
-							inputNumberListener.set_last_value(inputNumberSlider->getValue());
 							inputNumberListener.set_target(clickedNumber);
-							inputNumberSlider->addListener(&inputNumberListener);
 
-							inputNumberModal->addCustomComponent(inputNumberSlider.get());
-							inputNumberModal->addButton("OK", 0);
-							inputNumberModal->addButton("Cancel", 1); // TODO catch ESC as cancel
-							auto resultCallback = [this, clickedNumber](int result) {
+							// Seeded with what the object holds now, so confirming without typing
+							// anything cannot write a stale value from a previous edit
+							inputNumberListener.set_last_value(currentRawValue);
+							inputNumberModal->addCustomComponent(inputNumberKeypad.get());
+							inputNumberKeypad->onConfirm = [this]() { inputNumberModal->exitModalState(0); };
+							inputNumberKeypad->onCancel = [this]() { inputNumberModal->exitModalState(1); };
+
+							// The keypad handles Escape as cancel. The window's own handling would confirm.
+							inputNumberModal->setEscapeKeyCancels(false);
+							auto resultCallback = [this, clickedNumber, workingSet = parentWorkingSet](int result) {
 								this->inputNumberModal->exitModalState();
 
 								std::uint16_t varNumID = 0xFFFF;
 								if (0 == result)
 								{
-									ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+									// Back from what the operator sees to what the object stores.
+									// Rounded rather than truncated, and clamped, so the value can
+									// never land outside what the object said it accepts.
+									if ((nullptr != inputNumberKeypad) && (0 != clickedNumber->get_scale()))
+									{
+										const double rawValue = (inputNumberKeypad->get_value() / clickedNumber->get_scale()) - clickedNumber->get_offset();
+										const double clamped = std::min(std::max(rawValue, static_cast<double>(clickedNumber->get_minimum_value())),
+										                                static_cast<double>(clickedNumber->get_maximum_value()));
+										inputNumberListener.set_last_value(static_cast<std::uint32_t>(std::llround(clamped)));
+									}
+
+									ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 
 									if (isobus::NULL_OBJECT_ID != clickedNumber->get_variable_reference())
 									{
-										auto child = clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree());
+										auto child = clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree());
 
 										if ((nullptr != child) && (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 										{
@@ -339,19 +512,19 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 									if (isobus::NULL_OBJECT_ID != varNumID)
 									{
-										if (std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()))->get_value() != inputNumberListener.get_last_value())
+										if (std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree()))->get_value() != inputNumberListener.get_last_value())
 										{
-											ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+											ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 										}
-										std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()))->set_value(inputNumberListener.get_last_value());
+										std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree()))->set_value(inputNumberListener.get_last_value());
 									}
 									else
 									{
 										if (clickedNumber->get_value() != inputNumberListener.get_last_value())
 										{
-											ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+											ownerServer.process_macro(clickedNumber, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 											clickedNumber->set_value(inputNumberListener.get_last_value());
-											ownerServer.process_macro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+											ownerServer.process_macro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 										}
 									}
 
@@ -359,34 +532,31 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 								inputNumberListener.set_target(nullptr);
 								inputNumberModal.reset();
-								inputNumberSlider.reset();
-								ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+								inputNumberKeypad.reset();
+								ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
 
 								if (0 == result)
 								{
 									if (0xFFFF != varNumID)
 									{
-										ownerServer.send_change_numeric_value_message(varNumID, std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()))->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), parentWorkingSet->get_object_tree()), isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, parentWorkingSet);
+										ownerServer.send_change_numeric_value_message(varNumID, std::static_pointer_cast<isobus::NumberVariable>(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree()))->get_value(), ownerServer.get_client_control_function_for_working_set(workingSet));
+										ownerServer.process_macro(clickedNumber->get_object_by_id(clickedNumber->get_variable_reference(), workingSet->get_object_tree()), isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, workingSet);
 									}
 									else
 									{
-										ownerServer.send_change_numeric_value_message(clickedNumber->get_id(), clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+										ownerServer.send_change_numeric_value_message(clickedNumber->get_id(), clickedNumber->get_value(), ownerServer.get_client_control_function_for_working_set(workingSet));
+										ownerServer.process_macro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 									}
 								}
 								else
 								{
 									// TODO ESC
 								}
-
-								if (parentWorkingSet)
-								{
-									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
-								}
-								ownerServer.process_macro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, parentWorkingSet);
+								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								ownerServer.process_macro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 							};
 							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+							inputNumberKeypad->grabKeyboardFocus();
 							ownerServer.send_select_input_object_message(clickedNumber->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (parentWorkingSet)
 							{
@@ -462,14 +632,14 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							inputStringModal->addTextEditor("Input String", hasStringVariable ? stringVariable->get_value() : clickedString->get_value());
 							inputStringModal->addButton("OK", 0);
 							inputStringModal->addButton("Cancel", 1); // TODO catch ESC as cancel
-							auto resultCallback = [this, clickedString, stringVariable](int result) {
+							auto resultCallback = [this, clickedString, stringVariable, workingSet = parentWorkingSet](int result) {
 								this->inputStringModal->exitModalState();
-								ownerServer.send_select_input_object_message(clickedString->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
+								ownerServer.send_select_input_object_message(clickedString->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
 
 								if (0 == result) //OK
 								{
 									String newContent = this->inputStringModal->getTextEditor("Input String")->getText();
-									ownerServer.process_macro(clickedString, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
+									ownerServer.process_macro(clickedString, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputString, workingSet);
 
 									if (nullptr != stringVariable)
 									{
@@ -479,8 +649,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 											newContent.append(" ", 1);
 										}
 										stringVariable->set_value(newContent.toStdString());
-										ownerServer.send_change_string_value_message(stringVariable->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(stringVariable, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::StringVariable, parentWorkingSet);
+										ownerServer.send_change_string_value_message(stringVariable->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(workingSet));
+										ownerServer.process_macro(stringVariable, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::StringVariable, workingSet);
 									}
 									else
 									{
@@ -491,21 +661,22 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										}
 										if (clickedString->get_value() != newContent)
 										{
-											ownerServer.process_macro(clickedString, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
+											ownerServer.process_macro(clickedString, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputString, workingSet);
 										}
 										clickedString->set_value(newContent.toStdString());
-										ownerServer.send_change_string_value_message(clickedString->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
-										ownerServer.process_macro(clickedString, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
+										ownerServer.send_change_string_value_message(clickedString->get_id(), newContent.toStdString(), ownerServer.get_client_control_function_for_working_set(workingSet));
+										ownerServer.process_macro(clickedString, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputString, workingSet);
 									}
 									needToRepaintActiveArea = true;
 								}
 								inputStringModal->exitModalState();
 								inputStringModal.reset();
-								if (parentWorkingSet)
-								{
-									parentWorkingSet->set_object_focus(isobus::NULL_OBJECT_ID);
-								}
-								ownerServer.process_macro(clickedString, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputString, parentWorkingSet);
+
+								// Make sure no text caret survives the dialog, otherwise Windows
+								// keeps re-invoking the touch keyboard on every later tap
+								ServerMainComponent::release_text_input_focus();
+								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
+								ownerServer.process_macro(clickedString, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputString, workingSet);
 							};
 							inputStringModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
 							ownerServer.send_select_input_object_message(clickedString->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
@@ -536,15 +707,6 @@ void DataMaskRenderAreaComponent::set_has_started(bool started)
 {
 	hasStarted = started;
 	repaint();
-}
-
-void DataMaskRenderAreaComponent::InputNumberListener::sliderValueChanged(Slider *slider)
-{
-	if ((nullptr != slider) && (nullptr != targetObject) && (0 != targetObject->get_scale()))
-	{
-		float scaledValue = (slider->getValue() / targetObject->get_scale()) - targetObject->get_offset();
-		lastValue = static_cast<std::uint32_t>(scaledValue);
-	}
 }
 
 std::uint32_t DataMaskRenderAreaComponent::InputNumberListener::get_last_value() const
@@ -657,6 +819,6 @@ bool DataMaskRenderAreaComponent::objectCanBeClicked(std::shared_ptr<isobus::VTO
 
 bool DataMaskRenderAreaComponent::isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight)
 {
-	return ((clickXRelative >= objectX) && (clickXRelative <= (objectX + objectWidth))) &&
-	  ((clickYRelative >= objectY) && (clickYRelative <= (objectY + objectHeight)));
+	return ((clickXRelative >= objectX) && (clickXRelative < (objectX + objectWidth))) &&
+	  ((clickYRelative >= objectY) && (clickYRelative < (objectY + objectHeight)));
 }

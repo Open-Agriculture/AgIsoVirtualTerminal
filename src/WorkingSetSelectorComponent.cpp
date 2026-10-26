@@ -8,7 +8,6 @@
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 #include "WorkingSetLoadingIndicatorComponent.hpp"
-#include "isobus/utility/system_timing.hpp"
 
 WorkingSetSelectorComponent::AckButton::AckButton() :
   juce::TextButton("ACK")
@@ -65,11 +64,8 @@ void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::sha
 	{
 		children.push_back({ managedWorkingSetList.at(i) });
 
-		if ((
-		      (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) ||
-		      managedWorkingSetList.at(i)->is_object_pool_transfer_in_progress()) &&
-		    (!isobus::SystemTiming::time_expired_ms(managedWorkingSetList.at(i)->get_working_set_maintenance_message_timestamp_ms(), 3000)) &&
-		    (!managedWorkingSetList.at(i)->is_deletion_requested()))
+		if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) ||
+		    managedWorkingSetList.at(i)->is_object_pool_transfer_in_progress())
 		{
 			children.back().childComponents.push_back(getWorkingSetChildComponent(managedWorkingSetList.at(i), i));
 		}
@@ -136,8 +132,12 @@ void WorkingSetSelectorComponent::redraw()
 	int workingSetIndex = 0;
 	for (auto &workingSet : children)
 	{
-		workingSet.childComponents.clear();
-		workingSet.childComponents.push_back(getWorkingSetChildComponent(workingSet.workingSet, workingSetIndex));
+		// A working set without a pool, such as after Delete Object Pool, keeps an empty slot
+		if (!workingSet.childComponents.empty())
+		{
+			workingSet.childComponents.clear();
+			workingSet.childComponents.push_back(getWorkingSetChildComponent(workingSet.workingSet, workingSetIndex));
+		}
 		workingSetIndex++;
 	}
 	repaint();
