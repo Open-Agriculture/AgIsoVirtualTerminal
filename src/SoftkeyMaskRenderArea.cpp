@@ -151,14 +151,14 @@ void SoftKeyMaskRenderAreaComponent::update_page_buttons(int pageCount)
 	previousPageButton.setVisible(showButtons);
 	nextPageButton.setVisible(showButtons);
 
-	// The mask component is re-added on every rebuild and would cover them
+	// Otherwise the rebuilt mask component covers them
 	previousPageButton.toFront(false);
 	nextPageButton.toFront(false);
 }
 
 void SoftKeyMaskRenderAreaComponent::PageButtonLookAndFeel::drawButtonBackground(Graphics &g, Button &button, const Colour &backgroundColour, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
 {
-	// LookAndFeel_V4 fades a disabled face, which lets the mask colour show through
+	// LookAndFeel_V4 fades a disabled face, so the mask shows through
 	auto colour = backgroundColour;
 	if (shouldDrawButtonAsDown || shouldDrawButtonAsHighlighted)
 	{
@@ -185,6 +185,18 @@ void SoftKeyMaskRenderAreaComponent::paint(Graphics &g)
 	if (nullptr != parentWorkingSet)
 	{
 		g.drawRect(0, 0, getWidth(), getHeight(), 1);
+	}
+}
+
+void SoftKeyMaskRenderAreaComponent::paintOverChildren(Graphics &g)
+{
+	// The key face belongs to the pool
+	if ((!pressedKeyBounds.isEmpty()) && (nullptr != parentWorkingSet) && (!childComponents.empty()))
+	{
+		auto vtColour = parentWorkingSet->get_colour(std::static_pointer_cast<SoftKeyMaskComponent>(childComponents.front())->get_background_color());
+
+		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f).contrasting());
+		g.drawRect(pressedKeyBounds.expanded(PRESSED_RING_WIDTH), PRESSED_RING_WIDTH);
 	}
 }
 
@@ -243,6 +255,19 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 				                            activeDataOrAlarmMask->get_id(),
 				                            keyCode,
 				                            true);
+
+				const SoftKeyMaskDimensions &keyDimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
+
+				for (int slot = 0; slot < keyDimensions.key_count(); slot++)
+				{
+					const auto keyBounds = juce::Rectangle<int>(keyDimensions.keyWidth, keyDimensions.keyHeight).withPosition(keyDimensions.key_position(slot));
+
+					if (keyBounds.contains(relativeEvent.getMouseDownPosition()))
+					{
+						pressedKeyBounds = keyBounds;
+						repaint();
+					}
+				}
 			}
 		}
 	}
@@ -307,6 +332,8 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 			ownerServer.release_held_buttons();
 		}
 	}
+	pressedKeyBounds = {};
+	repaint();
 }
 
 std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y)

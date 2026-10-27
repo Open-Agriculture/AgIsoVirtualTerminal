@@ -27,6 +27,8 @@ public:
 
 	void paint(Graphics &g) override;
 
+	void paintOverChildren(Graphics &g) override;
+
 	// Used to calculate button press events
 	void mouseDown(const MouseEvent &event) override;
 
@@ -36,6 +38,7 @@ public:
 private:
 	static constexpr int PAGE_BUTTON_HEIGHT = 40;
 	static constexpr int PAGE_BUTTON_GAP = 4;
+	static constexpr int PRESSED_RING_WIDTH = 3;
 
 	class PageButtonLookAndFeel : public LookAndFeel_V4
 	{
@@ -56,6 +59,7 @@ private:
 	PageButtonLookAndFeel pageButtonLookAndFeel; // Declared before the buttons, so it outlives them
 	juce::TextButton previousPageButton;
 	juce::TextButton nextPageButton;
+	juce::Rectangle<int> pressedKeyBounds;
 	std::uint16_t currentPage = 0;
 	std::uint16_t previousActiveMaskID = isobus::NULL_OBJECT_ID;
 	std::uint16_t previousSoftKeyMaskID = isobus::NULL_OBJECT_ID;
