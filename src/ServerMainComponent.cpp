@@ -1688,31 +1688,39 @@ void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr
 	juce::Component::SafePointer<ServerMainComponent> safeThis(this);
 
 	juce::MessageManager::callAsync([safeThis, affectedWorkingSet, mask, newSoftKeyMask]() {
-		if ((nullptr == safeThis) || (nullptr == affectedWorkingSet) || (affectedWorkingSet != safeThis->activeWorkingSet))
+		if (nullptr != safeThis)
 		{
-			return;
-		}
-
-		// A mask that is not on screen shows its new soft keys when it becomes active
-		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(affectedWorkingSet->get_working_set_object());
-
-		if ((nullptr == workingSetObject) || (mask != workingSetObject->get_active_mask()))
-		{
-			return;
-		}
-
-		safeThis->activeWorkingSetSoftkeyMaskObjectID = newSoftKeyMask;
-		safeThis->softKeyMaskRenderer.on_change_active_mask(affectedWorkingSet);
-
-		if (safeThis->send_status_message())
-		{
-			safeThis->statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
-		}
-		else
-		{
-			safeThis->statusMessageTimestamp_ms = 0;
+			safeThis->change_active_softkey_mask(affectedWorkingSet, mask, newSoftKeyMask);
 		}
 	});
+}
+
+void ServerMainComponent::change_active_softkey_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask)
+{
+	if ((nullptr == affectedWorkingSet) || (affectedWorkingSet != activeWorkingSet))
+	{
+		return;
+	}
+
+	// A mask that is not on screen shows its new soft keys when it becomes active
+	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(affectedWorkingSet->get_working_set_object());
+
+	if ((nullptr == workingSetObject) || (mask != workingSetObject->get_active_mask()))
+	{
+		return;
+	}
+
+	activeWorkingSetSoftkeyMaskObjectID = newSoftKeyMask;
+	softKeyMaskRenderer.on_change_active_mask(affectedWorkingSet);
+
+	if (send_status_message())
+	{
+		statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+	}
+	else
+	{
+		statusMessageTimestamp_ms = 0;
+	}
 }
 
 void ServerMainComponent::object_pool_parse_finished(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, bool success)
