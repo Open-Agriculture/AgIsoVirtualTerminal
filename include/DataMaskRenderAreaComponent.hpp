@@ -79,6 +79,7 @@ private:
 	int medianMaskExtent = 0;
 	int designedMaskSize = 0;
 	std::uint16_t activeMaskID = isobus::NULL_OBJECT_ID;
+	std::uint16_t pressedButtonID = isobus::NULL_OBJECT_ID;
 	bool needToRepaintActiveArea = false;
 	bool hasStarted = false;
 
