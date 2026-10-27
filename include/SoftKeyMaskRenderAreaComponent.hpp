@@ -27,6 +27,8 @@ public:
 
 	void paint(Graphics &g) override;
 
+	void paintOverChildren(Graphics &g) override;
+
 	// Used to calculate button press events
 	void mouseDown(const MouseEvent &event) override;
 
@@ -34,6 +36,19 @@ public:
 	void mouseUp(const MouseEvent &event) override;
 
 private:
+	static constexpr int PAGE_BUTTON_HEIGHT = 40;
+	static constexpr int PAGE_BUTTON_GAP = 4;
+	static constexpr int PRESSED_RING_WIDTH = 3;
+
+	class PageButtonLookAndFeel : public LookAndFeel_V4
+	{
+	public:
+		void drawButtonBackground(Graphics &g, Button &button, const Colour &backgroundColour, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+		void drawButtonText(Graphics &g, TextButton &button, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+	};
+
+	void change_page(int delta);
+	void update_page_buttons(int pageCount);
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
@@ -41,6 +56,13 @@ private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
 	ServerMainComponent &ownerServer;
+	PageButtonLookAndFeel pageButtonLookAndFeel; // Declared before the buttons, so it outlives them
+	juce::TextButton previousPageButton;
+	juce::TextButton nextPageButton;
+	juce::Rectangle<int> pressedKeyBounds;
+	std::uint16_t currentPage = 0;
+	std::uint16_t previousActiveMaskID = isobus::NULL_OBJECT_ID;
+	std::uint16_t previousSoftKeyMaskID = isobus::NULL_OBJECT_ID;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoftKeyMaskRenderAreaComponent)
 };
