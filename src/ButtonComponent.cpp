@@ -59,7 +59,7 @@ void ButtonComponent::paintOverChildren(Graphics &g)
 		auto vtColour = parentWorkingSet->get_colour(get_border_colour());
 		auto borderColour = Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
 
-		// Only the border shows the state: B.14 bits 2 and 5 draw no border "even when pressed momentarily or latched"
+		// Buttons without a border show no pressed or latched state
 		if ((true == pressed) || ((true == get_option(Options::Latchable)) && (true == get_option(Options::CurrentButtonStateIfLatchable))))
 		{
 			borderColour = borderColour.contrasting();
