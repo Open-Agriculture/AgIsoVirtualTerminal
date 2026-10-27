@@ -41,16 +41,17 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 			{
 				addAndMakeVisible(*childComponents.back());
 				childComponents.back()->setTopLeftPosition(x, y);
-				y += (dimensionInfo.PADDING + dimensionInfo.keyHeight);
-
-				row++;
-				if (row >= dimensionInfo.rowCount)
-				{
-					row = 0;
-					x -= (dimensionInfo.PADDING + dimensionInfo.keyWidth);
-					y = dimensionInfo.PADDING;
-				}
 			}
+		}
+
+		// Unresolved children keep their slot too, so the hit test counts the same
+		y += (dimensionInfo.PADDING + dimensionInfo.keyHeight);
+		row++;
+		if (row >= dimensionInfo.rowCount)
+		{
+			row = 0;
+			x -= (dimensionInfo.PADDING + dimensionInfo.keyWidth);
+			y = dimensionInfo.PADDING;
 		}
 	}
 

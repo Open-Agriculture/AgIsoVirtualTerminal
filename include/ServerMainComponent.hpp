@@ -248,6 +248,18 @@ private:
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
 
+	/// @brief Called from the CAN thread when a client changes a soft key mask, hands the change to the message thread
+	/// @param[in] affectedWorkingSet The working set whose mask was changed
+	/// @param[in] mask The data or alarm mask that was given a new soft key mask
+	/// @param[in] newSoftKeyMask The new soft key mask
+	void on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask);
+
+	/// @brief Redraws the soft keys when the changed mask is the one on screen. Runs on the message thread.
+	/// @param[in] affectedWorkingSet The working set whose mask was changed
+	/// @param[in] mask The data or alarm mask that was given a new soft key mask
+	/// @param[in] newSoftKeyMask The new soft key mask
+	void change_active_softkey_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask);
+
 	/// @brief Restores the window position, size and maximised state which were saved the last
 	/// time the program ran.
 	/// @attention Like the always on top setting, this cannot be done during construction,
@@ -290,6 +302,7 @@ private:
 
 	/// @brief Removes a working set from the renderers and the selector, and selects another one if none is active
 	void stop_presenting_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
+	void send_held_button_release(const HeldButtonData &button);
 	void clear_iso_data();
 
 	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
