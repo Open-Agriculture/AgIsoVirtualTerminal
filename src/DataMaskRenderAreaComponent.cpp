@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include "AppImages.h"
 #include "ButtonComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
@@ -360,7 +361,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							auto combo = inputListModal->getComboBoxComponent("Input List Combo");
 							auto comboPopup = combo->getRootMenu();
 
-							auto selectedIndex = -1;
+							std::uint32_t selectedIndex = std::numeric_limits<std::uint32_t>::max();
 
 							if (clickedList->get_variable_reference() != isobus::NULL_OBJECT_ID)
 							{
@@ -400,63 +401,60 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 							}
 
-							if (selectedIndex != -1)
+							// Item IDs are the list index + 1, so NULL children, which have no item, cannot shift the selection
+							if (selectedIndex < clickedList->get_number_children())
 							{
-								combo->setSelectedItemIndex(selectedIndex);
+								combo->setSelectedId(static_cast<int>(selectedIndex) + 1, dontSendNotification);
 							}
 
 							inputListModal->addButton("OK", 0);
 							auto resultCallback = [this, clickedList, workingSet = parentWorkingSet](int result) {
-								if (0 == result)
+								const int selectedId = inputListModal->getComboBoxComponent("Input List Combo")->getSelectedId();
+								std::shared_ptr<isobus::NumberVariable> variable;
+
+								if (isobus::NULL_OBJECT_ID != clickedList->get_variable_reference())
 								{
-									auto inputCombo = inputListModal->getComboBoxComponent("Input List Combo");
-									result = inputCombo->getSelectedItemIndex();
+									auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), workingSet->get_object_tree());
 
-									// Remap the visible index to the actual index
-									std::uint16_t numberOfNonNullsSeen = 0;
-									for (std::uint16_t i = 0; i < clickedList->get_number_children(); i++)
+									if ((nullptr != child) && (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 									{
-										if (isobus::NULL_OBJECT_ID != clickedList->get_child_id(i))
-										{
-											numberOfNonNullsSeen++;
-										}
+										variable = std::static_pointer_cast<isobus::NumberVariable>(child);
+									}
+								}
 
-										if (numberOfNonNullsSeen == result + 1)
-										{
-											result = i;
-											break;
-										}
+								if ((0 == result) && ((isobus::NULL_OBJECT_ID == clickedList->get_variable_reference()) || (nullptr != variable)))
+								{
+									const std::uint32_t oldValue = (nullptr != variable) ? variable->get_value() : clickedList->get_value();
+									// With nothing selected the value is kept, because the operator may not set 255 or an invalid index.
+									// It is still sent, since Table B.19 reports every entry, whether or not the value changed.
+									const std::uint32_t newValue = (0 != selectedId) ? static_cast<std::uint32_t>(selectedId - 1) : oldValue;
+
+									ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
+									if (oldValue != newValue)
+									{
+										ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
 									}
 
-									if (isobus::NULL_OBJECT_ID != clickedList->get_variable_reference())
+									if (nullptr != variable)
 									{
-										auto child = clickedList->get_object_by_id(clickedList->get_variable_reference(), workingSet->get_object_tree());
-
-										if (nullptr != child)
+										variable->set_value(newValue);
+										ownerServer.send_change_numeric_value_message(variable->get_id(), newValue, ownerServer.get_client_control_function_for_working_set(workingSet));
+										if (oldValue != newValue)
 										{
-											if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
-											{
-												if (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() != static_cast<std::uint32_t>(result))
-												{
-													std::static_pointer_cast<isobus::NumberVariable>(child)->set_value(result);
-													ownerServer.send_change_numeric_value_message(child->get_id(), result, ownerServer.get_client_control_function_for_working_set(workingSet));
-													ownerServer.process_macro(child, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, workingSet);
-												}
-											}
+											ownerServer.process_macro(variable, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::NumberVariable, workingSet);
 										}
 									}
 									else
 									{
-										ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
-										if (clickedList->get_value() != result)
+										clickedList->set_value(static_cast<std::uint8_t>(newValue));
+										ownerServer.send_change_numeric_value_message(clickedList->get_id(), newValue, ownerServer.get_client_control_function_for_working_set(workingSet));
+										if (oldValue != newValue)
 										{
-											ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfANewValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
-											clickedList->set_value(static_cast<std::uint8_t>(result));
-											ownerServer.send_change_numeric_value_message(clickedList->get_id(), result, ownerServer.get_client_control_function_for_working_set(workingSet));
 											ownerServer.process_macro(clickedList, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
 										}
 									}
 								}
+								ownerServer.send_select_input_object_message(clickedList->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
 								this->inputListModal->exitModalState();
 								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
 								ownerServer.repaint_on_next_update();
@@ -465,6 +463,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								repaint();
 							};
 							inputListModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+							ownerServer.send_select_input_object_message(clickedList->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (nullptr != parentWorkingSet)
 							{
 								parentWorkingSet->set_object_focus(clickedObject->get_id());
@@ -482,7 +481,6 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						{
 							inputNumberModal.reset(new AlertWindow("Input Number", "", MessageBoxIconType::NoIcon));
 
-							float scaledValue = (clickedNumber->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
 							std::uint32_t currentRawValue = clickedNumber->get_value();
 
 							if (isobus::NULL_OBJECT_ID != clickedNumber->get_variable_reference())
@@ -493,7 +491,6 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								{
 									if (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type())
 									{
-										scaledValue = (std::static_pointer_cast<isobus::NumberVariable>(child)->get_value() + clickedNumber->get_offset()) * clickedNumber->get_scale();
 										currentRawValue = std::static_pointer_cast<isobus::NumberVariable>(child)->get_value();
 									}
 								}
@@ -501,7 +498,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 							// A keypad rather than a slider, because an exact value cannot be hit by
 							// dragging a finger, especially over the ranges an input number can have
-							inputNumberKeypad.reset(new NumericKeypadComponent(scaledValue,
+							inputNumberKeypad.reset(new NumericKeypadComponent((static_cast<double>(currentRawValue) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
 							                                                   (static_cast<double>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
 							                                                   (static_cast<double>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
 							                                                   clickedNumber->get_number_of_decimals(),
@@ -526,8 +523,9 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								{
 									// Back from what the operator sees to what the object stores.
 									// Rounded rather than truncated, and clamped, so the value can
-									// never land outside what the object said it accepts.
-									if ((nullptr != inputNumberKeypad) && (0 != clickedNumber->get_scale()))
+									// never land outside what the object said it accepts. Skipped if nothing
+									// was typed, or the keypad's rounding to the object's decimals is written back.
+									if ((nullptr != inputNumberKeypad) && inputNumberKeypad->is_edited() && (0 != clickedNumber->get_scale()))
 									{
 										const double rawValue = (inputNumberKeypad->get_value() / clickedNumber->get_scale()) - clickedNumber->get_offset();
 										const double clamped = std::min(std::max(rawValue, static_cast<double>(clickedNumber->get_minimum_value())),

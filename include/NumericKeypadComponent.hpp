@@ -43,6 +43,10 @@ public:
 	/// @returns True if the typed value needs no clamping
 	bool is_within_range() const;
 
+	/// @brief Checks if the operator pressed an editing key since the keypad opened
+	/// @returns True after any editing key, even if the entry ends as it started
+	bool is_edited() const;
+
 	void paint(Graphics &graphics) override;
 
 	void resized() override;
@@ -102,6 +106,7 @@ private:
 	double maximum;
 	std::uint8_t decimals;
 	juce::juce_wchar separator; ///< Shown in place of the '.' the entry is kept with
+	bool edited = false;
 	bool hasTypedSinceOpening = false; ///< The keypad opens showing the object's current value, not something the operator typed. The first digit/decimal-point press should overwrite it rather than append to it, or an operator has to press Clear first to get the same result - see append().
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NumericKeypadComponent)
