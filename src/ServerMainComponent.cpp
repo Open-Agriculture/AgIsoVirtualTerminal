@@ -1756,6 +1756,23 @@ void ServerMainComponent::object_pool_deleted(std::shared_ptr<isobus::VirtualTer
 	stop_presenting_working_set(workingSet);
 }
 
+std::uint16_t ServerMainComponent::abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	// CAN thread, under the stack's callback mutex: waiting on the message thread could deadlock, so only closing the dialog is deferred
+	const std::uint16_t abortedObjectID = dataMaskRenderer.abort_input(workingSet);
+
+	if (isobus::NULL_OBJECT_ID != abortedObjectID)
+	{
+		juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this)]() {
+			if (nullptr != safeThis)
+			{
+				safeThis->dataMaskRenderer.close_aborted_input_dialogs();
+			}
+		});
+	}
+	return abortedObjectID;
+}
+
 void ServerMainComponent::handle_unexpected_working_set_shutdown(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, UnexpectedShutdownReason)
 {
 	stop_presenting_working_set(workingSet);

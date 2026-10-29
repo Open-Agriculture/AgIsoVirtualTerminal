@@ -205,16 +205,84 @@ void DataMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<isob
 	}
 }
 
+std::uint16_t DataMaskRenderAreaComponent::abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	std::uint16_t abortedObjectID = isobus::NULL_OBJECT_ID;
+	{
+		const std::lock_guard<std::mutex> lock(openInputMutex);
+		if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
+		{
+			abortedObjectID = openInputObjectID;
+			openInputWorkingSet.reset();
+			openInputObjectID = isobus::NULL_OBJECT_ID;
+		}
+	}
+
+	if (isobus::NULL_OBJECT_ID != abortedObjectID)
+	{
+		ownerServer.send_select_input_object_message(abortedObjectID, false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
+	}
+	return abortedObjectID;
+}
+
+void DataMaskRenderAreaComponent::close_aborted_input_dialogs()
+{
+	bool reopened;
+	{
+		const std::lock_guard<std::mutex> lock(openInputMutex);
+		reopened = (nullptr != openInputWorkingSet);
+	}
+
+	// An input opened after abort_input() is not the one the VT closed
+	if (!reopened)
+	{
+		close_input_dialogs();
+	}
+}
+
 void DataMaskRenderAreaComponent::close_input_dialogs()
 {
-	// 1 is the cancel result of all three dialogs. Their callbacks run later, so each one holds the working set it was opened on.
+	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet;
+	std::uint16_t objectID;
+	{
+		const std::lock_guard<std::mutex> lock(openInputMutex);
+		workingSet = std::move(openInputWorkingSet);
+		objectID = openInputObjectID;
+		openInputObjectID = isobus::NULL_OBJECT_ID;
+	}
+
+	// The callbacks will see the input as ended, so the close messages go out here
+	if (isobus::NULL_OBJECT_ID != objectID)
+	{
+		const auto destination = ownerServer.get_client_control_function_for_working_set(workingSet);
+		ownerServer.send_select_input_object_message(objectID, false, false, destination);
+		ownerServer.send_esc_message(objectID, 0, destination);
+	}
+
+	// 0 = Cancel, the same result JUCE gives a window close or Escape
 	for (auto *dialog : { inputListModal.get(), inputNumberModal.get(), inputStringModal.get() })
 	{
 		if (nullptr != dialog)
 		{
-			dialog->exitModalState(1);
+			dialog->exitModalState(0);
 		}
 	}
+}
+
+void DataMaskRenderAreaComponent::begin_open_input(std::uint16_t objectID)
+{
+	const std::lock_guard<std::mutex> lock(openInputMutex);
+	openInputWorkingSet = parentWorkingSet;
+	openInputObjectID = objectID;
+}
+
+bool DataMaskRenderAreaComponent::end_open_input()
+{
+	const std::lock_guard<std::mutex> lock(openInputMutex);
+	const bool wasOpen = (nullptr != openInputWorkingSet);
+	openInputWorkingSet.reset();
+	openInputObjectID = isobus::NULL_OBJECT_ID;
+	return wasOpen;
 }
 
 void DataMaskRenderAreaComponent::paint(Graphics &g)
@@ -318,6 +386,9 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.x),
 			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.y));
 
+			// A result callback runs after its dialog stops being modal, and would end an input opened before it ran
+			const bool inputDialogPending = (nullptr != inputListModal) || (nullptr != inputNumberModal) || (nullptr != inputStringModal);
+
 			if (nullptr != clickedObject)
 			{
 				switch (clickedObject->get_object_type())
@@ -347,9 +418,9 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 					{
 						auto clickedList = std::static_pointer_cast<isobus::InputList>(clickedObject);
 
-						if ((clickedList->get_option(isobus::InputList::Options::Enabled)) &&
-						    (clickedList->get_number_children() > 0) &&
-						    clickedList->get_option(isobus::InputList::Options::Enabled))
+						if (!inputDialogPending &&
+						    clickedList->get_option(isobus::InputList::Options::Enabled) &&
+						    (clickedList->get_number_children() > 0))
 						{
 							// Need to display a modal combo selection
 							inputListModal.reset(new AlertWindow("Input List Selection", "Select a List Item, then press OK.", MessageBoxIconType::QuestionIcon));
@@ -407,8 +478,15 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								combo->setSelectedId(static_cast<int>(selectedIndex) + 1, dontSendNotification);
 							}
 
-							inputListModal->addButton("OK", 0);
+							inputListModal->addButton("OK", 1, KeyPress(KeyPress::returnKey, 0, 0));
+							inputListModal->addButton("Cancel", 0);
+
+							// Only a chosen index (0-254) may be sent, so OK waits for a selection
+							auto okButton = inputListModal->getButton("OK");
+							okButton->setEnabled(0 != combo->getSelectedId());
+							combo->onChange = [okButton, combo]() { okButton->setEnabled(0 != combo->getSelectedId()); };
 							auto resultCallback = [this, clickedList, workingSet = parentWorkingSet](int result) {
+								const bool closedByVT = !end_open_input();
 								const int selectedId = inputListModal->getComboBoxComponent("Input List Combo")->getSelectedId();
 								std::shared_ptr<isobus::NumberVariable> variable;
 
@@ -422,12 +500,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									}
 								}
 
-								if ((0 == result) && ((isobus::NULL_OBJECT_ID == clickedList->get_variable_reference()) || (nullptr != variable)))
+								if ((1 == result) && !closedByVT && (0 != selectedId) && ((isobus::NULL_OBJECT_ID == clickedList->get_variable_reference()) || (nullptr != variable)))
 								{
 									const std::uint32_t oldValue = (nullptr != variable) ? variable->get_value() : clickedList->get_value();
-									// With nothing selected the value is kept, because the operator may not set 255 or an invalid index.
-									// It is still sent, since Table B.19 reports every entry, whether or not the value changed.
-									const std::uint32_t newValue = (0 != selectedId) ? static_cast<std::uint32_t>(selectedId - 1) : oldValue;
+									const std::uint32_t newValue = static_cast<std::uint32_t>(selectedId - 1);
 
 									ownerServer.process_macro(clickedList, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputList, workingSet);
 									if (oldValue != newValue)
@@ -454,8 +530,14 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										}
 									}
 								}
-								ownerServer.send_select_input_object_message(clickedList->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
-								this->inputListModal->exitModalState();
+								if (!closedByVT)
+								{
+									ownerServer.send_select_input_object_message(clickedList->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
+									if (0 == result)
+									{
+										ownerServer.send_esc_message(clickedList->get_id(), 0, ownerServer.get_client_control_function_for_working_set(workingSet));
+									}
+								}
 								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
 								ownerServer.repaint_on_next_update();
 								ownerServer.process_macro(clickedList, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputList, workingSet);
@@ -463,6 +545,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								repaint();
 							};
 							inputListModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+							begin_open_input(clickedList->get_id());
 							ownerServer.send_select_input_object_message(clickedList->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (nullptr != parentWorkingSet)
 							{
@@ -477,7 +560,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 					{
 						auto clickedNumber = std::static_pointer_cast<isobus::InputNumber>(clickedObject);
 
-						if (clickedNumber->get_option2(isobus::InputNumber::Options2::Enabled))
+						if (!inputDialogPending && clickedNumber->get_option2(isobus::InputNumber::Options2::Enabled))
 						{
 							inputNumberModal.reset(new AlertWindow("Input Number", "", MessageBoxIconType::NoIcon));
 
@@ -510,16 +593,13 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							// anything cannot write a stale value from a previous edit
 							inputNumberListener.set_last_value(currentRawValue);
 							inputNumberModal->addCustomComponent(inputNumberKeypad.get());
-							inputNumberKeypad->onConfirm = [this]() { inputNumberModal->exitModalState(0); };
-							inputNumberKeypad->onCancel = [this]() { inputNumberModal->exitModalState(1); };
-
-							// The keypad handles Escape as cancel. The window's own handling would confirm.
-							inputNumberModal->setEscapeKeyCancels(false);
+							inputNumberKeypad->onConfirm = [this]() { inputNumberModal->exitModalState(1); };
+							inputNumberKeypad->onCancel = [this]() { inputNumberModal->exitModalState(0); };
 							auto resultCallback = [this, clickedNumber, workingSet = parentWorkingSet](int result) {
-								this->inputNumberModal->exitModalState();
+								const bool closedByVT = !end_open_input();
 
 								std::uint16_t varNumID = 0xFFFF;
-								if (0 == result)
+								if ((1 == result) && !closedByVT)
 								{
 									// Back from what the operator sees to what the object stores.
 									// Rounded rather than truncated, and clamped, so the value can
@@ -568,9 +648,14 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								inputNumberListener.set_target(nullptr);
 								inputNumberModal.reset();
 								inputNumberKeypad.reset();
-								ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
+								// On Linux a dialog closed by abort_input() stays drawn until something repaints
+								repaint();
+								if (!closedByVT)
+								{
+									ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
+								}
 
-								if (0 == result)
+								if ((1 == result) && !closedByVT)
 								{
 									if (0xFFFF != varNumID)
 									{
@@ -583,14 +668,15 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										ownerServer.process_macro(clickedNumber, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 									}
 								}
-								else
+								else if (!closedByVT)
 								{
-									// TODO ESC
+									ownerServer.send_esc_message(clickedNumber->get_id(), 0, ownerServer.get_client_control_function_for_working_set(workingSet));
 								}
 								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
 								ownerServer.process_macro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
 							};
 							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+							begin_open_input(clickedNumber->get_id());
 							inputNumberKeypad->grabKeyboardFocus();
 							ownerServer.send_select_input_object_message(clickedNumber->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (parentWorkingSet)
@@ -645,7 +731,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						auto clickedString = std::static_pointer_cast<isobus::InputString>(clickedObject);
 						std::shared_ptr<isobus::StringVariable> stringVariable;
 
-						if (clickedString->get_enabled())
+						if (!inputDialogPending && clickedString->get_enabled())
 						{
 							bool hasStringVariable = false;
 
@@ -665,13 +751,21 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 							inputStringModal.reset(new AlertWindow("Input String", "Enter a value for this input string, then press OK.", MessageBoxIconType::QuestionIcon));
 							inputStringModal->addTextEditor("Input String", hasStringVariable ? stringVariable->get_value() : clickedString->get_value());
-							inputStringModal->addButton("OK", 0);
-							inputStringModal->addButton("Cancel", 1); // TODO catch ESC as cancel
+							inputStringModal->addButton("OK", 1);
+							inputStringModal->addButton("Cancel", 0);
 							auto resultCallback = [this, clickedString, stringVariable, workingSet = parentWorkingSet](int result) {
-								this->inputStringModal->exitModalState();
-								ownerServer.send_select_input_object_message(clickedString->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
+								const bool closedByVT = !end_open_input();
 
-								if (0 == result) //OK
+								if (!closedByVT)
+								{
+									ownerServer.send_select_input_object_message(clickedString->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
+									if (0 == result)
+									{
+										ownerServer.send_esc_message(clickedString->get_id(), 0, ownerServer.get_client_control_function_for_working_set(workingSet));
+									}
+								}
+
+								if ((1 == result) && !closedByVT)
 								{
 									String newContent = this->inputStringModal->getTextEditor("Input String")->getText();
 									ownerServer.process_macro(clickedString, isobus::EventID::OnEntryOfAValue, isobus::VirtualTerminalObjectType::InputString, workingSet);
@@ -704,8 +798,8 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									}
 									needToRepaintActiveArea = true;
 								}
-								inputStringModal->exitModalState();
 								inputStringModal.reset();
+								repaint();
 
 								// Make sure no text caret survives the dialog, otherwise Windows
 								// keeps re-invoking the touch keyboard on every later tap
@@ -714,6 +808,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								ownerServer.process_macro(clickedString, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputString, workingSet);
 							};
 							inputStringModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+							begin_open_input(clickedString->get_id());
 							ownerServer.send_select_input_object_message(clickedString->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (parentWorkingSet)
 							{
