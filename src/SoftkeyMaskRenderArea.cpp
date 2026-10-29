@@ -273,9 +273,19 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 	}
 }
 
+void SoftKeyMaskRenderAreaComponent::mouseDrag(const MouseEvent &event)
+{
+	if ((!pressedKeyBounds.isEmpty()) && (!pressedKeyBounds.contains(event.getEventRelativeTo(this).getPosition())))
+	{
+		pressedKeyBounds = {};
+		repaint();
+		ownerServer.release_held_buttons(true);
+	}
+}
+
 void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 {
-	if (nullptr != parentWorkingSet)
+	if ((!pressedKeyBounds.isEmpty()) && (nullptr != parentWorkingSet))
 	{
 		// Do a top down search to see if they clicked on some interactable object
 		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
@@ -305,7 +315,7 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 			}
 
 			auto relativeEvent = event.getEventRelativeTo(this);
-			auto clickedObject = getClickedChildRecursive(softkeyMask, relativeEvent.getPosition().x, relativeEvent.getPosition().y);
+			auto clickedObject = getClickedChildRecursive(softkeyMask, relativeEvent.getMouseDownX(), relativeEvent.getMouseDownY());
 
 			ownerServer.process_macro(clickedObject, isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Key, parentWorkingSet);
 

@@ -1338,20 +1338,22 @@ void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTer
 	}
 }
 
-void ServerMainComponent::release_held_buttons()
+void ServerMainComponent::release_held_buttons(bool aborted)
 {
+	const auto activationCode = (aborted && (versionToReport >= VTVersion::Version4)) ? KeyActivationCode::ButtonPressAborted : KeyActivationCode::ButtonUnlatchedOrReleased;
+
 	for (const auto &button : heldButtons)
 	{
-		send_held_button_release(button);
+		send_held_button_activation(button, activationCode);
 	}
 	heldButtons.clear();
 }
 
-void ServerMainComponent::send_held_button_release(const HeldButtonData &button)
+void ServerMainComponent::send_held_button_activation(const HeldButtonData &button, KeyActivationCode activationCode)
 {
 	if (button.isSoftKey)
 	{
-		send_soft_key_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+		send_soft_key_activation_message(activationCode,
 		                                 button.buttonObjectID,
 		                                 button.activeMaskObjectID,
 		                                 button.buttonKeyCode,
@@ -1359,7 +1361,7 @@ void ServerMainComponent::send_held_button_release(const HeldButtonData &button)
 	}
 	else
 	{
-		send_button_activation_message(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
+		send_button_activation_message(activationCode,
 		                               button.buttonObjectID,
 		                               button.activeMaskObjectID,
 		                               button.buttonKeyCode,
@@ -1766,7 +1768,7 @@ void ServerMainComponent::stop_presenting_working_set(std::shared_ptr<isobus::Vi
 	rejectedWorkingSets.erase(workingSet);
 	workingSet->clear_callback_handles();
 	auto removedButtons = std::stable_partition(heldButtons.begin(), heldButtons.end(), [&workingSet](const HeldButtonData &button) { return workingSet != button.associatedWorkingSet; });
-	std::for_each(removedButtons, heldButtons.end(), [this](const HeldButtonData &button) { send_held_button_release(button); });
+	std::for_each(removedButtons, heldButtons.end(), [this](const HeldButtonData &button) { send_held_button_activation(button, KeyActivationCode::ButtonUnlatchedOrReleased); });
 	heldButtons.erase(removedButtons, heldButtons.end());
 	dataMaskRenderer.on_working_set_disconnect(workingSet);
 	softKeyMaskRenderer.on_working_set_disconnect(workingSet);

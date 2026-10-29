@@ -296,6 +296,29 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 	}
 }
 
+void DataMaskRenderAreaComponent::mouseDrag(const MouseEvent &event)
+{
+	if ((isobus::NULL_OBJECT_ID != pressedButtonID) && (nullptr != parentWorkingSet))
+	{
+		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
+
+		if (nullptr != workingSetObject)
+		{
+			auto relativeEvent = event.getEventRelativeTo(this);
+			auto objectUnderPointer = getClickedChildRecursive(parentWorkingSet->get_object_by_id(workingSetObject->get_active_mask()),
+			                                                   to_pool_coordinate(relativeEvent.position.x),
+			                                                   to_pool_coordinate(relativeEvent.position.y));
+
+			if ((nullptr == objectUnderPointer) || (pressedButtonID != objectUnderPointer->get_id()))
+			{
+				show_button_pressed(*this, pressedButtonID, false);
+				pressedButtonID = isobus::NULL_OBJECT_ID;
+				ownerServer.release_held_buttons(true);
+			}
+		}
+	}
+}
+
 // Used to calculate button release events
 void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 {
