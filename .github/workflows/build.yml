@@ -6,6 +6,7 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_call:
 
 jobs:
   windows_build:
@@ -33,6 +34,7 @@ jobs:
         with:
           name: 'Windows Installer'
           path: build/_CPack_Packages/win64/NSIS/*.exe
+          if-no-files-found: error
   mac_build:
     name: MacOS Build
     runs-on: macos-latest
@@ -53,7 +55,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: 'OSX dmg package'
-          path: build/_CPack_Packages/OSX/DragNDrop/*.dmg
+          path: build/*.dmg
+          if-no-files-found: error
   ubuntu_22_04_build:
     name: Ubuntu 22.04 Build
     runs-on: ubuntu-22.04
@@ -79,6 +82,7 @@ jobs:
         with:
           name: 'Ubuntu 22.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
+          if-no-files-found: error
   ubuntu_24_04_build:
     name: Ubuntu 24.04 Build
     runs-on: ubuntu-24.04
@@ -104,10 +108,17 @@ jobs:
         with:
           name: 'Ubuntu 24.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
+          if-no-files-found: error
   ubuntu_26_04_build:
     name: Ubuntu 26.04 Build
     runs-on: ubuntu-26.04
+    # The ubuntu-26.04 runner is an amd64v3 install, so its toolchain marks every binary as needing x86-64-v3
+    container: ubuntu:26.04
     steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential ca-certificates libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev git cmake
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -117,15 +128,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Compile
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           mkdir build
-          sudo apt update
-          sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev git cmake
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
           cmake --build build --config Release
           cd build
           cpack -G DEB
+      - name: Check the binary runs on baseline x86-64
+        run: |
+          readelf -n build/_CPack_Packages/Linux/DEB/*/usr/bin/AgISOVirtualTerminal | tee notes.txt
+          ! grep -E "x86 ISA needed:.*x86-64-v[234]" notes.txt
       - name: 'Upload Ubuntu 26.04 deb package'
         uses: actions/upload-artifact@v7
         with:
           name: 'Ubuntu 26.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
+          if-no-files-found: error
