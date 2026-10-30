@@ -46,6 +46,7 @@ With `--all`, the exit code is the worst over all pools.
 | `am_<id>.png` | Each alarm mask, `data_mask_size` square |
 | `skm_<id>.png` | Each soft key mask, in the configured soft key layout |
 | `screen_<id>.png` | Each data mask with the soft key area of the VT to its right, holding the soft key mask the data mask references |
+| `aux_<id>.png` | Each Auxiliary Function Type 2 and Auxiliary Input Type 2, drawn by the VT's soft key component in the soft key size, as an assignment screen would show it |
 | `manifest.json` | See below |
 
 ### Render settings
@@ -72,12 +73,15 @@ render_settings      platform, renderer, JUCE version, sizes and soft key layout
                      values that came from meta.yaml), the bundled fonts with their sha256
 load                 { ok, error }; error carries the parser's message and the faulting object id
 images[]             file, object_id, object_type, width, height, sha256; screens also have
-                     soft_key_mask_id (null if none), designators have active
+                     soft_key_mask_id (null if none), designators have active; auxiliary functions
+                     and inputs have function_type, critical_control and single_assignment, and
+                     functions also assignment_restriction
 unsupported_objects[] object_id, object_type, status, reason
                      unsupported: a drawable object type the VT does not draw (window mask, key group,
                                   output list, arched bar graph, graphics context, animation, ...)
-                     ignored:     an object no image shows (auxiliary functions and inputs, external
-                                  object definitions), or a key beyond the soft key positions
+                     ignored:     an object no image shows (type 1 auxiliary functions and inputs,
+                                  auxiliary control designators, external object definitions), or a
+                                  key beyond the soft key positions
 errors[]             file, object_id, object_type, error for each image that could not be produced
 ```
 

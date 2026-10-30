@@ -18,6 +18,7 @@
 
 #include "DesignatorFit.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "KeyComponent.hpp"
 #include "PictureGraphicComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "TextDrawingComponent.hpp"
@@ -159,6 +160,46 @@ namespace
 		return (name == "Unknown") ? ("Unknown(" + String(static_cast<int>(type)) + ")") : name;
 	}
 
+	String get_auxiliary_function_type_label(isobus::AuxiliaryFunctionType2::FunctionType type)
+	{
+		using FunctionType = isobus::AuxiliaryFunctionType2::FunctionType;
+		switch (type)
+		{
+			case FunctionType::BooleanLatchingOnOff:
+				return "BooleanLatchingOnOff";
+			case FunctionType::Analouge:
+				return "Analogue";
+			case FunctionType::BooleanNonLatchingIncreaseValue:
+				return "BooleanNonLatchingIncreaseValue";
+			case FunctionType::AnalougeReturnTo50Percent:
+				return "AnalogueReturnTo50Percent";
+			case FunctionType::AnalougeReturnTo0PercentIncreaseValue:
+				return "AnalogueReturnTo0PercentIncreaseValue";
+			case FunctionType::DualBooleanBothLatching:
+				return "DualBooleanBothLatching";
+			case FunctionType::DualBooleanBothNonLatching:
+				return "DualBooleanBothNonLatching";
+			case FunctionType::DualBooleanLatchingUp:
+				return "DualBooleanLatchingUp";
+			case FunctionType::DualBooleanLatchingDown:
+				return "DualBooleanLatchingDown";
+			case FunctionType::CombinedAnalougeReturnTo50PercentWithDualBooleanLatching:
+				return "CombinedAnalogueReturnTo50PercentWithDualBooleanLatching";
+			case FunctionType::CombinedAnalougeMaintainsPositionWithDualBooleanLatching:
+				return "CombinedAnalogueMaintainsPositionWithDualBooleanLatching";
+			case FunctionType::QuadratureBooleanNonLatching:
+				return "QuadratureBooleanNonLatching";
+			case FunctionType::QuadratureAnalouge:
+				return "QuadratureAnalogue";
+			case FunctionType::QuadratureAnalougeReturnTo50Percent:
+				return "QuadratureAnalogueReturnTo50Percent";
+			case FunctionType::BidirectionalEncoder:
+				return "BidirectionalEncoder";
+			default:
+				return "Reserved(" + String(static_cast<int>(type)) + ")";
+		}
+	}
+
 	/// What an object type is to the renders: something the VT draws, something drawn objects only refer to
 	/// (fonts, variables, macros, ...), or something no mask shows.
 	enum class ObjectRole
@@ -177,8 +218,6 @@ namespace
 			case Type::ExternalReferenceNAME:
 			case Type::AuxiliaryFunctionType1:
 			case Type::AuxiliaryInputType1:
-			case Type::AuxiliaryFunctionType2:
-			case Type::AuxiliaryInputType2:
 			case Type::AuxiliaryControlDesignatorType2:
 				return ObjectRole::Ignored;
 
@@ -516,7 +555,7 @@ namespace
 	/// Removes what an earlier run left, so that a mask that no longer exists does not leave its image behind
 	void remove_previous_output(const File &directory)
 	{
-		const StringArray prefixes = { "ws_designator", "dm_", "am_", "skm_", "screen_" };
+		const StringArray prefixes = { "ws_designator", "dm_", "am_", "skm_", "screen_", "aux_" };
 		for (const auto &file : directory.findChildFiles(File::findFiles, false, "*.png;manifest.json"))
 		{
 			const auto name = file.getFileName();
@@ -672,6 +711,13 @@ namespace
 					}
 					break;
 
+					case isobus::VirtualTerminalObjectType::AuxiliaryFunctionType2:
+					case isobus::VirtualTerminalObjectType::AuxiliaryInputType2:
+					{
+						render_auxiliary_designator(workingSet, object);
+					}
+					break;
+
 					default:
 					{
 						// Whether the VT can draw an object is whatever its component factory says, so this list
@@ -821,6 +867,51 @@ namespace
 			if (nullptr != record)
 			{
 				record->setProperty("active", active);
+			}
+		}
+
+		/// An auxiliary function or input as an assignment screen would show it. Its designator is laid out
+		/// like a key, a background colour with child objects at their positions, so the VT's key draws it
+		void render_auxiliary_designator(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet,
+		                                 const std::shared_ptr<isobus::VTObject> &auxiliaryObject)
+		{
+			const auto fileName = "aux_" + String(auxiliaryObject->get_id()) + ".png";
+
+			isobus::Key key;
+			key.set_id(auxiliaryObject->get_id());
+			key.set_background_color(auxiliaryObject->get_background_color());
+			for (std::uint16_t i = 0; i < auxiliaryObject->get_number_children(); i++)
+			{
+				key.add_child(auxiliaryObject->get_child_id(i), auxiliaryObject->get_child_x(i), auxiliaryObject->get_child_y(i));
+			}
+
+			KeyComponent component(workingSet, key, settings.softKeyWidth, settings.softKeyHeight);
+			const auto image = paint_image(component.getWidth(), component.getHeight(), [&](Graphics &g) {
+				component.paintEntireComponent(g, true);
+			});
+
+			auto record = add_image(fileName, auxiliaryObject, image);
+			if (nullptr == record)
+			{
+				return;
+			}
+
+			if (isobus::VirtualTerminalObjectType::AuxiliaryFunctionType2 == auxiliaryObject->get_object_type())
+			{
+				using Function = isobus::AuxiliaryFunctionType2;
+				const auto function = std::static_pointer_cast<Function>(auxiliaryObject);
+				record->setProperty("function_type", get_auxiliary_function_type_label(function->get_function_type()));
+				record->setProperty("critical_control", function->get_function_attribute(Function::CriticalControl));
+				record->setProperty("assignment_restriction", function->get_function_attribute(Function::AssignmentRestriction));
+				record->setProperty("single_assignment", function->get_function_attribute(Function::SingleAssignment));
+			}
+			else
+			{
+				using Input = isobus::AuxiliaryInputType2;
+				const auto input = std::static_pointer_cast<Input>(auxiliaryObject);
+				record->setProperty("function_type", get_auxiliary_function_type_label(input->get_function_type()));
+				record->setProperty("critical_control", input->get_function_attribute(Input::CriticalControl));
+				record->setProperty("single_assignment", input->get_function_attribute(Input::SingleAssignment));
 			}
 		}
 

@@ -25,6 +25,7 @@ const SECTIONS = [
   { title: 'Alarm masks', prefix: 'am_' },
   { title: 'Soft key masks', prefix: 'skm_' },
   { title: 'Working set designator', prefix: 'ws_designator' },
+  { title: 'Auxiliary functions', prefix: 'aux_', note: 'Each auxiliary function and input, as an assignment screen shows it.' },
 ];
 
 function readJson(file) {
