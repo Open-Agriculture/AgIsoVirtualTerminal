@@ -282,7 +282,10 @@ private:
 	/// not inside its window yet at that point.
 	void apply_always_on_top();
 
+	bool can_show_alarm(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const;
+	void record_alarm_activation(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, std::uint16_t mask);
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> get_highest_priority_alarm_working_set() const;
+	void show_highest_priority_alarm();
 	void clear_active_working_set();
 	void update_alarm_sound();
 	void repaint_data_and_soft_key_mask();
@@ -346,7 +349,7 @@ private:
 	std::set<std::string> loadedNames;
 	std::set<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> rejectedWorkingSets; ///< Their last object pool was rejected, so they are never selected automatically
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
-	std::map<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>, std::uint32_t> alarmActivationOrder; ///< Breaks ties between alarms of equal priority
+	std::map<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>, std::pair<std::uint16_t, std::uint32_t>> alarmActivationOrder; ///< Active alarm mask and activation number per working set, for priority ties
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> lastDataMaskWorkingSet;
 	std::shared_ptr<isobus::VTObject> soundedAlarmMask;
 	std::uint32_t nextAlarmActivation = 0;
