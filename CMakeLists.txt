@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   "AgISOVirtualTerminal"
   LANGUAGES CXX C
-  VERSION 1.5.1)
+  VERSION 1.6.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
@@ -58,7 +58,7 @@ juce_add_gui_app(
   PRODUCT_NAME
   "AgISOVirtualTerminal"
   NEEDS_CURL
-  FALSE
+  TRUE
   NEEDS_WEB_BROWSER
   FALSE
   DESCRIPTION
@@ -66,7 +66,7 @@ juce_add_gui_app(
 
 set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 17)
 
-target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=0
+target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
                                                         JUCE_WEB_BROWSER=0)
 
 juce_generate_juce_header(AgISOVirtualTerminal)
@@ -91,6 +91,7 @@ target_sources(
           "src/OutputNumberComponent.cpp"
           "src/SoftkeyMaskRenderArea.cpp"
           "src/KeyComponent.cpp"
+          "src/DesignatorFit.cpp"
           "src/SoftKeyMaskComponent.cpp"
           "src/OutputMeterComponent.cpp"
           "src/InputBooleanComponent.cpp"
@@ -103,6 +104,7 @@ target_sources(
           "src/InputStringComponent.cpp"
           "src/NumberComponent.cpp"
           "src/AlarmMaskAudio.cpp"
+          "src/NumericKeypadComponent.cpp"
           "src/AppImages.cpp"
           "src/ASCIILogFile.cpp"
           "src/ConfigureHardwareWindow.cpp"
@@ -111,6 +113,8 @@ target_sources(
           "src/InputListComponent.cpp"
           "src/AckSettingsWindow.cpp"
           "src/Settings.cpp"
+          "src/UpdateChecker.cpp"
+          "src/IndentedToggleButton.cpp"
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
           "src/StringDrawingComponent.cpp")
@@ -208,10 +212,10 @@ endif()
 set(CPACK_PACKAGE_NAME "AgISOVirtualTerminal")
 set(CPACK_PACKAGE_VENDOR "Open-Agriculture")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "An ISO11783-6 Server")
-set(CPACK_PACKAGE_VERSION "1.5.1")
-set(CPACK_PACKAGE_VERSION_MAJOR "1")
-set(CPACK_PACKAGE_VERSION_MINOR "5")
-set(CPACK_PACKAGE_VERSION_PATCH "1")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "AgISOVirtualTerminal")
 set(CPACK_COMPONENTS_ALL applications)
 set(CPACK_COMPONENT_APPLICATIONS_DISPLAY_NAME "AgISOVirtualTerminal")
@@ -223,10 +227,10 @@ set(CPACK_PACKAGE_EXECUTABLES "AgISOVirtualTerminal" "AgISOVirtualTerminal")
 set(CPACK_ALL_INSTALL_TYPES Full)
 set(CPACK_COMPONENT_LIBRARIES_INSTALL_TYPES Full)
 set(CPACK_COMPONENT_APPLICATIONS_INSTALL_TYPES Full)
-set(CPACK_NSIS_INSTALLED_ICON_NAME ${CMAKE_CURRENT_LIST_DIR}/doc/smallLogo.ico)
+set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\AgISOVirtualTerminal.exe")
 set(CPACK_NSIS_CONTACT ${CPACK_PACKAGE_CONTACT})
-set(CPACK_NSIS_MUI_ICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
-set(CPACK_NSIS_MUI_UNICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
+set(CPACK_NSIS_MUI_ICON ${CMAKE_CURRENT_LIST_DIR}/doc/smallLogo.ico)
+set(CPACK_NSIS_MUI_UNICON ${CPACK_NSIS_MUI_ICON})
 set(CPACK_NSIS_DISPLAY_NAME "AgISOVirtualTerminal")
 set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT applications)
@@ -239,7 +243,7 @@ if(APPLE)
   set(CPACK_DMG_VOLUME_NAME "${PROJECT_NAME}")
   set(CPACK_SYSTEM_NAME "OSX")
   set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}")
-  set(CPACK_PACKAGE_ICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
+  set(CPACK_PACKAGE_ICON ${CPACK_NSIS_MUI_ICON})
 endif()
 
 # Must be after the last CPACK macros

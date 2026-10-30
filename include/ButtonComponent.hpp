@@ -28,9 +28,12 @@ public:
 
 	void set_options(std::uint8_t value) override;
 
+	void set_pressed(bool isPressed);
+
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
+	bool pressed = false;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ButtonComponent)
 };
