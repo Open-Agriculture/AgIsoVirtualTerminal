@@ -23,6 +23,7 @@
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
 #include <filesystem>
+#include <map>
 #include <set>
 
 class ServerMainComponent : public juce::Component
@@ -281,7 +282,9 @@ private:
 	/// not inside its window yet at that point.
 	void apply_always_on_top();
 
-	void play_alarm_mask_audio(const std::shared_ptr<isobus::VTObject> &mask);
+	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> get_highest_priority_alarm_working_set() const;
+	void clear_active_working_set();
+	void update_alarm_sound();
 	void repaint_data_and_soft_key_mask();
 	bool is_active_alarm_mask() const;
 	void update_ack_button_visibility();
@@ -328,7 +331,10 @@ private:
 	VT_NumberComponent vtNumberComponent;
 	static constexpr int RESIZE_GRIP_SIZE = 44; ///< Large enough to drag with a finger
 	std::unique_ptr<juce::ResizableCornerComponent> resizeGrip; ///< Replaces the window's 18 pixel corner resizer
-	SoundPlayer mSoundPlayer;
+	AudioFormatManager alarmFormatManager;
+	std::unique_ptr<AudioFormatReaderSource> alarmSoundSource;
+	AudioTransportSource alarmTransport; ///< setSource(nullptr) stops at once, stop() waits for the audio thread
+	AudioSourcePlayer alarmPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<isobus::TimeDateInterface> timeServingInterface;
 	std::unique_ptr<isobus::DiagnosticProtocol> diagnosticProtocol;
@@ -340,7 +346,10 @@ private:
 	std::set<std::string> loadedNames;
 	std::set<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> rejectedWorkingSets; ///< Their last object pool was rejected, so they are never selected automatically
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
-	std::uint8_t displacedWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
+	std::map<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>, std::uint32_t> alarmActivationOrder; ///< Breaks ties between alarms of equal priority
+	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> lastDataMaskWorkingSet;
+	std::shared_ptr<isobus::VTObject> soundedAlarmMask;
+	std::uint32_t nextAlarmActivation = 0;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	juce::int64 lastUpdateCheck = 0;
 	juce::String skippedUpdateVersion;
