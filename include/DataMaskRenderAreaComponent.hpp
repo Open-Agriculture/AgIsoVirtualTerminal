@@ -17,6 +17,8 @@
 
 #include "JuceHeader.h"
 
+#include <mutex>
+
 class ServerMainComponent;
 
 class DataMaskRenderAreaComponent : public Component
@@ -28,10 +30,16 @@ public:
 
 	void on_working_set_disconnect(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
+	std::uint16_t abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
+
+	void close_aborted_input_dialogs();
+
 	void paint(Graphics &g) override;
 
 	// Used to calculate button press events
 	void mouseDown(const MouseEvent &event) override;
+
+	void mouseDrag(const MouseEvent &event) override;
 
 	// Used to calculate button release events
 	void mouseUp(const MouseEvent &event) override;
@@ -61,12 +69,17 @@ private:
 	int to_pool_coordinate(float renderedCoordinate) const;
 
 	void close_input_dialogs();
+	void begin_open_input(std::uint16_t objectID);
+	bool end_open_input();
 
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
 
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
+	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> openInputWorkingSet; ///< Cleared when the VT closes the dialog, so its callback sends nothing
+	std::uint16_t openInputObjectID = isobus::NULL_OBJECT_ID;
+	std::mutex openInputMutex; ///< abort_input() runs on the CAN thread
 	std::unique_ptr<AlertWindow> inputListModal;
 	std::unique_ptr<AlertWindow> inputNumberModal;
 	std::unique_ptr<AlertWindow> inputStringModal;
