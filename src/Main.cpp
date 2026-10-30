@@ -65,12 +65,11 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 			serverNAME.set_function_instance(settings.vt_number() - 1);
 			vtNumber = settings.vt_number();
 		}
-		else
-		{
-			// VT number provided from the vtNumberCmdLineArg line
-			serverNAME.set_function_instance(vtNumberCmdLineArg - 1);
-			vtNumber = vtNumberCmdLineArg;
-		}
+	}
+
+	if (0 != vtNumberCmdLineArg)
+	{
+		serverNAME.set_function_instance(vtNumberCmdLineArg - 1);
 	}
 
 	serverNAME.set_arbitrary_address_capable(true);
@@ -84,7 +83,8 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 #if JUCE_IOS || JUCE_ANDROID
 	setFullScreen(true);
 #else
-	setResizable(true, true);
+	// ServerMainComponent adds a larger corner grip for touch screens
+	setResizable(true, false);
 	centreWithSize(getWidth(), getHeight());
 #endif
 

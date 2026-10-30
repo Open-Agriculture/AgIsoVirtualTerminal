@@ -6,7 +6,9 @@
 ///
 /// @copyright 2025 The Open-Agriculture Developers
 //================================================================================================
-#pragma once
+
+#ifndef WORKING_SET_LOADING_INDICATOR_COMPONENT_HPP
+#define WORKING_SET_LOADING_INDICATOR_COMPONENT_HPP
 
 #include "isobus/isobus/isobus_virtual_terminal_objects.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server_managed_working_set.hpp"
@@ -28,3 +30,5 @@ private:
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetLoadingIndicatorComponent)
 };
+
+#endif // WORKING_SET_LOADING_INDICATOR_COMPONENT_HPP
