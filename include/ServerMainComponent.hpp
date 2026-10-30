@@ -92,22 +92,34 @@ public:
 	/// @returns True if the version was deleted from VT non-volatile storage, otherwise false.
 	bool delete_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME) override;
 
-	/// @brief This function is called when the client wants the server to delete ALL stored object pools associated to it's NAME.
-	/// All object pool files matching the specified client NAME should then be deleted from the VT's
-	/// non-volatile storage.
+	/// @brief Returns the 32 byte version labels stored for a client
+	std::vector<std::array<std::uint8_t, 32>> get_extended_versions(isobus::NAME clientNAME) override;
+
+	/// @brief This function is called when the client wants the server to delete ALL stored object pools of one label length associated to its NAME.
+	/// @param[in] versionLabelLength 7 for the Delete Version command, 32 for the Extended Delete Version command
 	/// @param[in] clientNAME The NAME of the client that is requesting deletion
 	/// @returns True if all relevant object pools were deleted from VT non-volatile storage, otherwise false.
-	bool delete_all_versions(isobus::NAME clientNAME) override;
+	bool delete_all_versions(std::uint8_t versionLabelLength, isobus::NAME clientNAME) override;
 
-	/// @brief This function is called when the client wants the server to deactivate its object pool.
-	/// You should treat this as a disconnection by the client, as it may be moving to another VT.
-	/// @attention This does not mean to delete the pool from non-volatile memory!!! This only deactivates the active pool.
-	/// @details This command is used to delete the entire object pool of this Working Set from volatile storage.
-	/// This command can be used by an implement when it wants to move its object pool to another VT,
-	/// or when it is shutting down or during the development of object pools.
+	/// @brief Nothing to do, the server deletes the pool and then calls object_pool_deleted()
 	/// @param[in] clientNAME The NAME of the client that is requesting deletion
-	/// @returns True if the client's active object pool was deactivated and removed from volatile storage, otherwise false.
+	/// @returns Always true
 	bool delete_object_pool(isobus::NAME clientNAME) override;
+
+	/// @brief Stops presenting a working set whose master shut down unexpectedly
+	void handle_unexpected_working_set_shutdown(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, UnexpectedShutdownReason) override;
+
+	/// @brief Draws the working set in the selector, and remembers if its object pool was rejected
+	void object_pool_parse_finished(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, bool success) override;
+
+	/// @brief Activates a working set while none is active
+	void select_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) override;
+
+	/// @brief Stops presenting a working set whose object pool the client deleted
+	void object_pool_deleted(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) override;
+
+	/// @brief Closes the input dialog the working set has open, without taking its value
+	std::uint16_t abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) override;
 
 	std::uint8_t get_user_layout_datamask_bg_color() const override;
 	std::uint8_t get_user_layout_softkeymask_bg_color() const override;
@@ -116,6 +128,7 @@ public:
 
 	void paint(juce::Graphics &g) override;
 	void resized() override;
+	void parentHierarchyChanged() override;
 
 	ApplicationCommandTarget *getNextCommandTarget() override;
 	void getAllCommands(juce::Array<juce::CommandID> &allCommands) override;
@@ -133,7 +146,7 @@ public:
 
 	void set_button_held(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
-	void release_held_buttons();
+	void release_held_buttons(bool aborted = false);
 
 	void repaint_on_next_update();
 
@@ -144,11 +157,42 @@ public:
 	void screen_capture(std::uint8_t item, std::uint8_t path, std::shared_ptr<isobus::ControlFunction> requestor) override;
 
 	static std::string getAppDataDir();
+
+	/// @brief Gives up the keyboard focus and destroys the text caret which goes with it.
+	/// @details Windows shows its touch keyboard whenever the thread owns a caret. JUCE creates
+	/// one when a text field takes the focus, and destroys it when the focus goes away, but that
+	/// clean up is deferred to an asynchronous callback and only runs while the field's window
+	/// still has a peer. A dialog which is closed and destroyed before that callback runs
+	/// therefore leaves the caret behind, and a caret belongs to the thread rather than to a
+	/// window, so the touch keyboard then appears on any tap anywhere in the program until it is
+	/// restarted. Call this whenever a dialog holding a text field goes away.
+	static void release_text_input_focus();
 	/**
    * @brief minimum_height
-   * @return the height of the softkey- or the datamask size, whichever is bigger
+   * @return the on-screen height of the mask render areas, at the current display scale
    */
 	int minimum_height() const;
+
+	static constexpr double MINIMUM_DISPLAY_SCALE = 0.25; ///< Lower bound when fitting to the window
+	static constexpr double MAXIMUM_DISPLAY_SCALE = 6.0; ///< Upper bound when fitting to the window
+
+	/// @brief Returns how much the masks are magnified to fit the window, or 1 when that is turned off. Clients still get the reported size.
+	/// @returns The display scale, where 1.0 is the reported size
+	double display_scale() const;
+
+	/// @brief Returns if object pools drawn for another data mask size should be scaled to the reported size
+	/// @returns true when the pools should be scaled, false to draw them exactly as the working set sent them
+	bool get_scale_pools_to_data_mask() const;
+
+	static constexpr double MINIMUM_WORKING_SET_SELECTOR_SCALE = 0.75; ///< Floor for the picker column's own scale
+
+	/// @brief Returns display_scale(), floored so the working-set picker stays usable on a touch screen
+	/// @returns The working-set picker's display scale
+	double working_set_selector_scale() const;
+
+	/// @brief Stops the window from being made smaller than the masks need: their reported size, or the smallest
+	/// scale when they are fitted to the window
+	void apply_window_size_limits();
 
 private:
 	enum class CommandIDs : int
@@ -168,7 +212,9 @@ private:
 		AutoStart,
 		CheckForUpdates,
 		AutoCheckForUpdates,
-		AlwaysOnTop
+		AlwaysOnTop,
+		FitMasksToWindow,
+		ScalePoolsToDataMask
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -199,10 +245,25 @@ private:
 
 	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
 
+	/// @brief The client's stored object pool directory, which may not exist yet
+	std::string get_client_iso_data_path(isobus::NAME clientNAME) const;
+
 	bool timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDateToPopulate);
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
+
+	/// @brief Called from the CAN thread when a client changes a soft key mask, hands the change to the message thread
+	/// @param[in] affectedWorkingSet The working set whose mask was changed
+	/// @param[in] mask The data or alarm mask that was given a new soft key mask
+	/// @param[in] newSoftKeyMask The new soft key mask
+	void on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask);
+
+	/// @brief Redraws the soft keys when the changed mask is the one on screen. Runs on the message thread.
+	/// @param[in] affectedWorkingSet The working set whose mask was changed
+	/// @param[in] mask The data or alarm mask that was given a new soft key mask
+	/// @param[in] newSoftKeyMask The new soft key mask
+	void change_active_softkey_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask);
 
 	/// @brief Restores the window position, size and maximised state which were saved the last
 	/// time the program ran.
@@ -244,7 +305,9 @@ private:
 	/// @brief Starts the CAN interface, and stops it again with an alert if a channel could not be opened
 	void start_can_interface();
 
-	void remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove);
+	/// @brief Removes a working set from the renderers and the selector, and selects another one if none is active
+	void stop_presenting_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
+	void send_held_button_activation(const HeldButtonData &button, KeyActivationCode activationCode);
 	void clear_iso_data();
 
 	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
@@ -262,6 +325,8 @@ private:
 	LoggerComponent logger;
 	Viewport loggerViewport;
 	VT_NumberComponent vtNumberComponent;
+	static constexpr int RESIZE_GRIP_SIZE = 44; ///< Large enough to drag with a finger
+	std::unique_ptr<juce::ResizableCornerComponent> resizeGrip; ///< Replaces the window's 18 pixel corner resizer
 	SoundPlayer mSoundPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<isobus::TimeDateInterface> timeServingInterface;
@@ -272,7 +337,7 @@ private:
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;
-	std::set<const isobus::VirtualTerminalServerManagedWorkingSet *> loadVersionResponsesSent;
+	std::set<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> rejectedWorkingSets; ///< Their last object pool was rejected, so they are never selected automatically
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	juce::int64 lastUpdateCheck = 0;
@@ -290,6 +355,8 @@ private:
 	bool saveIopBeforeParse = false;
 	bool checkForUpdatesOnStartup = true;
 	bool alwaysOnTop = false;
+	bool fitMasksToWindow = false; ///< Scale the masks to fill the window instead of drawing them at their reported size
+	bool scalePoolsToDataMask = false; ///< Scale pools drawn for another data mask size to the reported one
 	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting
 	juce::String savedWindowState; ///< The window geometry loaded from the settings file
 	bool needToApplyWindowState = true; ///< Set until the saved geometry has been given to the window

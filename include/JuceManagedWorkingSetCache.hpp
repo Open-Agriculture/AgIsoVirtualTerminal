@@ -21,6 +21,7 @@ public:
 	static void set_softkey_mask_dimension_info(const SoftKeyMaskDimensions &info);
 
 	static void set_data_mask_size(int size);
+	static const SoftKeyMaskDimensions &get_softkey_mask_dimension_info();
 
 private:
 	class ComponentCacheClass

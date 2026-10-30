@@ -7,6 +7,13 @@
 
 #include <cmath>
 
+// ISO angles are anticlockwise from the positive X axis, but screen Y grows downwards
+static Point<float> point_on_circle(float centre, float radius, float angleDegrees)
+{
+	const float angle = degreesToRadians(angleDegrees);
+	return { centre + radius * std::cos(angle), centre - radius * std::sin(angle) };
+}
+
 OutputMeterComponent::OutputMeterComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputMeter sourceObject) :
   isobus::OutputMeter(sourceObject),
   parentWorkingSet(workingSet)
@@ -17,34 +24,49 @@ OutputMeterComponent::OutputMeterComponent(std::shared_ptr<isobus::VirtualTermin
 
 void OutputMeterComponent::paint(Graphics &g)
 {
+	const float centre = static_cast<float>(get_width()) / 2.0f;
+	const float radius = centre - 0.5f;
+	const bool clockwise = get_option(Options::DeflectionDirection);
+	const float startAngle = get_start_angle() * 2.0f;
+
+	// Equal angles, 0 and 360 included, mean a full circle.
+	// A clockwise needle starts at the end angle, which is how real pools draw a 0-180 clockwise gauge over the top.
+	int sweep = ((get_end_angle() - get_start_angle()) * 2) % 360;
+	if (sweep <= 0)
+	{
+		sweep += 360;
+	}
+	const float minAngle = clockwise ? startAngle + sweep : startAngle;
+	const float signedSweep = static_cast<float>(clockwise ? -sweep : sweep);
+
 	if (get_option(Options::DrawBorder))
 	{
 		auto vtColour = parentWorkingSet->get_colour(get_border_colour());
 		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 		g.drawRect(0, 0, static_cast<int>(get_width()), static_cast<int>(get_height()), 1);
 	}
+
+	auto arcColour = parentWorkingSet->get_colour(get_arc_and_tick_colour());
+	g.setColour(Colour::fromFloatRGBA(arcColour.r, arcColour.g, arcColour.b, 1.0f));
+
 	if (get_option(Options::DrawArc))
 	{
+		// JUCE arc angles are clockwise from 12 o'clock
 		Path p;
-		PathStrokeType pathStroke(1.0f, PathStrokeType::JointStyle::curved);
+		p.addCentredArc(centre, centre, radius, radius, 0.0f, degreesToRadians(90.0f - minAngle), degreesToRadians(90.0f - (minAngle + signedSweep)), true);
+		g.strokePath(p, PathStrokeType(1.0f));
+	}
 
-		float startVtAngle = get_start_angle() * 2.0f * 0.0174533f;
-		float endVtAngle = get_end_angle() * 2.0f * 0.0174533f;
-		float ellipseRotation = 3.14159f / 2.0f;
+	if ((get_option(Options::DrawTicks)) && (get_number_of_ticks() > 0))
+	{
+		const float tickLength = std::max(1.0f, get_width() / 10.0f);
 
-		if (endVtAngle < startVtAngle)
+		for (std::uint8_t i = 0; i < get_number_of_ticks(); i++)
 		{
-			endVtAngle += (2.0f * 3.14159f);
+			const float position = (1 == get_number_of_ticks()) ? 0.5f : static_cast<float>(i) / static_cast<float>(get_number_of_ticks() - 1);
+			const float angle = minAngle + signedSweep * position;
+			g.drawLine(Line<float>(point_on_circle(centre, radius, angle), point_on_circle(centre, radius - tickLength, angle)), 1.0f);
 		}
-
-		if (startVtAngle < endVtAngle)
-		{
-			ellipseRotation = -ellipseRotation;
-		}
-
-		p.addCentredArc(static_cast<float>(get_width()) / 2.0f, static_cast<float>(get_height()) / 2.0f, static_cast<float>(get_width()) / 2.0f, static_cast<float>(get_height()) / 2.0f, ellipseRotation, startVtAngle, endVtAngle, true);
-		g.setColour(Colours::black);
-		g.strokePath(p, pathStroke);
 	}
 
 	std::uint32_t needleValue = get_value();
@@ -57,56 +79,14 @@ void OutputMeterComponent::paint(Graphics &g)
 			needleValue = std::static_pointer_cast<isobus::NumberVariable>(varNum)->get_value();
 		}
 	}
+
+	float position = 0.0f;
+	if (get_max_value() > get_min_value())
+	{
+		position = jlimit(0.0f, 1.0f, (static_cast<float>(needleValue) - get_min_value()) / static_cast<float>(get_max_value() - get_min_value()));
+	}
+
 	auto vtColour = parentWorkingSet->get_colour(get_needle_colour());
-	Path needlePath;
-	float endVtAngleDeg = get_end_angle() * 2.0f;
-	float startVtAngleDeg = get_start_angle() * 2.0f;
-
-	if (endVtAngleDeg < startVtAngleDeg)
-	{
-		endVtAngleDeg += (360);
-	}
-
-	float theta = (static_cast<float>(needleValue) / get_max_value()) * (startVtAngleDeg - endVtAngleDeg);
-	float needleEndAngle = 0.0f;
-
-	if (true == get_option(Options::DeflectionDirection))
-	{
-		// clockwise
-		needleEndAngle = (endVtAngleDeg + theta);
-	}
-	else
-	{
-		// counter clockwise
-		needleEndAngle = (endVtAngleDeg - theta);
-	}
-
-	float xOffset = (get_width() / 2.0f) * std::cos(needleEndAngle * 3.14159265f / 180.0f);
-	float yOffset = -(get_width() / 2.0f) * std::sin(needleEndAngle * 3.14159265f / 180.0f);
-
 	g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
-	g.drawLine((get_width() / 2.0f) + xOffset, (get_width() / 2.0f) + yOffset, get_width() / 2.0f, get_height() / 2.0f, 3.0f);
-
-	g.setColour(Colours::black);
-	if ((get_option(Options::DrawTicks)) && (get_number_of_ticks() > 0))
-	{
-		//float degreesPerTick = ((get_start_angle() * 2.0f) - (get_end_angle() * 2.0f)) / static_cast<float>(get_number_of_ticks());
-
-		//for (std::uint8_t i = 0; i < get_number_of_ticks(); i++)
-		//{
-		//	if (true == get_option(Options::DeflectionDirection))
-		//	{
-		//		// clockwise
-		//		needleEndAngle = (get_end_angle() * 2.0f) + (degreesPerTick * i);
-		//	}
-		//	else
-		//	{
-		//		// counter clockwise
-		//		needleEndAngle = (get_end_angle() * 2.0f) - (degreesPerTick * i);
-		//	}
-		//	xCoord = (get_width() / 2.0f) * std::cos(needleEndAngle * 3.14159265f / 180.0f);
-		//	yCoord = (get_width() / 2.0f) * std::sin(needleEndAngle * 3.14159265f / 180.0f);
-		//	g.drawLine((get_width() / 2) + xCoord, (get_height() / 2) + yCoord, (get_width() / 2) * 0.9f + xCoord, (get_height() / 2) *0.9f + yCoord, 3.0f);
-		//}
-	}
+	g.drawLine(Line<float>({ centre, centre }, point_on_circle(centre, radius, minAngle + signedSweep * position)), 3.0f);
 }

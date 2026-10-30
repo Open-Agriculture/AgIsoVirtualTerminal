@@ -83,7 +83,8 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 #if JUCE_IOS || JUCE_ANDROID
 	setFullScreen(true);
 #else
-	setResizable(true, true);
+	// ServerMainComponent adds a larger corner grip for touch screens
+	setResizable(true, false);
 	centreWithSize(getWidth(), getHeight());
 #endif
 

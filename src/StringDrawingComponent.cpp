@@ -42,15 +42,14 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 		if (child != nullptr && isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type())
 		{
 			auto font = std::static_pointer_cast<isobus::FontAttributes>(child);
-			// Bit 6 (Flashing) has priority over bit 5 (FlashingHidden)
-			if (font->get_style(isobus::FontAttributes::FontStyleBits::FlashingHidden) && !show && !font->get_style(isobus::FontAttributes::FontStyleBits::Flashing))
+			if (font->get_style(isobus::FontAttributes::FontStyleBits::FlashingHidden) && !show)
 			{
 				return;
 			}
-			fontHeight = prepare_text_painting(g, font, 'a', drawColour, backgroundColour);
-			strikeThrough = font->get_style(isobus::FontAttributes::FontStyleBits::CrossedOut);
 			auto colour = parentWorkingSet->get_colour(font->get_colour());
 			drawColour = Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f);
+			fontHeight = prepare_text_painting(g, font, 'a', drawColour, backgroundColour);
+			strikeThrough = font->get_style(isobus::FontAttributes::FontStyleBits::CrossedOut);
 			fontType = font->get_type();
 		}
 	}

@@ -37,10 +37,17 @@ public:
 	 */
 	int key_count() const;
 
+	/**
+	 * @brief key_position
+	 * @param slot The key position, counted down each column from the right
+	 * @return The top left corner of that key position
+	 */
+	juce::Point<int> key_position(int slot) const;
+
 	int keyHeight = 60;
 	int keyWidth = 60;
 	int rowCount = 6;
-	int columnCount = 1;
+	int columnCount = 2;
 	int height = 480;
 	static constexpr std::uint8_t PADDING = 10;
 };
@@ -49,7 +56,7 @@ class SoftKeyMaskComponent : public isobus::SoftKeyMask
   , public Component
 {
 public:
-	SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject, SoftKeyMaskDimensions dimensions);
+	SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::SoftKeyMask sourceObject, SoftKeyMaskDimensions dimensions, std::uint16_t firstKeyIndex = 0);
 
 	void on_content_changed(bool initial = false);
 
@@ -59,6 +66,7 @@ private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
 	SoftKeyMaskDimensions dimensionInfo;
+	std::uint16_t firstKey;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoftKeyMaskComponent)
 };

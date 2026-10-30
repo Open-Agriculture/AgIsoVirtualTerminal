@@ -104,6 +104,7 @@ target_sources(
           "src/InputStringComponent.cpp"
           "src/NumberComponent.cpp"
           "src/AlarmMaskAudio.cpp"
+          "src/NumericKeypadComponent.cpp"
           "src/AppImages.cpp"
           "src/ASCIILogFile.cpp"
           "src/ConfigureHardwareWindow.cpp"
@@ -320,10 +321,10 @@ set(CPACK_PACKAGE_EXECUTABLES "AgISOVirtualTerminal" "AgISOVirtualTerminal")
 set(CPACK_ALL_INSTALL_TYPES Full)
 set(CPACK_COMPONENT_LIBRARIES_INSTALL_TYPES Full)
 set(CPACK_COMPONENT_APPLICATIONS_INSTALL_TYPES Full)
-set(CPACK_NSIS_INSTALLED_ICON_NAME ${CMAKE_CURRENT_LIST_DIR}/doc/smallLogo.ico)
+set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\AgISOVirtualTerminal.exe")
 set(CPACK_NSIS_CONTACT ${CPACK_PACKAGE_CONTACT})
-set(CPACK_NSIS_MUI_ICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
-set(CPACK_NSIS_MUI_UNICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
+set(CPACK_NSIS_MUI_ICON ${CMAKE_CURRENT_LIST_DIR}/doc/smallLogo.ico)
+set(CPACK_NSIS_MUI_UNICON ${CPACK_NSIS_MUI_ICON})
 set(CPACK_NSIS_DISPLAY_NAME "AgISOVirtualTerminal")
 set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT applications)
@@ -336,7 +337,7 @@ if(APPLE)
   set(CPACK_DMG_VOLUME_NAME "${PROJECT_NAME}")
   set(CPACK_SYSTEM_NAME "OSX")
   set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}")
-  set(CPACK_PACKAGE_ICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
+  set(CPACK_PACKAGE_ICON ${CPACK_NSIS_MUI_ICON})
 endif()
 
 # Must be after the last CPACK macros
