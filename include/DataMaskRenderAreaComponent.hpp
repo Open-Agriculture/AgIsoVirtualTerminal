@@ -39,6 +39,8 @@ public:
 	// Used to calculate button press events
 	void mouseDown(const MouseEvent &event) override;
 
+	void mouseDrag(const MouseEvent &event) override;
+
 	// Used to calculate button release events
 	void mouseUp(const MouseEvent &event) override;
 
