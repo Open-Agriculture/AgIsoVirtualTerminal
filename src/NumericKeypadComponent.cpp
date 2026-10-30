@@ -62,6 +62,7 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 
 	// Bottom row: sign, zero, decimal point and confirm
 	auto *signKey = add_key("+/-", [this]() {
+		edited = true;
 		entry = entry.startsWith("-") ? entry.substring(1) : ("-" + entry);
 		refresh_display();
 	});
@@ -94,6 +95,8 @@ TextButton *NumericKeypadComponent::add_key(const String &text, std::function<vo
 
 void NumericKeypadComponent::append(juce::juce_wchar character)
 {
+	edited = true;
+
 	// The displayed entry is the object's current value until the operator actually types
 	// something - the first digit or decimal point overwrites it instead of appending to it,
 	// matching what a touch typist expects instead of requiring an explicit Clear press first.
@@ -140,6 +143,7 @@ void NumericKeypadComponent::append(juce::juce_wchar character)
 
 void NumericKeypadComponent::backspace()
 {
+	edited = true;
 	if (entry.isNotEmpty())
 	{
 		entry = entry.dropLastCharacters(1);
@@ -149,6 +153,7 @@ void NumericKeypadComponent::backspace()
 
 void NumericKeypadComponent::clear()
 {
+	edited = true;
 	entry.clear();
 	refresh_display();
 }
@@ -159,6 +164,11 @@ void NumericKeypadComponent::confirm()
 	{
 		onConfirm();
 	}
+}
+
+bool NumericKeypadComponent::is_edited() const
+{
+	return edited;
 }
 
 bool NumericKeypadComponent::has_value() const

@@ -118,6 +118,9 @@ public:
 	/// @brief Stops presenting a working set whose object pool the client deleted
 	void object_pool_deleted(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) override;
 
+	/// @brief Closes the input dialog the working set has open, without taking its value
+	std::uint16_t abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) override;
+
 	std::uint8_t get_user_layout_datamask_bg_color() const override;
 	std::uint8_t get_user_layout_softkeymask_bg_color() const override;
 
