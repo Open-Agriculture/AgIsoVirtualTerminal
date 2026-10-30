@@ -4,38 +4,10 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "WorkingSetSelectorComponent.hpp"
+#include "DesignatorFit.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 #include "WorkingSetLoadingIndicatorComponent.hpp"
-#include "isobus/utility/system_timing.hpp"
-
-// Clients author designators against whatever soft key size they assume, which across real pools runs from
-// 28x26 up to 240x192, so the designator is scaled to fit the button rather than clipped to it. getUnion
-// ignores empty rectangles, so children that resolved to nothing drop out of the measurement on their own.
-static void fit_designator_to_button(juce::Component &designator, juce::Rectangle<int> button)
-{
-	auto children = designator.getChildren();
-	juce::Rectangle<int> drawnArea;
-
-	for (auto *child : children)
-	{
-		drawnArea = drawnArea.getUnion(child->getBounds());
-	}
-
-	if (drawnArea.isEmpty())
-	{
-		// nothing to measure, so leave the component at the button-sized bounds it was built with
-		return;
-	}
-
-	for (auto *child : children)
-	{
-		child->setTopLeftPosition(child->getPosition() - drawnArea.getPosition());
-	}
-	designator.setSize(drawnArea.getWidth(), drawnArea.getHeight());
-	designator.setTransform(juce::RectanglePlacement(juce::RectanglePlacement::centred)
-	                          .getTransformToFit(designator.getBounds().toFloat(), button.toFloat()));
-}
 
 WorkingSetSelectorComponent::AckButton::AckButton() :
   juce::TextButton("ACK")
@@ -69,7 +41,9 @@ WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &se
   parentServer(server)
 {
 	setOpaque(false);
-	setBounds(0, 0, WIDTH, server.minimum_height());
+
+	// The server is not fully constructed yet, so it sets the real bounds when it lays itself out
+	setSize(WIDTH, 0);
 	ackButton.onStateChange = [this]() {
 		const auto isPressed = ackButton.isDown();
 		if (ackButtonPressed != isPressed)
@@ -90,11 +64,8 @@ void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::sha
 	{
 		children.push_back({ managedWorkingSetList.at(i) });
 
-		if ((
-		      (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) ||
-		      managedWorkingSetList.at(i)->is_object_pool_transfer_in_progress()) &&
-		    (!isobus::SystemTiming::time_expired_ms(managedWorkingSetList.at(i)->get_working_set_maintenance_message_timestamp_ms(), 3000)) &&
-		    (!managedWorkingSetList.at(i)->is_deletion_requested()))
+		if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) ||
+		    managedWorkingSetList.at(i)->is_object_pool_transfer_in_progress())
 		{
 			children.back().childComponents.push_back(getWorkingSetChildComponent(managedWorkingSetList.at(i), i));
 		}
@@ -152,7 +123,7 @@ void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
 
 void WorkingSetSelectorComponent::resized()
 {
-	setBounds(0, 0, WIDTH, parentServer.minimum_height());
+	// The owner positions this column; setting bounds here used to move it over the menu bar
 	update_ack_button_bounds();
 }
 
@@ -161,8 +132,12 @@ void WorkingSetSelectorComponent::redraw()
 	int workingSetIndex = 0;
 	for (auto &workingSet : children)
 	{
-		workingSet.childComponents.clear();
-		workingSet.childComponents.push_back(getWorkingSetChildComponent(workingSet.workingSet, workingSetIndex));
+		// A working set without a pool, such as after Delete Object Pool, keeps an empty slot
+		if (!workingSet.childComponents.empty())
+		{
+			workingSet.childComponents.clear();
+			workingSet.childComponents.push_back(getWorkingSetChildComponent(workingSet.workingSet, workingSetIndex));
+		}
 		workingSetIndex++;
 	}
 	repaint();
@@ -222,7 +197,9 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	const auto bounds = button_bounds(workingSetIndex);
 
 	workingSetComponent->setTopLeftPosition(bounds.getPosition());
-	fit_designator_to_button(*workingSetComponent, bounds);
+	// Unlike a soft key, a working set designator is the only thing in its button, so artwork
+	// smaller than the button is enlarged to fill it.
+	fit_designator_to_button(*workingSetComponent, bounds, juce::RectanglePlacement::centred);
 	addAndMakeVisible(*workingSetComponent);
 	return workingSetComponent;
 }

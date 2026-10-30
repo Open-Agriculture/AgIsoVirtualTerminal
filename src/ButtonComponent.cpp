@@ -14,6 +14,11 @@ ButtonComponent::ButtonComponent(std::shared_ptr<isobus::VirtualTerminalServerMa
 	setOpaque(false);
 	setSize(get_width(), get_height());
 
+	if (true == get_option(Options::Disabled))
+	{
+		setAlpha(0.5f);
+	}
+
 	auto borderOffset = get_option(Options::NoBorder) ? 0 : 4;
 
 	for (std::uint16_t i = 0; i < this->get_number_children(); i++)
@@ -52,13 +57,26 @@ void ButtonComponent::paintOverChildren(Graphics &g)
 	if (false == get_option(Options::NoBorder) && false == get_option(Options::SuppressBorder))
 	{
 		auto vtColour = parentWorkingSet->get_colour(get_border_colour());
-		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+		auto borderColour = Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
+
+		// Buttons without a border show no pressed or latched state
+		if ((true == pressed) || ((true == get_option(Options::Latchable)) && (true == get_option(Options::CurrentButtonStateIfLatchable))))
+		{
+			borderColour = borderColour.contrasting();
+		}
+		g.setColour(borderColour);
 		g.drawRect(0, 0, get_width(), get_height(), 4);
 	}
 }
 
 void ButtonComponent::paintButton(Graphics &, bool, bool)
 {
+}
+
+void ButtonComponent::set_pressed(bool isPressed)
+{
+	pressed = isPressed;
+	repaint();
 }
 
 void ButtonComponent::set_options(std::uint8_t value)
