@@ -1737,7 +1737,7 @@ void ServerMainComponent::clear_active_working_set()
 
 void ServerMainComponent::update_alarm_sound()
 {
-	const auto displayedMask = (nullptr != activeWorkingSet) ? activeWorkingSet->get_object_by_id(activeWorkingSetDataMaskObjectID) : nullptr;
+	const auto displayedMask = ((nullptr != activeWorkingSet) && (0 == rejectedWorkingSets.count(activeWorkingSet))) ? activeWorkingSet->get_object_by_id(activeWorkingSetDataMaskObjectID) : nullptr;
 	const auto displayedAlarmMask = is_alarm_mask(displayedMask) ? displayedMask : nullptr;
 
 	if (displayedAlarmMask != soundedAlarmMask)
@@ -1842,6 +1842,7 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 			if (nullptr != workingSetToSelect)
 			{
 				select_working_set(workingSetToSelect);
+				show_highest_priority_alarm();
 			}
 			else if (affectedWorkingSet == activeWorkingSet)
 			{
@@ -1949,13 +1950,13 @@ void ServerMainComponent::object_pool_parse_finished(std::shared_ptr<isobus::Vir
 		// A new pool is a new activation, and Load Version changes the mask without a callback
 		alarmActivationOrder.erase(workingSet);
 		record_alarm_activation(workingSet, std::static_pointer_cast<isobus::WorkingSet>(workingSet->get_working_set_object())->get_active_mask());
-		show_highest_priority_alarm();
-		update_alarm_sound();
 	}
 	else
 	{
 		rejectedWorkingSets.insert(workingSet);
 	}
+	show_highest_priority_alarm();
+	update_alarm_sound();
 }
 
 void ServerMainComponent::select_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)

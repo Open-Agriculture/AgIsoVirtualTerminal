@@ -336,7 +336,7 @@ private:
 	std::unique_ptr<juce::ResizableCornerComponent> resizeGrip; ///< Replaces the window's 18 pixel corner resizer
 	AudioFormatManager alarmFormatManager;
 	std::unique_ptr<AudioFormatReaderSource> alarmSoundSource;
-	AudioTransportSource alarmTransport; ///< setSource(nullptr) stops at once, stop() waits for the audio thread
+	AudioTransportSource alarmTransport; ///< Detached with setSource(nullptr), because stop() sleeps until the audio thread has faded out
 	AudioSourcePlayer alarmPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<isobus::TimeDateInterface> timeServingInterface;
