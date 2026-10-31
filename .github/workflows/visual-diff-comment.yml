@@ -1,0 +1,46 @@
+name: Visual diff comment
+
+# Posts the visual diff report of an Object pools run as a pull request comment, editing the previous one.
+# It runs separately, from the default branch, because a pull_request run from a fork cannot comment or
+# push; the report it reads comes from the pull request and is only used as data.
+
+on:
+  workflow_run:
+    workflows: [Object pools]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Download the report
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: visual-diff-report
+          path: visual-diff
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Set up Node
+        if: steps.download.outcome == 'success'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Publish the thumbnails and the comment
+        if: steps.download.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: tools/visual-diff/publish-comment.sh visual-diff

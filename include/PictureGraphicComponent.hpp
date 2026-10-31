@@ -29,7 +29,14 @@ public:
 
 	void timerCallback() override;
 
+	/// @brief Sets whether pictures are decoded into software images instead of the platform's native
+	/// (possibly GPU backed) image type, which is the default. Only vt-render turns this on, so that its
+	/// renders do not depend on the platform's graphics stack
+	static void set_use_software_images(bool useSoftware);
+
 private:
+	static bool useSoftwareImages;
+
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	Image reconstructedImage;
 	bool visible = false;

@@ -218,6 +218,11 @@ void JuceManagedWorkingSetCache::set_softkey_mask_dimension_info(const SoftKeyMa
 	softKeyDimensionInfo = info;
 }
 
+void JuceManagedWorkingSetCache::set_data_mask_size(int size)
+{
+	dataAndAlarmMaskSize = size;
+}
+
 const SoftKeyMaskDimensions &JuceManagedWorkingSetCache::get_softkey_mask_dimension_info()
 {
 	return softKeyDimensionInfo;
