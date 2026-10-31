@@ -79,7 +79,7 @@ void SoftKeyPageBar::change_page(int delta)
 
 String SoftKeyPageBar::get_page_text() const
 {
-	return String(page + 1) + " / " + String(pages);
+	return String(page + 1) + "/" + String(pages);
 }
 
 void SoftKeyPageBar::ButtonLookAndFeel::drawButtonBackground(Graphics &g, Button &button, const Colour &backgroundColour, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
