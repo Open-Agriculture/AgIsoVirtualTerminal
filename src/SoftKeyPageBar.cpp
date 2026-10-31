@@ -1,6 +1,6 @@
 /*******************************************************************************
 ** @file       SoftKeyPageBar.cpp
-** @author     Gunics Balázs
+** @author     Sujan Dumaru, Gunics Balázs
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "SoftKeyPageBar.hpp"

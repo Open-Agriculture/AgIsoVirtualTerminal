@@ -3,7 +3,7 @@
 ///
 /// @brief Declares the bar below the soft keys that pages through a soft key mask with more keys
 /// than the VT has positions for.
-/// @author Gunics Balázs
+/// @author Sujan Dumaru, Gunics Balázs
 ///
 /// @copyright The Open-Agriculture Developers
 //================================================================================================
