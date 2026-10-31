@@ -168,3 +168,20 @@ test('the comment starts with the marker, escapes names and links thumbnails to 
   assert.ok(!body.includes('<script>'));
   assert.match(body, /visual-change-approved/);
 });
+
+test('the comment shows numbers, commits and thumbnails from the report only when they are well formed', () => {
+  const folder = scenario();
+  const { report } = run(path.join(folder, 'base'), path.join(folder, 'head'), path.join(folder, 'out'));
+  report.base.vt_commit = '[x](https://example.org)';
+  report.counts.unchanged = '[x](https://example.org)';
+  report.settings.threshold = '<b>0.1</b>';
+  report.images[0].diff_pixels = '[x](https://example.org)';
+  report.images[0].thumbnail = '../../elsewhere.png';
+  const body = buildComment(report, { assetsUrl: 'https://example.org/pr-1/' });
+
+  assert.ok(!body.includes('example.org)'), 'no link from the report');
+  assert.ok(!body.includes('<b>0.1'));
+  assert.ok(!body.includes('elsewhere.png'));
+  assert.match(body, /Base `unknown`/);
+  assert.match(body, /\| unchanged \| 0 \|/);
+});

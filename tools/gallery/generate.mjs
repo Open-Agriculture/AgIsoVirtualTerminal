@@ -228,8 +228,11 @@ function redirect(target) {
 `;
 }
 
+// Folders and files of the site that every release shares
+const RESERVED_VERSIONS = new Set(['latest', 'assets', 'compare', 'versions.js', 'versions.json', 'index.html']);
+
 export function generate({ renders, collection, site, version, repo, siteUrl }) {
-  if (!/^[A-Za-z0-9._-]+$/.test(version)) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(version) || RESERVED_VERSIONS.has(version)) {
     throw new Error(`Unusable version name: ${version}`);
   }
 

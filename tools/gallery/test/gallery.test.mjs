@@ -113,3 +113,10 @@ test('generates a release, keeps earlier ones and publishes only public pools', 
     assert.doesNotMatch(html, /(?:src|href)="\//, `${pageFile} has no root-relative links, which break from disk`);
   }
 });
+
+test('refuses a version name that is a path the releases share', () => {
+  const site = fs.mkdtempSync(path.join(os.tmpdir(), 'gallery-test-'));
+  for (const version of ['latest', 'assets', 'compare', 'versions.js', 'versions.json', 'index.html', '..', '.hidden', '-x']) {
+    assert.throws(() => generate({ renders: site, collection: site, site, version, repo: 'o/r', siteUrl: '' }), /Unusable version name/, version);
+  }
+});

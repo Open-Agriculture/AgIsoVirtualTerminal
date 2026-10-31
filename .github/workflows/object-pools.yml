@@ -31,6 +31,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Check that a pin bump comes alone
         run: tools/pool-ci/check-pin-isolation.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
@@ -42,6 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          persist-credentials: false
           submodules: recursive
       # On main the renders also go to the cache, where pull requests based on this commit find them
       - name: Build the VT and vt-render, and render the pools
@@ -78,12 +80,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          persist-credentials: false
           submodules: recursive
       # Built from the base commit, but rendering this pull request's pools, so a pin bump compares the
       # new pools with both builds
       - name: Check out the base commit
         uses: actions/checkout@v7
         with:
+          persist-credentials: false
           ref: ${{ github.event.pull_request.base.sha }}
           path: base-src
       - name: Download the head renders

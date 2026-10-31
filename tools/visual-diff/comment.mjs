@@ -36,16 +36,30 @@ export function escapeText(value) {
     .replace(/\r?\n/g, ' ');
 }
 
+// report.json comes from the pull request's run, so numbers and commits are checked, not trusted
+const CLASSES = ['unchanged', 'changed', 'new', 'removed', 'newly-failing'];
+// The same pattern publish-comment.sh requires of the thumbnail files
+const THUMBNAIL = /^thumbnails\/[0-9a-f]{8}\/[A-Za-z0-9_.-]+\.png$/;
+
+function number(value) {
+  const result = Number(value);
+  return Number.isFinite(result) ? result : 0;
+}
+
 function shortSha(sha) {
-  return sha ? String(sha).slice(0, 10) : 'unknown';
+  return /^[0-9a-f]{7,40}$/i.test(String(sha ?? '')) ? String(sha).slice(0, 10) : 'unknown';
+}
+
+function formatSize(dimensions) {
+  return [].concat(dimensions ?? []).map(number).join('×');
 }
 
 function describeImage(image) {
   const details = [`${escapeText(image.object_type)} ${escapeText(image.object_id)}`];
   if (image.size_changed) {
-    details.push(`size ${image.size_changed.before.join('×')} → ${image.size_changed.after.join('×')}`);
+    details.push(`size ${formatSize(image.size_changed.before)} → ${formatSize(image.size_changed.after)}`);
   } else if (image.diff_pixels !== undefined) {
-    details.push(`${image.diff_pixels} px differ`);
+    details.push(`${number(image.diff_pixels)} px differ`);
   }
   return `<b>${escapeText(image.pool)}/${escapeText(image.file)}</b> (${details.join(', ')})`;
 }
@@ -62,14 +76,15 @@ export function buildComment(report, { assetsUrl = '', artifactUrl = '', maxThum
     return lines.join('\n') + '\n';
   }
 
-  const { counts, result, settings } = report;
+  const { result, settings } = report;
+  const counts = Object.fromEntries(CLASSES.map((name) => [name, number(report.counts?.[name])]));
   const approved = settings.approved && counts.changed + counts.removed > 0 && counts['newly-failing'] === 0;
   const verdict = result.failed ? '❌ failed' : approved ? '✅ changes approved' : counts.changed + counts.removed + counts.new > 0 ? '✅ passed' : '✅ no visual changes';
   lines.push(`## Visual diff: ${verdict}`, '');
   lines.push(
     `Base \`${shortSha(report.base?.vt_commit)}\` against head \`${shortSha(report.head?.vt_commit)}\`, ` +
       `pools \`${shortSha(report.head?.pools_commit)}\`. ` +
-      `Threshold ${settings.threshold}, up to ${settings.max_diff_pixels} differing pixel(s) allowed.`,
+      `Threshold ${number(settings.threshold)}, up to ${number(settings.max_diff_pixels)} differing pixel(s) allowed.`,
     '',
   );
   for (const reason of result.reasons) {
@@ -80,7 +95,7 @@ export function buildComment(report, { assetsUrl = '', artifactUrl = '', maxThum
   }
 
   lines.push('| Class | Count |', '|---|---:|');
-  for (const name of ['unchanged', 'changed', 'new', 'removed', 'newly-failing']) {
+  for (const name of CLASSES) {
     lines.push(`| ${name} | ${counts[name]} |`);
   }
   lines.push('');
@@ -103,7 +118,7 @@ export function buildComment(report, { assetsUrl = '', artifactUrl = '', maxThum
     let shown = 0;
     const withoutThumbnail = [];
     for (const image of changed) {
-      if (assetsUrl && image.thumbnail && shown < maxThumbnails) {
+      if (assetsUrl && THUMBNAIL.test(image.thumbnail ?? '') && shown < maxThumbnails) {
         const src = `${assetsUrl.replace(/\/$/, '')}/${image.thumbnail.split('/').map(encodeURIComponent).join('/')}`;
         const img = `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(`${image.pool}/${image.file}`)}">`;
         lines.push(describeImage(image), '', artifactUrl ? `<a href="${escapeAttribute(artifactUrl)}">${img}</a>` : img, '');

@@ -343,10 +343,10 @@ namespace
 			return dimensions;
 		}
 
-		/// Width of the VT's soft key area, the same formula as ServerMainComponent::resized
+		/// Width of the VT's soft key area, which ServerMainComponent::resized takes from the dimensions
 		int get_soft_key_area_width() const
 		{
-			return 2 * SoftKeyMaskDimensions::PADDING + softKeyColumns * (SoftKeyMaskDimensions::PADDING + softKeyHeight);
+			return get_dimensions().total_width();
 		}
 	};
 
@@ -594,6 +594,7 @@ namespace
 			images.clear();
 			skippedObjects.clear();
 			errors.clear();
+			drawableTypes.clear();
 			settings = resolve_settings(input.meta);
 			directory = outputDirectory;
 
