@@ -9,7 +9,7 @@ drawing code, and three workflows use the renders:
 |---|---|---|
 | **Object pools** (`object-pools.yml`) | every pull request, pushes to `main` | `pool-load-check`: every pool must load. `visual-diff`: renders the pools with the base commit's build and the pull request's build, and compares them. `submodule-pin-in-own-pr`: a pin bump comes alone |
 | **Visual diff comment** (`visual-diff-comment.yml`) | after each Object pools run of a pull request | posts or edits the visual diff comment on the pull request |
-| **Release gallery** (`release-gallery.yml`) | a tag is pushed, a release is published | adds the release to the render gallery on GitHub Pages, and attaches the renders to the release as a zip |
+| **Release gallery** (`release-gallery.yml`) | a version tag (`x.y.z`) is pushed, a release is published | adds the release to the render gallery on GitHub Pages, and attaches the renders to the release as a zip |
 
 Clone with `git clone --recursive`, or in an existing clone run `git submodule update --init tests/pools`.
 
@@ -107,7 +107,7 @@ files. Tests: `npm test --prefix tools/visual-diff`.
 
 ## Release gallery
 
-Every pushed tag becomes `/<tag>/` on GitHub Pages, and earlier releases stay:
+Every pushed version tag becomes `/<tag>/` on GitHub Pages, and earlier releases stay:
 
 - `/<version>/index.html`: a card per pool, with its working set designator, manufacturer, name and
   status: renders OK, partial (has unsupported objects) or fails to load. Can be filtered by manufacturer.
