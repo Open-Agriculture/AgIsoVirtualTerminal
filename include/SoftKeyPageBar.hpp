@@ -45,9 +45,8 @@ public:
 
 	void resized() override;
 
-	static constexpr int HEIGHT = 40;
-
 private:
+	static constexpr int HEIGHT = 40;
 	static constexpr int GAP = 4;
 	static constexpr int MIN_BUTTON_WIDTH = HEIGHT / 2;
 	static constexpr float TEXT_HEIGHT = 16.0f;

@@ -99,7 +99,7 @@ void SoftKeyPageBar::ButtonLookAndFeel::drawButtonBackground(Graphics &g, Button
 
 void SoftKeyPageBar::ButtonLookAndFeel::drawButtonText(Graphics &g, TextButton &button, bool, bool)
 {
-	g.setFont(Font(std::min(0.4f * button.getWidth(), static_cast<float>(button.getHeight()))));
+	g.setFont(juce::Font(juce::FontOptions(std::min(0.4f * button.getWidth(), static_cast<float>(button.getHeight())))));
 	g.setColour(button.findColour(TextButton::textColourOffId).withMultipliedAlpha(button.isEnabled() ? 1.0f : 0.35f));
 	g.drawText(button.getButtonText(), button.getLocalBounds(), Justification::centred, false);
 }

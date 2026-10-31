@@ -63,19 +63,13 @@ void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobu
 	if (nullptr != softKeyMask)
 	{
 		const SoftKeyMaskDimensions &dimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
-		const int slots = dimensions.key_count();
-		std::uint16_t firstKey = 0;
+		pageCount = SoftKeyMaskComponent::get_page_count(softKeyMask, parentWorkingSet, dimensions);
 
-		if (0 < slots)
+		if (currentPage >= pageCount)
 		{
-			pageCount = SoftKeyMaskComponent::get_page_count(softKeyMask, parentWorkingSet, dimensions);
-
-			if (currentPage >= pageCount)
-			{
-				currentPage = static_cast<std::uint16_t>(std::max(pageCount - 1, 0));
-			}
-			firstKey = static_cast<std::uint16_t>(currentPage * slots);
+			currentPage = static_cast<std::uint16_t>(std::max(pageCount - 1, 0));
 		}
+		const auto firstKey = static_cast<std::uint16_t>(currentPage * dimensions.key_count());
 
 		auto softKeyMaskComponent = std::make_shared<SoftKeyMaskComponent>(parentWorkingSet, *std::static_pointer_cast<isobus::SoftKeyMask>(softKeyMask), dimensions, firstKey);
 		softKeyMaskComponent->setInterceptsMouseClicks(false, false);
