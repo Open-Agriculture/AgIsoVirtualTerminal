@@ -21,6 +21,7 @@
 #include "KeyComponent.hpp"
 #include "PictureGraphicComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
+#include "SoftKeyPageBar.hpp"
 #include "TextDrawingComponent.hpp"
 #include "WorkingSetComponent.hpp"
 #include "WorkingSetSelectorComponent.hpp"
@@ -465,7 +466,7 @@ namespace
 		}
 
 		// The keys go in one column, top to bottom, as many as fit next to the data mask, then in the next
-		// column to the left. With the VT's defaults (480, 60 x 60, 6 keys) that is its own 6 x 1 layout.
+		// column to the left. With the VT's defaults (480, 60 x 60, 12 keys) that is its own 6 x 2 layout.
 		const int rowsThatFit = std::max(1, (settings.dataMaskSize - SoftKeyMaskDimensions::PADDING) / (settings.softKeyHeight + SoftKeyMaskDimensions::PADDING));
 		settings.softKeyRows = std::min(settings.softKeyCount, rowsThatFit);
 		settings.softKeyColumns = (settings.softKeyCount + settings.softKeyRows - 1) / settings.softKeyRows;
@@ -707,8 +708,7 @@ namespace
 
 					case isobus::VirtualTerminalObjectType::SoftKeyMask:
 					{
-						render_mask(workingSet, object, "skm_" + String(id) + ".png");
-						list_keys_without_position(workingSet, object);
+						render_soft_key_mask(workingSet, object);
 					}
 					break;
 
@@ -784,9 +784,13 @@ namespace
 			const auto softKeyMaskId = std::static_pointer_cast<isobus::DataMask>(dataMask)->get_soft_key_mask();
 			auto softKeyMask = find_object(workingSet, softKeyMaskId);
 			std::shared_ptr<Component> softKeyMaskComponent;
+			int pageCount = 0;
+			Colour softKeyBackground;
 			if ((nullptr != softKeyMask) && (isobus::VirtualTerminalObjectType::SoftKeyMask == softKeyMask->get_object_type()))
 			{
 				softKeyMaskComponent = JuceManagedWorkingSetCache::create_component(workingSet, softKeyMask);
+				pageCount = SoftKeyMaskComponent::get_page_count(softKeyMask, workingSet, settings.get_dimensions());
+				softKeyBackground = get_background(workingSet, softKeyMask);
 			}
 
 			const int dataMaskSize = settings.dataMaskSize;
@@ -813,6 +817,7 @@ namespace
 				if (nullptr != softKeyMaskComponent)
 				{
 					paintClipped(g, *softKeyMaskComponent);
+					paint_page_bar(g, softKeyBackground, 0, pageCount);
 				}
 			});
 
@@ -916,32 +921,60 @@ namespace
 			}
 		}
 
-		/// The VT has a fixed number of key positions and draws keys past them outside the soft key mask
-		void list_keys_without_position(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet,
-		                                const std::shared_ptr<isobus::VTObject> &softKeyMask)
+		/// Each page of a soft key mask as the VT pages it: the keys of that page, and the VT's page bar when
+		/// there is more than one page. The first page is skm_<id>.png, the next ones skm_<id>_page<n>.png
+		void render_soft_key_mask(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet,
+		                          const std::shared_ptr<isobus::VTObject> &softKeyMask)
 		{
-			const int positions = settings.get_dimensions().key_count();
-			int position = 0;
+			const auto dimensions = settings.get_dimensions();
+			const int pageCount = std::max(1, SoftKeyMaskComponent::get_page_count(softKeyMask, workingSet, dimensions));
+			const auto background = get_background(workingSet, softKeyMask);
 
-			for (std::uint16_t i = 0; i < softKeyMask->get_number_children(); i++)
+			for (int page = 0; page < pageCount; page++)
 			{
-				auto child = find_object(workingSet, softKeyMask->get_child_id(i));
+				const String fileName = "skm_" + String(softKeyMask->get_id()) + ((0 == page) ? String() : "_page" + String(page + 1)) + ".png";
+				SoftKeyMaskComponent component(workingSet, *std::static_pointer_cast<isobus::SoftKeyMask>(softKeyMask), dimensions, static_cast<std::uint16_t>(page * dimensions.key_count()));
+				const auto image = paint_image(component.getWidth(), component.getHeight(), [&](Graphics &g) {
+					paint_soft_key_page(g, component, background, page, pageCount);
+				});
 
-				// SoftKeyMaskComponent gives a position to each child it gets a component for
-				if ((nullptr == child) || (nullptr == JuceManagedWorkingSetCache::create_component(workingSet, child)))
+				auto record = add_image(fileName, softKeyMask, image);
+				if (nullptr != record)
 				{
-					continue;
-				}
-
-				position++;
-				if (position > positions)
-				{
-					add_skipped_object(child->get_id(),
-					                   child->get_object_type(),
-					                   "ignored",
-					                   "child " + String(position) + " of soft key mask " + String(softKeyMask->get_id()) + ", which has only " + String(positions) + " key positions");
+					record->setProperty("page", page + 1);
+					record->setProperty("page_count", pageCount);
 				}
 			}
+		}
+
+		void paint_soft_key_page(Graphics &g, Component &softKeyMask, Colour background, int page, int pageCount)
+		{
+			softKeyMask.paintEntireComponent(g, true);
+			paint_page_bar(g, background, page, pageCount);
+		}
+
+		/// The VT's page bar, in the coordinates of the soft key area, if the soft key mask has more than one page
+		void paint_page_bar(Graphics &g, Colour background, int page, int pageCount)
+		{
+			if (pageCount < 2)
+			{
+				return;
+			}
+
+			SoftKeyPageBar bar;
+			bar.setBounds(SoftKeyPageBar::get_area(settings.get_dimensions()));
+			bar.set_page(page, pageCount);
+			bar.set_mask_background(background);
+
+			Graphics::ScopedSaveState state(g);
+			g.setOrigin(bar.getPosition());
+			bar.paintEntireComponent(g, true);
+		}
+
+		static Colour get_background(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, const std::shared_ptr<isobus::VTObject> &object)
+		{
+			const auto vtColour = workingSet->get_colour(object->get_background_color());
+			return Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
 		}
 
 		DynamicObject *add_image(const String &fileName, const std::shared_ptr<isobus::VTObject> &object, const Image &image)

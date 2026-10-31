@@ -120,3 +120,20 @@ test('refuses a version name that is a path the releases share', () => {
     assert.throws(() => generate({ renders: site, collection: site, site, version, repo: 'o/r', siteUrl: '' }), /Unusable version name/, version);
   }
 });
+
+test('the pages of a soft key mask follow each other in page order', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'gallery-test-'));
+  const renders = path.join(folder, 'renders');
+  const site = path.join(folder, 'site');
+  const files = ['skm_4000_page2.png', 'skm_4000.png', 'skm_4000_page3.png', 'skm_20.png'];
+  const images = files.map((file) => ({ file, object_id: file === 'skm_20.png' ? 20 : 4000, object_type: 'SoftKeyMask', page: Number(/_page(\d+)/.exec(file)?.[1] ?? 1) }));
+  writePool(renders, 'aaaaaaaa', { public: true, images }, files);
+  fs.mkdirSync(path.join(folder, 'collection', 'pools'), { recursive: true });
+
+  generate({ renders, collection: path.join(folder, 'collection'), site, version: '1.6.0', repo: 'o/r', siteUrl: 'https://o.github.io/r' });
+
+  const poolPage = fs.readFileSync(path.join(site, '1.6.0', 'aaaaaaaa', 'index.html'), 'utf8');
+  const order = ['skm_20.png', 'skm_4000.png', 'skm_4000_page2.png', 'skm_4000_page3.png'].map((file) => poolPage.indexOf(`src="${file}"`));
+  assert.ok(order.every((position) => position >= 0), 'every page is shown');
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+});

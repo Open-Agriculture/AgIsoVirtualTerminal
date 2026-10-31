@@ -42,8 +42,9 @@ function known(value, fallback) {
   return value && value !== 'TODO' ? value : fallback;
 }
 
-function objectNumber(file) {
-  return Number(/_(\d+)\.png$/.exec(file)?.[1] ?? 0);
+/** By object, and the pages of a soft key mask in page order */
+function compareImages(a, b) {
+  return (Number(a.object_id) || 0) - (Number(b.object_id) || 0) || (a.page ?? 1) - (b.page ?? 1) || a.file.localeCompare(b.file);
 }
 
 /** Pool id -> reference image files (relative to the pool folder) of the collection. */
@@ -153,7 +154,7 @@ function renderPoolPage({ version, id, manifest, references, repo, siteUrl }) {
   // A reference photo goes next to the first render of the object it shows: the screen, or else the mask
   const placedReferences = new Set();
   const sections = SECTIONS.map((section) => {
-    const sectionImages = images.filter((image) => image.file.startsWith(section.prefix)).sort((a, b) => objectNumber(a.file) - objectNumber(b.file) || a.file.localeCompare(b.file));
+    const sectionImages = images.filter((image) => image.file.startsWith(section.prefix)).sort(compareImages);
     if (sectionImages.length === 0) {
       return '';
     }

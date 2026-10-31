@@ -169,6 +169,7 @@ if(AGISOVT_BUILD_POOL_RENDERER)
             src/InputNumberComponent.cpp
             src/InputStringComponent.cpp
             src/KeyComponent.cpp
+            src/SoftKeyPageBar.cpp
             src/NumberComponent.cpp
             src/ObjectPointerComponent.cpp
             src/OutputEllipseComponent.cpp
