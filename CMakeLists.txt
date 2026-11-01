@@ -90,6 +90,7 @@ target_sources(
           "src/ObjectPointerComponent.cpp"
           "src/OutputNumberComponent.cpp"
           "src/SoftkeyMaskRenderArea.cpp"
+          "src/SoftKeyPageBar.cpp"
           "src/KeyComponent.cpp"
           "src/DesignatorFit.cpp"
           "src/SoftKeyMaskComponent.cpp"
