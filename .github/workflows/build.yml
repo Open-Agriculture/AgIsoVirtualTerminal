@@ -27,8 +27,12 @@ jobs:
       - name: Compile
         run: |
           mkdir build
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DAGISOVT_BUILD_TESTS=ON -Wno-dev
           cmake --build build --config Release --target package
+      - name: Test
+        run: |
+          cmake --build build --config Release --target VersionStorageTests
+          ctest --test-dir build -C Release --output-on-failure
       - name: 'Upload Windows Installer'
         uses: actions/upload-artifact@v7
         with:
@@ -99,10 +103,12 @@ jobs:
           mkdir build
           sudo apt update
           sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev git cmake
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DAGISOVT_BUILD_TESTS=ON -Wno-dev
           cmake --build build --config Release
           cd build
           cpack -G DEB
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
       - name: 'Upload Ubuntu 24.04 deb package'
         uses: actions/upload-artifact@v7
         with:
