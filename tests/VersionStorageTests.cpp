@@ -228,6 +228,102 @@ static void unreadable_component_fails_the_load(const fs::path &directory)
 	CHECK(storage.load(label).empty());
 }
 
+// The stack ends a Store on the first component that fails, so the ones saved before it must not load as a version
+static void failed_save_removes_the_version(const fs::path &directory)
+{
+	VersionStorage storage(directory);
+	const auto label = label_of("FAILED", 7);
+
+	store(storage, label, { { 1 }, { 2 }, { 3 } });
+	storage.remove(label);
+	CHECK(storage.save({ 4 }, label));
+
+	// A folder in the way of the next component makes its write fail. "FAILED " in hex.
+	fs::create_directories(directory / "4641494c454420_1.iopx");
+	CHECK(!storage.save({ 5 }, label));
+	CHECK(storage.load(label).empty());
+	CHECK(storage.get_labels(7).empty());
+	CHECK(0 == count_files(directory, ".iop"));
+}
+
+// A version with a component missing would load without its objects, so the client has to upload it again
+static void missing_component_fails_the_load(const fs::path &directory)
+{
+	VersionStorage storage(directory);
+	const auto label = label_of("GAP", 7);
+
+	// "GAP    " in hex
+	store(storage, label, { { 1 }, { 2 }, { 3 } });
+	fs::remove(directory / "47415020202020_1.iopx");
+	CHECK(storage.load(label).empty());
+	CHECK(storage.get_labels(7).empty());
+
+	store(storage, label, { { 4 }, { 5 } });
+	CHECK(Bytes({ 4, 5 }) == storage.load(label));
+
+	// A component that the delete before a Store could not remove, as another program had it open
+	storage.remove(label);
+	write_file(directory / "47415020202020_1.iopx", join(label, { 5 }));
+	CHECK(storage.save({ 6 }, label));
+	CHECK(storage.load(label).empty());
+}
+
+// Files from older versions that the delete before a Store could not remove are older than the Store
+static void new_files_hide_legacy_files(const fs::path &directory)
+{
+	VersionStorage storage(directory);
+	const auto label = label_of("MIXED", 7);
+
+	store(storage, label, { { 1 }, { 2 } });
+	write_file(directory / "object_pool_with_label_0.iopx", join(label, { 8 }));
+	CHECK(Bytes({ 1, 2 }) == storage.load(label));
+
+	write_file(directory / "object_pool_with_label_1.iopx", join(label, { 9 }));
+	CHECK(Bytes({ 1, 2 }) == storage.load(label));
+	CHECK(std::vector<Bytes>({ label }) == storage.get_labels(7));
+	CHECK(storage.get_retired_labels(7).empty());
+}
+
+// Delete All of older versions removed the files by their extension, whatever they held
+static void delete_all_removes_legacy_files_without_a_label(const fs::path &directory)
+{
+	fs::create_directories(directory);
+	write_file(directory / "object_pool_with_label_0.iopx", { 1, 2, 3 });
+	write_file(directory / "object_pool_with_label_1.iopx32", { 1, 2, 3 });
+	write_file(directory / "object_pool_0.iop", { 1 });
+	write_file(directory / "object_pool_1.iop", { 1 });
+
+	VersionStorage storage(directory);
+	CHECK(storage.get_labels(7).empty());
+	CHECK(storage.get_labels(32).empty());
+
+	CHECK(storage.remove_all(7));
+	CHECK(!fs::exists(directory / "object_pool_with_label_0.iopx"));
+	CHECK(!fs::exists(directory / "object_pool_0.iop"));
+	CHECK(fs::exists(directory / "object_pool_with_label_1.iopx32"));
+	CHECK(fs::exists(directory / "object_pool_1.iop"));
+
+	CHECK(storage.remove_all(32));
+	CHECK(!fs::exists(directory / "object_pool_with_label_1.iopx32"));
+	CHECK(!fs::exists(directory / "object_pool_1.iop"));
+}
+
+// Only a folder that is not there yet is empty storage, one that cannot be read is an error
+static void unreadable_folder_fails(const fs::path &directory)
+{
+	// A file where the folder should be cannot be listed
+	fs::create_directories(directory.parent_path());
+	write_file(directory, { 0 });
+
+	VersionStorage storage(directory);
+	const auto label = label_of("ANY", 7);
+	CHECK(!storage.save({ 1 }, label));
+	CHECK(storage.load(label).empty());
+	CHECK(storage.get_labels(7).empty());
+	CHECK(!storage.remove(label));
+	CHECK(!storage.remove_all(7));
+}
+
 int main()
 {
 	const auto root = fs::temp_directory_path() / ("agisovt-version-storage-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -240,6 +336,11 @@ int main()
 	removing_what_is_not_stored(next_directory());
 	legacy_files_retire_or_load(next_directory());
 	unreadable_component_fails_the_load(next_directory());
+	failed_save_removes_the_version(next_directory());
+	missing_component_fails_the_load(next_directory());
+	new_files_hide_legacy_files(next_directory());
+	delete_all_removes_legacy_files_without_a_label(next_directory());
+	unreadable_folder_fails(next_directory());
 
 	std::error_code error;
 	fs::remove_all(root, error);
