@@ -7,14 +7,15 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <fstream>
 #include <string>
 #include <system_error>
 
-static const std::string LEGACY_FILE_PREFIX = "object_pool_with_label_";
-static const std::string LEGACY_COPY_PREFIX = "object_pool_";
-static constexpr std::size_t LEGACY_LABEL_LENGTH = 7;
-static constexpr std::size_t LEGACY_EXTENDED_LABEL_LENGTH = 32;
+constexpr char LEGACY_FILE_PREFIX[] = "object_pool_with_label_";
+constexpr char LEGACY_COPY_PREFIX[] = "object_pool_";
+constexpr std::size_t LEGACY_LABEL_LENGTH = 7;
+constexpr std::size_t LEGACY_EXTENDED_LABEL_LENGTH = 32;
 
 static bool parse_index(const std::string &text, std::uint64_t &index)
 {
@@ -97,9 +98,17 @@ static bool may_exist(const std::filesystem::path &path)
 	return std::filesystem::exists(path, error) || error;
 }
 
-static bool starts_with(const std::string &text, const std::string &prefix)
+// Gives the text after the prefix, if the text starts with it
+static bool strip_prefix(const std::string &text, const char *prefix, std::string &rest)
 {
-	return 0 == text.compare(0, prefix.size(), prefix);
+	const auto prefixLength = std::strlen(prefix);
+
+	if (0 != text.compare(0, prefixLength, prefix))
+	{
+		return false;
+	}
+	rest = text.substr(prefixLength);
+	return true;
 }
 
 VersionStorage::LabelContents VersionStorage::get_label_contents(const std::vector<StoredFile> &files, const std::vector<std::uint8_t> &label)
@@ -318,16 +327,17 @@ bool VersionStorage::find_stored_files(std::vector<StoredFile> &files) const
 		if (((".iopx" == extension) || isExtendedLegacyFile) && entry->is_regular_file(entryError))
 		{
 			const auto stem = entry->path().stem().u8string();
+			std::string legacyNumber;
 			StoredFile file;
 			file.path = entry->path();
 
-			if (starts_with(stem, LEGACY_FILE_PREFIX) &&
-			    parse_index(stem.substr(LEGACY_FILE_PREFIX.size()), file.index))
+			if (strip_prefix(stem, LEGACY_FILE_PREFIX, legacyNumber) &&
+			    parse_index(legacyNumber, file.index))
 			{
 				std::ifstream iopxFile(file.path, std::ios::binary);
 				file.labelLength = isExtendedLegacyFile ? LEGACY_EXTENDED_LABEL_LENGTH : LEGACY_LABEL_LENGTH;
 				file.label.resize(file.labelLength);
-				file.copyPath = directory / (LEGACY_COPY_PREFIX + stem.substr(LEGACY_FILE_PREFIX.size()) + ".iop");
+				file.copyPath = directory / (LEGACY_COPY_PREFIX + legacyNumber + ".iop");
 				file.isLegacy = true;
 
 				// A file too short to hold a label is in no version, but its label length still removes it
@@ -410,14 +420,15 @@ void VersionStorage::remove_orphaned_copies() const
 		if (entry->is_regular_file(entryError) && (".iop" == entry->path().extension()))
 		{
 			const auto stem = entry->path().stem().u8string();
+			std::string legacyNumber;
 			std::vector<std::uint8_t> label;
 			std::uint64_t index = 0;
 			std::vector<std::filesystem::path> iopxPaths;
 
-			if (starts_with(stem, LEGACY_COPY_PREFIX) &&
-			    parse_index(stem.substr(LEGACY_COPY_PREFIX.size()), index))
+			if (strip_prefix(stem, LEGACY_COPY_PREFIX, legacyNumber) &&
+			    parse_index(legacyNumber, index))
 			{
-				const auto legacyName = LEGACY_FILE_PREFIX + stem.substr(LEGACY_COPY_PREFIX.size());
+				const auto legacyName = LEGACY_FILE_PREFIX + legacyNumber;
 				iopxPaths = { directory / (legacyName + ".iopx"), directory / (legacyName + ".iopx32") };
 			}
 			else if (parse_stored_name(stem, label, index))
