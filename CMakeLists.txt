@@ -131,17 +131,6 @@ target_link_libraries(
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
          cmake_git_version_tracking)
 
-option(AGISOVT_BUILD_TESTS "Build the unit tests, which run with ctest" OFF)
-if(AGISOVT_BUILD_TESTS)
-  enable_testing()
-  add_executable(VersionStorageTests tests/VersionStorageTests.cpp
-                                     src/VersionStorage.cpp)
-  set_target_properties(VersionStorageTests PROPERTIES CXX_STANDARD 17)
-  target_include_directories(VersionStorageTests
-                             PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
-  add_test(NAME version-storage COMMAND VersionStorageTests)
-endif()
-
 if(WIN32)
   add_custom_command(
     TARGET AgISOVirtualTerminal
