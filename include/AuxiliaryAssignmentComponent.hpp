@@ -140,7 +140,8 @@ private:
 		NextPage,
 		ChooseInput,
 		Unassign,
-		ClearSelection
+		ClearSelection,
+		Learn
 	};
 
 	/// @brief A function or an input the operator picked
@@ -151,6 +152,21 @@ private:
 
 		WorkingSetPointer workingSet;
 		std::uint16_t objectID = isobus::NULL_OBJECT_ID;
+	};
+
+	/// @brief What learn mode has seen of an input
+	struct LearnedInput
+	{
+		/// @brief Takes the input's latest status
+		/// @param[in] status The status
+		/// @param[in] isAnalogue True if the input reports an analogue value
+		/// @returns True if the operator just pressed or moved the control
+		bool update(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status, bool isAnalogue);
+
+		std::uint16_t restValue1 = 0; ///< Analogue value 1 where the lever rests
+		std::uint16_t restValue2 = 0; ///< Analogue value 2 where the lever rests
+		bool hasRestValue = false;
+		bool wasPressed = false;
 	};
 
 	/// @brief A soft key of the current view
@@ -213,7 +229,7 @@ private:
 	AuxiliaryControlSnapshot snapshot;
 	std::vector<std::shared_ptr<juce::Component>> designators;
 	std::vector<std::pair<juce::Rectangle<int>, juce::Colour>> designatorBackgrounds;
-	std::map<std::pair<isobus::VirtualTerminalServerManagedWorkingSet *, std::uint16_t>, bool> activatedInputs; ///< Last learn mode state of each input
+	std::map<std::pair<isobus::VirtualTerminalServerManagedWorkingSet *, std::uint16_t>, LearnedInput> learnedInputs;
 	Selection selectedFunction;
 	Selection selectedInput;
 	juce::String message;
@@ -221,6 +237,7 @@ private:
 	int page = 0;
 	int pressedSoftKeySlot = -1;
 	bool isShown = false;
+	bool isLearnModeSwitchedOn = true; ///< The operator can turn it off to try the controls
 	bool isMessageAnError = false;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AuxiliaryAssignmentComponent)

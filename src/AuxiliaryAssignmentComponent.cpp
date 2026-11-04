@@ -11,6 +11,7 @@
 #include "ManufacturerMap.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace
 {
@@ -44,6 +45,45 @@ namespace
 		return (nullptr != object.second) &&
 		  ((isobus::VirtualTerminalObjectType::AuxiliaryFunctionType2 == object.second->get_object_type()) ||
 		   (isobus::VirtualTerminalObjectType::AuxiliaryInputType2 == object.second->get_object_type()));
+	}
+
+	// Analogue values run up to 0xFAFF (ISO 11783-6 J.7.9)
+	constexpr std::uint16_t ANALOGUE_MAXIMUM = 0xFAFF;
+	constexpr int LEARN_MOVEMENT = ANALOGUE_MAXIMUM / 10; ///< A lever moved this far is pressed
+	constexpr int LEARN_STILL = ANALOGUE_MAXIMUM / 50; ///< A pressed lever moving less than this has stopped
+
+	bool is_analogue_input(const Snapshot::WorkingSetPointer &workingSet, std::uint16_t inputObjectID)
+	{
+		using Type = isobus::AuxiliaryFunctionType2::FunctionType;
+		auto object = is_parsed(workingSet) ? workingSet->get_object_by_id(inputObjectID) : nullptr;
+		bool retVal = false;
+
+		if ((nullptr != object) && (isobus::VirtualTerminalObjectType::AuxiliaryInputType2 == object->get_object_type()))
+		{
+			switch (std::static_pointer_cast<isobus::AuxiliaryInputType2>(object)->get_function_type())
+			{
+				case Type::Analouge:
+				case Type::AnalougeReturnTo50Percent:
+				case Type::AnalougeReturnTo0PercentIncreaseValue:
+				case Type::CombinedAnalougeReturnTo50PercentWithDualBooleanLatching:
+				case Type::CombinedAnalougeMaintainsPositionWithDualBooleanLatching:
+				case Type::QuadratureAnalouge:
+				case Type::QuadratureAnalougeReturnTo50Percent:
+				{
+					retVal = true;
+				}
+				break;
+
+				default:
+					break;
+			}
+		}
+		return retVal;
+	}
+
+	bool has_moved(std::uint16_t from, std::uint16_t to, int distance)
+	{
+		return (ANALOGUE_MAXIMUM >= from) && (ANALOGUE_MAXIMUM >= to) && (distance <= std::abs(static_cast<int>(to) - static_cast<int>(from)));
 	}
 
 	bool uses_input(const Snapshot::Function &function, const Snapshot::WorkingSetPointer &inputWorkingSet, std::uint16_t inputObjectID)
@@ -215,7 +255,8 @@ void AuxiliaryAssignmentComponent::set_shown(bool shown)
 	page = 0;
 	selectedFunction = {};
 	selectedInput = {};
-	activatedInputs.clear();
+	learnedInputs.clear();
+	isLearnModeSwitchedOn = true;
 
 	// A problem reported while hidden waits for the operator
 	if ((!shown) || (!isMessageAnError))
@@ -298,9 +339,8 @@ void AuxiliaryAssignmentComponent::on_assignment_event(const isobus::VirtualTerm
 
 void AuxiliaryAssignmentComponent::on_input_status(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status)
 {
-	auto &wasActivated = activatedInputs[std::make_pair(status.inputWorkingSet.get(), status.inputObjectID)];
-	const bool isPress = status.isActivated && (!wasActivated);
-	wasActivated = status.isActivated;
+	auto &learned = learnedInputs[std::make_pair(status.inputWorkingSet.get(), status.inputObjectID)];
+	const bool isPress = learned.update(status, is_analogue_input(status.inputWorkingSet, status.inputObjectID));
 
 	// Units repeat the status while a control is held, only the press picks it
 	if (isPress && get_is_learn_mode_wanted())
@@ -316,6 +356,28 @@ void AuxiliaryAssignmentComponent::on_input_status(const isobus::VirtualTerminal
 			select_input(input);
 		}
 	}
+}
+
+bool AuxiliaryAssignmentComponent::LearnedInput::update(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status, bool isAnalogue)
+{
+	bool isPressed = status.isActivated;
+
+	if (isAnalogue)
+	{
+		// Units flag ADC noise as activation too, so a lever has to move, and once pressed it has to stop
+		const int distance = wasPressed ? LEARN_STILL : LEARN_MOVEMENT;
+		isPressed = status.isActivated && hasRestValue && (has_moved(restValue1, status.value1, distance) || has_moved(restValue2, status.value2, distance));
+
+		if ((!hasRestValue) || (!status.isActivated) || wasPressed || isPressed)
+		{
+			restValue1 = status.value1;
+			restValue2 = status.value2;
+			hasRestValue = true;
+		}
+	}
+	const bool isPress = isPressed && (!wasPressed);
+	wasPressed = isPressed;
+	return isPress;
 }
 
 void AuxiliaryAssignmentComponent::paint(juce::Graphics &g)
@@ -570,6 +632,15 @@ void AuxiliaryAssignmentComponent::press_soft_key(SoftKey action)
 			const auto result = vtServer.unassign_auxiliary_function(selectedFunction.workingSet, selectedFunction.objectID);
 			selectedFunction = {};
 			show_message((Result::Allowed == result) ? juce::String("Removing the assignment") : get_result_text(result), Result::Allowed != result);
+		}
+		break;
+
+		case SoftKey::Learn:
+		{
+			isLearnModeSwitchedOn = !isLearnModeSwitchedOn;
+			learnedInputs.clear();
+			update_learn_mode();
+			show_message(isLearnModeSwitchedOn ? "Learn mode on, press a control to pick it" : "Learn mode off, the controls drive their functions", false);
 		}
 		break;
 
@@ -841,7 +912,14 @@ void AuxiliaryAssignmentComponent::paint_soft_keys(juce::Graphics &g) const
 		const auto bounds = get_soft_key_bounds(static_cast<int>(slot));
 		const auto &key = keys.at(slot);
 		const auto labelColour = get_vt_colour(key.isEnabled ? BLACK : GREY);
-		g.setColour(get_vt_colour(key.isEnabled ? WHITE : SILVER));
+		auto background = key.isEnabled ? WHITE : SILVER;
+
+		// Lit like the LEARN badge while learn mode is on
+		if ((SoftKey::Learn == key.action) && get_is_learn_mode_wanted())
+		{
+			background = YELLOW;
+		}
+		g.setColour(get_vt_colour(background));
 		g.fillRect(bounds);
 		g.setColour(get_vt_colour(BLACK));
 		g.drawRect(bounds, 1);
@@ -854,7 +932,7 @@ void AuxiliaryAssignmentComponent::paint_soft_keys(juce::Graphics &g) const
 		}
 		else
 		{
-			const char *labels[] = { "Assign", "Back", "", "", "Inputs", "Unassign", "Clear" };
+			const char *labels[] = { "Assign", "Back", "", "", "Inputs", "Unassign", "Clear", "Learn" };
 			g.setFont(get_font(std::min(TEXT_FONT_HEIGHT, bounds.getHeight() * 0.3f), true));
 			g.drawFittedText(labels[static_cast<std::size_t>(key.action)], bounds.reduced(2), juce::Justification::centred, 2, 0.6f);
 		}
@@ -875,6 +953,7 @@ std::vector<AuxiliaryAssignmentComponent::Key> AuxiliaryAssignmentComponent::get
 		keys.push_back({ SoftKey::Back, true });
 		keys.push_back({ SoftKey::PreviousPage, 0 < page });
 		keys.push_back({ SoftKey::NextPage, page + 1 < get_page_count() });
+		keys.push_back({ SoftKey::Learn, snapshot.isPrimaryVT });
 
 		if (View::Assignments == view)
 		{
@@ -1021,7 +1100,7 @@ bool AuxiliaryAssignmentComponent::get_is_row_dimmed(int row) const
 bool AuxiliaryAssignmentComponent::get_is_learn_mode_wanted() const
 {
 	// Only while assignments are made (ISO 11783-6 J.8)
-	return isShown && (View::Overview != view) && snapshot.isPrimaryVT;
+	return isShown && (View::Overview != view) && snapshot.isPrimaryVT && isLearnModeSwitchedOn;
 }
 
 const AuxiliaryControlSnapshot::Function *AuxiliaryAssignmentComponent::get_selected_function() const
@@ -1068,7 +1147,8 @@ const AuxiliaryControlSnapshot::Input *AuxiliaryAssignmentComponent::get_input_o
 
 juce::String AuxiliaryAssignmentComponent::get_prompt() const
 {
-	juce::String prompt = "Press a control to assign it, or Inputs to choose one";
+	const bool canPressControl = get_is_learn_mode_wanted();
+	juce::String prompt = canPressControl ? "Press a control to assign it, or Inputs to choose one" : "Press Inputs to choose its input";
 
 	if (!snapshot.isPrimaryVT)
 	{
@@ -1090,7 +1170,7 @@ juce::String AuxiliaryAssignmentComponent::get_prompt() const
 	}
 	else if (View::Inputs == view)
 	{
-		prompt = "Pick an input, or press a control";
+		prompt = canPressControl ? "Pick an input, or press a control" : "Pick an input";
 	}
 	else if (selectedInput.is_set())
 	{
@@ -1099,7 +1179,7 @@ juce::String AuxiliaryAssignmentComponent::get_prompt() const
 	}
 	else if (!selectedFunction.is_set())
 	{
-		prompt = "Pick a function, or press a control";
+		prompt = canPressControl ? "Pick a function, or press a control" : "Pick a function. Learn is off, the controls work";
 	}
 	return prompt;
 }
