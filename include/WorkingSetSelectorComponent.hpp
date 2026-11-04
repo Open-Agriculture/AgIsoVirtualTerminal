@@ -34,16 +34,24 @@ public:
 	void update_iop_load_indicators();
 	void set_ack_button_visible(bool shouldBeVisible);
 
+	/// @brief Shows the AUX button while a working set has auxiliary functions or inputs, or its screen is shown
+	void update_auxiliary_button();
+
+	/// @brief Marks the AUX button until the operator opens its screen
+	/// @param[in] hasNotice True if an assignment changed without the operator
+	void set_auxiliary_notice(bool hasNotice);
+
 	static constexpr int WIDTH = 96;
 	static constexpr int BUTTON_WIDTH = 72;
 	static constexpr int BUTTON_HEIGHT = 72;
 	static constexpr int button_padding();
 
 private:
-	class AckButton : public juce::TextButton
+	/// @brief A button of the VT's own in the column, such as ACK and AUX
+	class ColumnButton : public juce::TextButton
 	{
 	public:
-		AckButton();
+		explicit ColumnButton(const juce::String &label);
 
 		void paintButton(juce::Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
 
@@ -58,14 +66,16 @@ private:
 	};
 	std::vector<SELECTOR_CHILD_OBJECTS_STRUCT> children;
 	ServerMainComponent &parentServer;
-	AckButton ackButton;
+	ColumnButton ackButton;
+	ColumnButton auxButton;
 	bool ackButtonPressed = false;
+	bool hasAuxiliaryNotice = false;
 
 	std::shared_ptr<Component> getWorkingSetChildComponent(
 	  std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet,
 	  int workingSetIndex);
 	static juce::Rectangle<int> button_bounds(int index);
-	void update_ack_button_bounds();
+	void update_column_button_bounds();
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetSelectorComponent)
 };

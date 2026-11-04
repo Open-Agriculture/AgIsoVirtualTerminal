@@ -74,6 +74,7 @@ juce_generate_juce_header(AgISOVirtualTerminal)
 target_sources(
   AgISOVirtualTerminal
   PRIVATE src/Main.cpp
+          "src/AuxiliaryAssignmentComponent.cpp"
           "src/ServerMainComponent.cpp"
           "src/DataMaskComponent.cpp"
           "src/WorkingSetSelectorComponent.cpp"

@@ -4,17 +4,20 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "WorkingSetSelectorComponent.hpp"
+#include "AuxiliaryAssignmentComponent.hpp"
 #include "DesignatorFit.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 #include "WorkingSetLoadingIndicatorComponent.hpp"
 
-WorkingSetSelectorComponent::AckButton::AckButton() :
-  juce::TextButton("ACK")
+#include <algorithm>
+
+WorkingSetSelectorComponent::ColumnButton::ColumnButton(const juce::String &label) :
+  juce::TextButton(label)
 {
 }
 
-void WorkingSetSelectorComponent::AckButton::paintButton(juce::Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
+void WorkingSetSelectorComponent::ColumnButton::paintButton(juce::Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
 {
 	auto backgroundColour = findColour(getToggleState() ? juce::TextButton::buttonOnColourId : juce::TextButton::buttonColourId);
 	getLookAndFeel().drawButtonBackground(g, *this, backgroundColour, shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
@@ -38,7 +41,9 @@ void WorkingSetSelectorComponent::AckButton::paintButton(juce::Graphics &g, bool
 }
 
 WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &server) :
-  parentServer(server)
+  parentServer(server),
+  ackButton("ACK"),
+  auxButton("AUX")
 {
 	setOpaque(false);
 
@@ -54,6 +59,8 @@ WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &se
 	};
 	addAndMakeVisible(ackButton);
 	ackButton.setVisible(false);
+	auxButton.onClick = [this]() { parentServer.show_auxiliary_page(); };
+	addChildComponent(auxButton);
 }
 
 void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> &managedWorkingSetList)
@@ -71,6 +78,7 @@ void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::sha
 		}
 	}
 
+	update_auxiliary_button();
 	ackButton.toFront(false);
 	repaint();
 }
@@ -102,6 +110,23 @@ void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
 {
 	auto activeWorkingSet = parentServer.get_active_working_set();
 
+	if (auxButton.isVisible())
+	{
+		const auto auxBounds = auxButton.getBounds().toFloat();
+
+		// Highlighted like an active working set, as its screen takes the place of one
+		if (parentServer.get_is_auxiliary_page_shown())
+		{
+			g.setColour(juce::Colours::yellow.withAlpha(0.4f));
+			g.drawRoundedRectangle(auxBounds.expanded(2.0f), 4.0f, 4.0f);
+		}
+		if (hasAuxiliaryNotice)
+		{
+			g.setColour(juce::Colours::red);
+			g.fillEllipse(juce::Rectangle<float>(12.0f, 12.0f).withCentre(auxBounds.getTopRight().translated(-10.0f, 10.0f)));
+		}
+	}
+
 	if ((nullptr == activeWorkingSet) || (nullptr == activeWorkingSet->get_control_function()))
 	{
 		return;
@@ -124,7 +149,7 @@ void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
 void WorkingSetSelectorComponent::resized()
 {
 	// The owner positions this column; setting bounds here used to move it over the menu bar
-	update_ack_button_bounds();
+	update_column_button_bounds();
 }
 
 void WorkingSetSelectorComponent::redraw()
@@ -141,6 +166,7 @@ void WorkingSetSelectorComponent::redraw()
 		workingSetIndex++;
 	}
 	repaint();
+	auxButton.toFront(false);
 	ackButton.toFront(false);
 }
 
@@ -167,8 +193,24 @@ void WorkingSetSelectorComponent::set_ack_button_visible(bool shouldBeVisible)
 		parentServer.send_alarm_ack_command(isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased);
 	}
 	ackButton.setVisible(shouldBeVisible);
-	update_ack_button_bounds();
+	update_column_button_bounds();
 	ackButton.toFront(false);
+	repaint();
+}
+
+void WorkingSetSelectorComponent::update_auxiliary_button()
+{
+	const bool hasAuxiliaryObjects = std::any_of(children.begin(), children.end(), [](const SELECTOR_CHILD_OBJECTS_STRUCT &child) { return AuxiliaryControlSnapshot::has_auxiliary_objects(child.workingSet); });
+
+	auxButton.setVisible(hasAuxiliaryObjects || parentServer.get_is_auxiliary_page_shown());
+	update_column_button_bounds();
+	auxButton.toFront(false);
+	repaint();
+}
+
+void WorkingSetSelectorComponent::set_auxiliary_notice(bool hasNotice)
+{
+	hasAuxiliaryNotice = hasNotice;
 	repaint();
 }
 
@@ -204,11 +246,18 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	return workingSetComponent;
 }
 
-void WorkingSetSelectorComponent::update_ack_button_bounds()
+void WorkingSetSelectorComponent::update_column_button_bounds()
 {
-	const auto ackButtonSize = BUTTON_WIDTH;
-	const auto ackButtonY = std::max(0, getHeight() - ackButtonSize - button_padding());
-	ackButton.setBounds(button_padding(), ackButtonY, ackButtonSize, ackButtonSize);
+	const auto buttonSize = BUTTON_WIDTH;
+	auto buttonY = std::max(0, getHeight() - buttonSize - button_padding());
+
+	// ACK keeps the bottom, AUX goes above it while both are shown
+	if (ackButton.isVisible())
+	{
+		ackButton.setBounds(button_padding(), buttonY, buttonSize, buttonSize);
+		buttonY = std::max(0, buttonY - buttonSize - button_padding());
+	}
+	auxButton.setBounds(button_padding(), buttonY, buttonSize, buttonSize);
 }
 
 void WorkingSetSelectorComponent::mouseUp(const MouseEvent &event)
