@@ -887,13 +887,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			auto canLogFileName = File(canLogPath);
 			diagnosticFileBuilder->addFile(canLogFileName, 9, canLogFileName.getFileName());
 
-			// Cut the output logging where we started
-			FileInputStream *fis = new FileInputStream(logger.getLogFile());
-			if (fis->openedOk())
-			{
-				fis->setPosition(logger.initialPos());
-				diagnosticFileBuilder->addEntry(fis, 9, "AgISOVirtualTerminalLog.txt", Time::getCurrentTime());
-			}
+			diagnosticFileBuilder->addFile(logger.getLogFile(), 9, logger.getLogFile().getFileName());
 
 			auto userDataFolder = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString());
 
