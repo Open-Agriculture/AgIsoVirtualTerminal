@@ -371,6 +371,27 @@ namespace
 		return value;
 	}
 
+	/// The render: keys and their largest value, so a typo cannot ask for a huge image
+	constexpr std::pair<const char *, int> RENDER_LIMITS[] = {
+		{ "data_mask_size", 2048 },
+		{ "softkey_count", 64 }, // the most soft keys a soft key mask holds
+		{ "softkey_width", 255 }, // the VT reports the soft key size in one byte
+		{ "softkey_height", 255 }
+	};
+
+	/// Returns the largest value of a render: key, or 0 if the key is unknown
+	int get_render_limit(const String &key)
+	{
+		for (const auto &limit : RENDER_LIMITS)
+		{
+			if (key == limit.first)
+			{
+				return limit.second;
+			}
+		}
+		return 0;
+	}
+
 	/// Reads the fields of meta.yaml that vt-render uses. It is not a YAML parser: it understands the flat
 	/// top-level keys and the render: block that the collection's schema allows, and skips everything else.
 	bool read_meta(const File &file, PoolMeta &meta, String &error)
@@ -428,9 +449,18 @@ namespace
 			}
 			else if ((block == "render") && line.containsChar(':') && (value != "TODO"))
 			{
-				if (value.isEmpty() || !value.containsOnly("0123456789") || (value.getIntValue() < 1))
+				const int limit = get_render_limit(key);
+
+				if (0 == limit)
 				{
-					error = "meta.yaml: render." + key + " is neither a positive integer nor TODO: " + value;
+					error = "meta.yaml: render." + key + " is not a render setting";
+					return false;
+				}
+				// More digits than the limit has could overflow getIntValue()
+				if (value.isEmpty() || !value.containsOnly("0123456789") || (value.length() > String(limit).length()) ||
+				    (value.getIntValue() < 1) || (value.getIntValue() > limit))
+				{
+					error = "meta.yaml: render." + key + " is neither an integer from 1 to " + String(limit) + " nor TODO: " + value;
 					return false;
 				}
 				meta.render[key] = value.getIntValue();

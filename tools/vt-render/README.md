@@ -56,6 +56,9 @@ data mask 480, soft keys 60 x 60, 12 soft keys. The keys fill a column top to bo
 next to the data mask, then the next column to the left, as the VT's soft key mask does. Keys beyond
 `softkey_count` go on the next page.
 
+Each value is an integer from 1 to a limit: `data_mask_size` 2048, `softkey_count` 64, `softkey_width`
+and `softkey_height` 255. A value out of range or an unknown key fails the pool's `meta.yaml` (exit code 2).
+
 `meta.yaml` is read line by line, not with a YAML parser: only `id`, `name`, `manufacturer`, `public`,
 `known_issues` and the `render:` block are used.
 
