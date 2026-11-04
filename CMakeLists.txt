@@ -118,7 +118,8 @@ target_sources(
           "src/IndentedToggleButton.cpp"
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
-          "src/StringDrawingComponent.cpp")
+          "src/StringDrawingComponent.cpp"
+          "src/VersionStorage.cpp")
 
 target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)

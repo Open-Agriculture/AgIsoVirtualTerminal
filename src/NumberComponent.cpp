@@ -17,6 +17,7 @@ NumberComponent::NumberComponent(
 void NumberComponent::paintNumber(Graphics &g, bool enabled)
 {
 	bool strikeThrough = false;
+	std::uint8_t fontWidth = 0;
 	auto vtColour = parentWorkingSet->get_colour(vtObject()->get_background_color());
 	juce::Colour backgroundColour = Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
 	juce::Colour drawColour = getLookAndFeel().findColour(ListBox::textColourId);
@@ -40,6 +41,7 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 			auto colour = parentWorkingSet->get_colour(font->get_colour());
 			drawColour = Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f);
 			strikeThrough = font->get_style(isobus::FontAttributes::FontStyleBits::CrossedOut);
+			fontWidth = font->get_font_width_pixels();
 			prepare_text_painting(g, font, '1', drawColour, backgroundColour);
 		}
 	}
@@ -65,6 +67,10 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 	if ((0.0 != scaledValue) || !sourceNumber->get_option(isobus::NumberVTObject::Options::DisplayZeroAsBlank))
 	{
 		std::ostringstream valueText;
+		if (sourceNumber->get_option(isobus::NumberVTObject::Options::DisplayLeadingZeros) && (0 != fontWidth))
+		{
+			valueText << std::internal << std::setfill('0') << std::setw(sourceNumber->get_width() / fontWidth);
+		}
 		valueText << std::fixed << std::setprecision(sourceNumber->get_number_of_decimals()) << scaledValue;
 		// Not drawText, which drops glyphs that don't fit; ISO 11783-6 4.6.19.2 clips overflow by pixel
 		GlyphArrangement glyphs;
