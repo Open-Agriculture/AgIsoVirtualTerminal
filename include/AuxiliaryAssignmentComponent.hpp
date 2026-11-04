@@ -159,13 +159,21 @@ private:
 	{
 		/// @brief Takes the input's latest status
 		/// @param[in] status The status
-		/// @param[in] isAnalogue True if the input reports an analogue value
+		/// @param[in] type The function type of the input
 		/// @returns True if the operator just pressed or moved the control
-		bool update(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status, bool isAnalogue);
+		bool update(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status, isobus::AuxiliaryFunctionType2::FunctionType type);
 
+		/// @brief Returns if an analogue lever was just moved
+		/// @param[in] status The status
+		/// @param[in] hasSecondAxis True if value 2 is a second analogue axis
+		/// @returns True if the lever moved far enough
+		bool update_lever(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status, bool hasSecondAxis);
+
+		std::uint16_t lastValue1 = 0;
+		std::uint16_t lastValue2 = 0;
 		std::uint16_t restValue1 = 0; ///< Analogue value 1 where the lever rests
 		std::uint16_t restValue2 = 0; ///< Analogue value 2 where the lever rests
-		bool hasRestValue = false;
+		bool hasValues = false;
 		bool wasPressed = false;
 	};
 

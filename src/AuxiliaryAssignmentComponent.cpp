@@ -52,31 +52,17 @@ namespace
 	constexpr int LEARN_MOVEMENT = ANALOGUE_MAXIMUM / 10; ///< A lever moved this far is pressed
 	constexpr int LEARN_STILL = ANALOGUE_MAXIMUM / 50; ///< A pressed lever moving less than this has stopped
 
-	bool is_analogue_input(const Snapshot::WorkingSetPointer &workingSet, std::uint16_t inputObjectID)
+	using FunctionType = isobus::AuxiliaryFunctionType2::FunctionType;
+
+	// A reserved type if the object is not an Auxiliary Input Type 2
+	FunctionType get_input_function_type(const Snapshot::WorkingSetPointer &workingSet, std::uint16_t inputObjectID)
 	{
-		using Type = isobus::AuxiliaryFunctionType2::FunctionType;
 		auto object = is_parsed(workingSet) ? workingSet->get_object_by_id(inputObjectID) : nullptr;
-		bool retVal = false;
+		auto retVal = FunctionType::ReservedRangeStart;
 
 		if ((nullptr != object) && (isobus::VirtualTerminalObjectType::AuxiliaryInputType2 == object->get_object_type()))
 		{
-			switch (std::static_pointer_cast<isobus::AuxiliaryInputType2>(object)->get_function_type())
-			{
-				case Type::Analouge:
-				case Type::AnalougeReturnTo50Percent:
-				case Type::AnalougeReturnTo0PercentIncreaseValue:
-				case Type::CombinedAnalougeReturnTo50PercentWithDualBooleanLatching:
-				case Type::CombinedAnalougeMaintainsPositionWithDualBooleanLatching:
-				case Type::QuadratureAnalouge:
-				case Type::QuadratureAnalougeReturnTo50Percent:
-				{
-					retVal = true;
-				}
-				break;
-
-				default:
-					break;
-			}
+			retVal = std::static_pointer_cast<isobus::AuxiliaryInputType2>(object)->get_function_type();
 		}
 		return retVal;
 	}
@@ -340,7 +326,7 @@ void AuxiliaryAssignmentComponent::on_assignment_event(const isobus::VirtualTerm
 void AuxiliaryAssignmentComponent::on_input_status(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status)
 {
 	auto &learned = learnedInputs[std::make_pair(status.inputWorkingSet.get(), status.inputObjectID)];
-	const bool isPress = learned.update(status, is_analogue_input(status.inputWorkingSet, status.inputObjectID));
+	const bool isPress = learned.update(status, get_input_function_type(status.inputWorkingSet, status.inputObjectID));
 
 	// Units repeat the status while a control is held, only the press picks it
 	if (isPress && get_is_learn_mode_wanted())
@@ -358,22 +344,76 @@ void AuxiliaryAssignmentComponent::on_input_status(const isobus::VirtualTerminal
 	}
 }
 
-bool AuxiliaryAssignmentComponent::LearnedInput::update(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status, bool isAnalogue)
+bool AuxiliaryAssignmentComponent::LearnedInput::update(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status, isobus::AuxiliaryFunctionType2::FunctionType type)
 {
-	bool isPressed = status.isActivated;
+	// Units also flag releases and ADC noise as activation, so the values tell a press (ISO 11783-6 Table J.5)
+	bool isPress = false;
 
-	if (isAnalogue)
+	switch (type)
 	{
-		// Units flag ADC noise as activation too, so a lever has to move, and once pressed it has to stop
-		const int distance = wasPressed ? LEARN_STILL : LEARN_MOVEMENT;
-		isPressed = status.isActivated && hasRestValue && (has_moved(restValue1, status.value1, distance) || has_moved(restValue2, status.value2, distance));
-
-		if ((!hasRestValue) || (!status.isActivated) || wasPressed || isPressed)
+		// Value 2 counts the presses
+		case FunctionType::BooleanLatchingOnOff:
+		case FunctionType::BooleanNonLatchingIncreaseValue:
+		case FunctionType::DualBooleanBothLatching:
+		case FunctionType::DualBooleanBothNonLatching:
+		case FunctionType::DualBooleanLatchingUp:
+		case FunctionType::DualBooleanLatchingDown:
+		case FunctionType::QuadratureBooleanNonLatching:
 		{
-			restValue1 = status.value1;
-			restValue2 = status.value2;
-			hasRestValue = true;
+			isPress = status.isActivated && hasValues && (lastValue2 != status.value2);
 		}
+		break;
+
+		// Value 1 is the count
+		case FunctionType::BidirectionalEncoder:
+		{
+			isPress = status.isActivated && hasValues && (lastValue1 != status.value1);
+		}
+		break;
+
+		case FunctionType::Analouge:
+		case FunctionType::AnalougeReturnTo50Percent:
+		case FunctionType::AnalougeReturnTo0PercentIncreaseValue:
+		case FunctionType::QuadratureAnalouge:
+		case FunctionType::QuadratureAnalougeReturnTo50Percent:
+		{
+			isPress = update_lever(status, (FunctionType::QuadratureAnalouge == type) || (FunctionType::QuadratureAnalougeReturnTo50Percent == type));
+		}
+		break;
+
+		// A lever that latches at its ends, value 2 counts the latches
+		case FunctionType::CombinedAnalougeReturnTo50PercentWithDualBooleanLatching:
+		case FunctionType::CombinedAnalougeMaintainsPositionWithDualBooleanLatching:
+		{
+			const bool isMoved = update_lever(status, false);
+			isPress = isMoved || (status.isActivated && hasValues && (lastValue2 != status.value2));
+		}
+		break;
+
+		default:
+		{
+			isPress = status.isActivated && (!wasPressed);
+			wasPressed = status.isActivated;
+		}
+		break;
+	}
+	lastValue1 = status.value1;
+	lastValue2 = status.value2;
+	hasValues = true;
+	return isPress;
+}
+
+bool AuxiliaryAssignmentComponent::LearnedInput::update_lever(const isobus::VirtualTerminalServer::AuxiliaryInputStatus &status, bool hasSecondAxis)
+{
+	// A lever has to move to count, and once it counted it has to stop
+	const int distance = wasPressed ? LEARN_STILL : LEARN_MOVEMENT;
+	const bool isMoved = has_moved(restValue1, status.value1, distance) || (hasSecondAxis && has_moved(restValue2, status.value2, distance));
+	const bool isPressed = status.isActivated && hasValues && isMoved;
+
+	if ((!hasValues) || (!status.isActivated) || wasPressed || isPressed)
+	{
+		restValue1 = status.value1;
+		restValue2 = status.value2;
 	}
 	const bool isPress = isPressed && (!wasPressed);
 	wasPressed = isPressed;
