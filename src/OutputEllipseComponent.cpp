@@ -5,6 +5,7 @@
 *******************************************************************************/
 #include "OutputEllipseComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "LineArt.hpp"
 
 OutputEllipseComponent::OutputEllipseComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputEllipse sourceObject) :
   isobus::OutputEllipse(sourceObject),
@@ -91,7 +92,9 @@ void OutputEllipseComponent::paint(Graphics &g)
 					}
 					/* If type > 0 (!= Closed) and start and end angles are the same, the ellipse is drawn closed. */
 					g.setColour(Colour::fromFloatRGBA(lineColour.r, lineColour.g, lineColour.b, 1.0f));
-					g.drawEllipse(line->get_width() / 2.0f, line->get_width() / 2.0f, get_width() - line->get_width(), get_height() - line->get_width(), line->get_width());
+					Path ellipse;
+					ellipse.addEllipse(line->get_width() / 2.0f, line->get_width() / 2.0f, get_width() - line->get_width(), get_height() - line->get_width());
+					line_art::stroke_path(g, ellipse, line->get_width(), line->get_line_art_bit_pattern());
 				}
 			}
 			else
@@ -123,7 +126,7 @@ void OutputEllipseComponent::paint(Graphics &g)
 					}
 
 					g.setColour(Colour::fromFloatRGBA(lineColour.r, lineColour.g, lineColour.b, 1.0f));
-					g.strokePath(arcPath, juce::PathStrokeType(line->get_width()));
+					line_art::stroke_path(g, arcPath, line->get_width(), line->get_line_art_bit_pattern());
 				}
 				else if (get_ellipse_type() == isobus::OutputEllipse::EllipseType::ClosedEllipseSection)
 				{
@@ -136,12 +139,12 @@ void OutputEllipseComponent::paint(Graphics &g)
 					}
 
 					g.setColour(Colour::fromFloatRGBA(lineColour.r, lineColour.g, lineColour.b, 1.0f));
-					g.strokePath(arcPath, juce::PathStrokeType(line->get_width()));
+					line_art::stroke_path(g, arcPath, line->get_width(), line->get_line_art_bit_pattern());
 				}
 				else if (get_ellipse_type() == isobus::OutputEllipse::EllipseType::OpenDefinedByStartEndAngles)
 				{
 					g.setColour(Colour::fromFloatRGBA(lineColour.r, lineColour.g, lineColour.b, 1.0f));
-					g.strokePath(arcPath, juce::PathStrokeType(line->get_width()));
+					line_art::stroke_path(g, arcPath, line->get_width(), line->get_line_art_bit_pattern());
 				}
 			}
 		}
