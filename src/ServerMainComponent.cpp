@@ -1127,6 +1127,7 @@ void ServerMainComponent::show_diagnostics_window()
 		auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
 		diagnosticsWindow->setBounds(result);
 	}
+	diagnosticsWindow->setAlwaysOnTop(alwaysOnTop);
 	diagnosticsWindow->setVisible(true);
 	diagnosticsWindow->toFront(true);
 }
