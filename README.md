@@ -25,7 +25,7 @@ We currently support Windows, Linux, and macOS. We may support other platforms i
 
 ## Screenshots
 
-<img src="doc/screenshot1.png" width="400" alt="A Müller Elektronik planter's run screen, with the AgIsoStack++ seeder example connected as a second working set"> <img src="doc/screenshot2.png" width="400" alt="The AgIsoStack++ seeder example selected, in manual mode with two sections switched on">
+<img src="doc/screenshot1.png" width="400" alt="Data mask: a Kverneland sprayer's spraying run screen, with its soft keys on the right"> <img src="doc/screenshot2.png" width="400" alt="Alarm mask: the AgIsoStack++ seeder example raising its Machine Speed Not Detected alarm">
 
 ## Project Status
 
@@ -34,11 +34,11 @@ This section is temporary and will be updated as progress is made on the project
 ### Supported
 
 - **ISOBUS:** address claiming, TP, ETP, the diagnostic protocol, most relevant VT server CAN messages, and the screen capture command/response
-- **Object pools:** most objects up to version 6, except the ones listed under "Not supported yet"
+- **Object pools:** most objects up to version 6, except the ones listed under "Not supported yet". Implements can store their object pool on the VT, so it doesn't have to be uploaded again on every start.
 - **Masks:** data masks, alarm masks, and soft key masks
-- **Keys and buttons:** key objects and buttons
+- **Keys and buttons:** key objects and buttons, including latching buttons
 - **Inputs:** numbers, Booleans, strings, and lists
-- **Outputs:** numbers, strings (partial - font clipping is not compliant), linear bar graphs, and meters (bar graphs and meters without tick marks)
+- **Outputs:** numbers, strings (partial - font clipping is not compliant), linear bar graphs (without tick marks), and meters
 - **Graphics:** rectangles, ellipses, polygons, lines, and picture graphics (with and without run-length encoding)
 - **Layout:** containers and object pointers
 - **Macros:** most common macro and extended macro functionality
@@ -49,9 +49,10 @@ This section is temporary and will be updated as progress is made on the project
 
 We are always adding new features.
 
-- **Loaded but not shown:** window masks, Aux N/O, output lists, and output arched bar graphs. A pool that contains them still loads.
-- **Not loaded:** animations, graphics contexts, object label reference lists, extended input attributes, external object definitions, external reference NAMEs, external object pointers, colour palettes, graphic data, working set special controls, and scaled graphics. The VT can't load an object pool that contains any of these, so the working set never shows up.
-- **Other:** arbitrary audio control, pointing events, TAN, several messages such as ESC, and OpenGL rendering (only software rendering is supported, though JUCE's software rendering is very RAM efficient compared to GL). Probably more things, to be honest.
+- **Loaded but not shown:** window masks, key groups, Aux N/O, output lists, output arched bar graphs, graphic data, scaled graphics, colour maps, and working set special controls. A pool that contains them still loads.
+- **Not loaded:** animations, graphics contexts, object label reference lists, extended input attributes, external object definitions, external reference NAMEs, external object pointers, and colour palettes. The VT can't load an object pool that contains any of these, so the working set never shows up.
+- **Commands:** Get Attribute Value, Change Object Label, Select Colour Map, Lock/Unlock Mask, Graphics Context, Select Active Working Set, and Auxiliary Capabilities are answered with "unsupported VT function" when the VT reports version 5 or later, and are ignored otherwise. Preferred Assignment is acknowledged but not stored.
+- **Other:** arbitrary audio control (only the alarm beeps play), pointing events, TAN, and OpenGL rendering (only software rendering is supported, though JUCE's software rendering is very RAM efficient compared to GL). Probably more things, to be honest.
 
 ## Download
 
@@ -70,6 +71,15 @@ The application checks GitHub for newer releases on launch, so you'll know when 
 
 Each implement shows up in the column on the left once it has uploaded its object pool. If more than one is connected, click one to show it.
 
+### Using the VT
+
+- Number inputs open an on-screen keypad, so the VT can be used on a touchscreen.
+- If an implement has more soft keys than the VT has room for, use the page buttons below the soft keys to switch between them.
+- "Configure > ACK button" can show a dedicated ACK button while an alarm mask is active, and sets a keyboard key that acknowledges alarms.
+- "Configure > Reported Hardware Capabilities" sets the data mask size, the soft key size, and the number of soft key columns and rows that the VT reports to implements.
+- "Control > Fit masks to window" scales the data and soft key masks to fill the window.
+- "Control > Scale pools to data mask size" scales object pools that were drawn for a different data mask size to the one the VT reports.
+
 ### Command line options
 
 - `--vt-number=N` sets which VT this is on the bus, from 1 to 32. Use it to run more than one VT on the same bus.
@@ -80,7 +90,7 @@ Each implement shows up in the column on the left once it has uploaded its objec
 Settings, logs, and stored object pools are kept in an `Open-Agriculture` folder:
 
 - Windows: `%APPDATA%\Open-Agriculture`
-- Linux: `~/.config/Open-Agriculture`
+- Linux: `~/.config/Open-Agriculture` (or `$XDG_CONFIG_HOME/Open-Agriculture` if that is set)
 - macOS: `~/Library/Open-Agriculture`
 
 It holds:
@@ -88,7 +98,7 @@ It holds:
 - `vt_settings.xml`: your settings
 - `AgISOVirtualTerminalLog.txt`: the log
 - `CANLog_*.asc`: CAN traffic logs, written only when turned on in "Configure > Logging". Logs older than 3 days are deleted when the VT starts.
-- `iso_data/`: the object pools implements stored on the VT, in one folder per implement
+- `iso_data/`: the object pools implements stored on the VT, in one folder per implement, named after its NAME
 - `screen captures/`: screen captures, unless `--screen-capture-dir` says otherwise
 
 ## Compilation
