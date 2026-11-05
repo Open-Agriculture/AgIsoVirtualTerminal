@@ -17,9 +17,8 @@ LoggerComponent::LoggerComponent() :
              "Starting " + AgISOVirtualTerminalApplication::getApplicationNameWithBuildInfo(),
              1024000)
 {
-	auto bounds = getLocalBounds();
-	setBounds(10, 10, bounds.getWidth() - 10, bounds.getHeight() - 10);
-
+	// Note: no bounds are set here on purpose. This component is hosted by a Viewport, which
+	// owns its position, and the owner sizes it once the log area is laid out.
 	startPos = getLogFile().getSize();
 }
 
@@ -71,14 +70,40 @@ void LoggerComponent::paint(Graphics &g)
 	}
 }
 
+LoggerComponent::~LoggerComponent()
+{
+	cancelPendingUpdate();
+}
+
 void LoggerComponent::sink_CAN_stack_log(LoggingLevel level, const std::string &logText)
 {
-	const auto mmLock = MessageManagerLock();
-	auto bounds = getLocalBounds();
+	{
+		const std::lock_guard<std::mutex> lock(pendingMessagesMutex);
+		pendingMessages.push_back({ logText, level });
+	}
+	logMessage(logText);
+	triggerAsyncUpdate();
+}
 
-	loggedMessages.push_front({ logText, level });
+void LoggerComponent::handleAsyncUpdate()
+{
+	std::vector<LogData> messages;
+	{
+		const std::lock_guard<std::mutex> lock(pendingMessagesMutex);
+		messages.swap(pendingMessages);
+	}
 
-	if (loggedMessages.size() > MAX_NUMBER_MESSAGES)
+	if (messages.empty())
+	{
+		return;
+	}
+
+	for (auto &message : messages)
+	{
+		loggedMessages.push_front(std::move(message));
+	}
+
+	while (loggedMessages.size() > MAX_NUMBER_MESSAGES)
 	{
 		loggedMessages.pop_back();
 	}
@@ -89,9 +114,8 @@ void LoggerComponent::sink_CAN_stack_log(LoggingLevel level, const std::string &
 	{
 		newSize = getHeight();
 	}
-	setSize(bounds.getWidth(), newSize);
+	setSize(getWidth(), newSize);
 	repaint();
-	logMessage(logText);
 }
 
 std::uint64_t LoggerComponent::initialPos() const

@@ -4,7 +4,9 @@
 /// @brief Common functions for drawing numbers
 /// @author Miklos Marton
 ///
+/// @copyright 2024 The Open-Agriculture Developers
 //================================================================================================
+
 #ifndef TEXTDRAWING_COMPONENT_HPP
 #define TEXTDRAWING_COMPONENT_HPP
 

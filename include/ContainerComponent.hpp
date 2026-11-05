@@ -20,8 +20,6 @@ class ContainerComponent : public isobus::Container
 public:
 	ContainerComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::Container sourceObject);
 
-	void paint(Graphics &g) override;
-
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;

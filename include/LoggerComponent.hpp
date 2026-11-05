@@ -15,13 +15,19 @@
 
 #include "JuceHeader.h"
 
+#include <deque>
+#include <mutex>
+#include <vector>
+
 /// @brief Defines a GUI component that will draw log info sunk from the stack
 class LoggerComponent : public Component
   , public FileLogger
   , public isobus::CANStackLogger
+  , private AsyncUpdater
 {
 public:
 	LoggerComponent();
+	~LoggerComponent() override;
 
 	void paint(Graphics &g) override;
 
@@ -37,7 +43,11 @@ private:
 		isobus::CANStackLogger::LoggingLevel logLevel;
 	};
 	static constexpr std::size_t MAX_NUMBER_MESSAGES = 3000;
+	void handleAsyncUpdate() override;
+
 	std::deque<LogData> loggedMessages;
+	std::mutex pendingMessagesMutex;
+	std::vector<LogData> pendingMessages;
 
 	std::uint64_t startPos = 0;
 

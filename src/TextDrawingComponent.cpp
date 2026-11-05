@@ -120,7 +120,6 @@ std::uint8_t TextDrawingComponent::prepare_text_painting(Graphics &g,
                                                          juce::Colour &drawColour,
                                                          juce::Colour &backgroundColor)
 {
-	Font juceFont = Font(Font::getDefaultMonospacedFontName(), 0, 0);
 	std::uint8_t fontHeight;
 	int fontStyleFlags = Font::FontStyleFlags::plain;
 
@@ -139,10 +138,12 @@ std::uint8_t TextDrawingComponent::prepare_text_painting(Graphics &g,
 		fontStyleFlags |= Font::FontStyleFlags::underlined;
 	}
 
-	juceFont.setStyleFlags(fontStyleFlags);
-	juceFont.setHeight(font->get_font_height_pixels());
+	Font juceFont(FontOptions(Font::getDefaultMonospacedFontName(),
+	                          font->get_font_height_pixels(),
+	                          fontStyleFlags)
+	                .withMetricsKind(juce::TypefaceMetricsKind::legacy));
 
-	auto fontWidth = juceFont.getStringWidthFloat(juce::String::fromUTF8(&referenceCharForWidthCalc, 1));
+	auto fontWidth = GlyphArrangement::getStringWidth(juceFont, juce::String::fromUTF8(&referenceCharForWidthCalc, 1));
 	fontHeight = font->get_font_height_pixels();
 	if (fontHeight == 0)
 	{
@@ -172,7 +173,7 @@ std::uint8_t TextDrawingComponent::prepare_text_painting(Graphics &g,
 void TextDrawingComponent::drawStrikeThrough(Graphics &g, int w, int h, const String &str, isobus::TextualVTObject::HorizontalJustification justification)
 {
 	auto font = g.getCurrentFont();
-	auto textWidth = font.getStringWidth(str);
+	auto textWidth = GlyphArrangement::getStringWidthInt(font, str);
 	auto lineThickness = h * 0.05f; // set the thickness to 5% of the total text height
 	if (lineThickness < 1.0f)
 	{

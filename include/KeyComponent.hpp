@@ -24,6 +24,7 @@ public:
 
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
+	Component contentHolder;
 	std::vector<std::shared_ptr<Component>> childComponents;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(KeyComponent)

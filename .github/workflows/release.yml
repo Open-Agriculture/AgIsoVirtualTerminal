@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+
+  release_upload:
+    name: Release Packages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Packages
+        uses: actions/download-artifact@v7
+      - name: Name Deb Packages By Ubuntu Version
+        run: |
+          for deb in Ubuntu*/*.deb; do
+            version="${deb#Ubuntu }"
+            mv "$deb" "$(basename "${deb%.deb}")-ubuntu-${version%% *}.deb"
+          done
+      - name: Attach Packages To Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" "Windows Installer"/*.exe "OSX dmg package"/*.dmg *.deb --clobber

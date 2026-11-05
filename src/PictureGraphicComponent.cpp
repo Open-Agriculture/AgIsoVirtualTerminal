@@ -53,6 +53,13 @@ void PictureGraphicComponent::paint(Graphics &g)
 
 	if (showImage)
 	{
+		// Smoothing blurs an enlarged bitmap, so its pixels are just repeated instead
+		const auto pixelsPerImagePixel = g.getInternalContext().getPhysicalPixelScaleFactor() * static_cast<float>(getWidth()) / static_cast<float>(juce::jmax(1, reconstructedImage.getWidth()));
+
+		if (pixelsPerImagePixel > 1.0f)
+		{
+			g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
+		}
 		g.drawImage(reconstructedImage, getLocalBounds().toFloat());
 	}
 }

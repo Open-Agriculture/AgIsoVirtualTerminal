@@ -3,9 +3,19 @@ cmake_minimum_required(VERSION 3.16)
 project(
   "AgISOVirtualTerminal"
   LANGUAGES CXX C
-  VERSION 1.4.0)
+  VERSION 1.7.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
+if(MSVC)
+  # Link the C++ runtime into the executable instead of relying on MSVCP140.dll
+  # and VCRUNTIME140*.dll being present. Those ship with Visual Studio and with
+  # the Visual C++ redistributable, so without this the build folder cannot
+  # simply be copied to a machine which has never had either installed: the
+  # program fails to start with no useful message. This has to be set before any
+  # target is created for it to take effect on all of them.
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 set(JUCE_WEB_BROWSER OFF)
 set(BUILD_TESTING OFF)
@@ -48,7 +58,7 @@ juce_add_gui_app(
   PRODUCT_NAME
   "AgISOVirtualTerminal"
   NEEDS_CURL
-  FALSE
+  TRUE
   NEEDS_WEB_BROWSER
   FALSE
   DESCRIPTION
@@ -56,7 +66,7 @@ juce_add_gui_app(
 
 set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 17)
 
-target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=0
+target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
                                                         JUCE_WEB_BROWSER=0)
 
 juce_generate_juce_header(AgISOVirtualTerminal)
@@ -80,7 +90,9 @@ target_sources(
           "src/ObjectPointerComponent.cpp"
           "src/OutputNumberComponent.cpp"
           "src/SoftkeyMaskRenderArea.cpp"
+          "src/SoftKeyPageBar.cpp"
           "src/KeyComponent.cpp"
+          "src/DesignatorFit.cpp"
           "src/SoftKeyMaskComponent.cpp"
           "src/OutputMeterComponent.cpp"
           "src/InputBooleanComponent.cpp"
@@ -91,21 +103,26 @@ target_sources(
           "src/OutputEllipseComponent.cpp"
           "src/OutputLineComponent.cpp"
           "src/OutputLinearBarGraphComponent.cpp"
+          "src/OutputArchedBarGraphComponent.cpp"
           "src/OutputPolygonComponent.cpp"
           "src/InputStringComponent.cpp"
           "src/NumberComponent.cpp"
           "src/AlarmMaskAudio.cpp"
+          "src/NumericKeypadComponent.cpp"
           "src/AppImages.cpp"
           "src/ASCIILogFile.cpp"
           "src/ConfigureHardwareWindow.cpp"
           "src/ConfigureHardwareComponent.cpp"
           "src/StringEncodingConversions.cpp"
           "src/InputListComponent.cpp"
-          "src/ShortcutsWindow.cpp"
+          "src/AckSettingsWindow.cpp"
           "src/Settings.cpp"
+          "src/UpdateChecker.cpp"
+          "src/IndentedToggleButton.cpp"
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
-          "src/StringDrawingComponent.cpp")
+          "src/StringDrawingComponent.cpp"
+          "src/VersionStorage.cpp")
 
 target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -165,6 +182,15 @@ if(APPLE)
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION . COMPONENT applications)
 else()
+  if(UNIX)
+    install(FILES "${CMAKE_SOURCE_DIR}/res/AgISOVirtualTerminal.desktop"
+            DESTINATION share/applications)
+
+    install(
+      FILES "${CMAKE_SOURCE_DIR}/res/AgIsoVT.svg"
+      DESTINATION share/icons/hicolor/scalable/apps
+      RENAME AgIsoVT.svg)
+  endif()
   install(TARGETS AgISOVirtualTerminal RUNTIME DESTINATION bin
                                                COMPONENT applications)
 endif()
@@ -191,10 +217,10 @@ endif()
 set(CPACK_PACKAGE_NAME "AgISOVirtualTerminal")
 set(CPACK_PACKAGE_VENDOR "Open-Agriculture")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "An ISO11783-6 Server")
-set(CPACK_PACKAGE_VERSION "1.4.0")
-set(CPACK_PACKAGE_VERSION_MAJOR "1")
-set(CPACK_PACKAGE_VERSION_MINOR "4")
-set(CPACK_PACKAGE_VERSION_PATCH "0")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "AgISOVirtualTerminal")
 set(CPACK_COMPONENTS_ALL applications)
 set(CPACK_COMPONENT_APPLICATIONS_DISPLAY_NAME "AgISOVirtualTerminal")
@@ -206,10 +232,10 @@ set(CPACK_PACKAGE_EXECUTABLES "AgISOVirtualTerminal" "AgISOVirtualTerminal")
 set(CPACK_ALL_INSTALL_TYPES Full)
 set(CPACK_COMPONENT_LIBRARIES_INSTALL_TYPES Full)
 set(CPACK_COMPONENT_APPLICATIONS_INSTALL_TYPES Full)
-set(CPACK_NSIS_INSTALLED_ICON_NAME ${CMAKE_CURRENT_LIST_DIR}/doc/smallLogo.ico)
+set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\AgISOVirtualTerminal.exe")
 set(CPACK_NSIS_CONTACT ${CPACK_PACKAGE_CONTACT})
-set(CPACK_NSIS_MUI_ICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
-set(CPACK_NSIS_MUI_UNICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
+set(CPACK_NSIS_MUI_ICON ${CMAKE_CURRENT_LIST_DIR}/doc/smallLogo.ico)
+set(CPACK_NSIS_MUI_UNICON ${CPACK_NSIS_MUI_ICON})
 set(CPACK_NSIS_DISPLAY_NAME "AgISOVirtualTerminal")
 set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT applications)
@@ -222,7 +248,7 @@ if(APPLE)
   set(CPACK_DMG_VOLUME_NAME "${PROJECT_NAME}")
   set(CPACK_SYSTEM_NAME "OSX")
   set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}")
-  set(CPACK_PACKAGE_ICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
+  set(CPACK_PACKAGE_ICON ${CPACK_NSIS_MUI_ICON})
 endif()
 
 # Must be after the last CPACK macros

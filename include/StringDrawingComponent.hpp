@@ -4,7 +4,9 @@
 /// @brief Common functions for drawing strings
 /// @author Miklos Marton
 ///
+/// @copyright 2024 The Open-Agriculture Developers
 //================================================================================================
+
 #ifndef STRINGDRAWING_COMPONENT_HPP
 #define STRINGDRAWING_COMPONENT_HPP
 

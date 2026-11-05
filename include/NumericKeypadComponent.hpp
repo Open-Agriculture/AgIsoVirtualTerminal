@@ -1,0 +1,115 @@
+//================================================================================================
+/// @file NumericKeypadComponent.hpp
+///
+/// @brief Defines a touch friendly numeric keypad used to edit input number objects.
+///
+/// @details A slider cannot hit an exact value with a finger, especially over the wide ranges an
+/// input number can have, so values are typed on this keypad instead. The keys are sized for
+/// touch rather than for a mouse.
+///
+/// @copyright 2026 The Open-Agriculture Developers
+//================================================================================================
+#ifndef NUMERIC_KEYPAD_COMPONENT_HPP
+#define NUMERIC_KEYPAD_COMPONENT_HPP
+
+#include "JuceHeader.h"
+
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <vector>
+
+class NumericKeypadComponent : public Component
+{
+public:
+	/// @brief Constructor
+	/// @param[in] initialValue The value the input number currently has, in displayed units
+	/// @param[in] minimumValue The lowest value the object accepts, in displayed units
+	/// @param[in] maximumValue The highest value the object accepts, in displayed units
+	/// @param[in] numberOfDecimals How many decimals the object displays. Zero means the decimal
+	/// point key is disabled, because a fractional value could not be represented.
+	/// @param[in] decimalSeparator The character shown as the decimal separator, '.' or ','
+	NumericKeypadComponent(double initialValue,
+	                       double minimumValue,
+	                       double maximumValue,
+	                       std::uint8_t numberOfDecimals,
+	                       juce::juce_wchar decimalSeparator);
+
+	/// @brief Returns what has been typed, clamped into the object's range
+	/// @returns The entered value in displayed units
+	double get_value() const;
+
+	/// @brief Checks if what has been typed is inside the object's range
+	/// @returns True if the typed value needs no clamping
+	bool is_within_range() const;
+
+	/// @brief Checks if the operator pressed an editing key since the keypad opened
+	/// @returns True after any editing key, even if the entry ends as it started
+	bool is_edited() const;
+
+	void paint(Graphics &graphics) override;
+
+	void resized() override;
+
+	bool keyPressed(const KeyPress &key) override;
+
+	std::function<void()> onConfirm; ///< Called by the confirm key, only with a value inside the range
+	std::function<void()> onCancel; ///< Called by the cancel key
+
+private:
+	/// @brief Appends a character to what has been typed, if it makes sense to do so
+	/// @param[in] character The character the operator pressed
+	void append(juce::juce_wchar character);
+
+	/// @brief Removes the last typed character
+	void backspace();
+
+	/// @brief Clears the entry back to empty
+	void clear();
+
+	/// @brief Calls onConfirm if what has been typed can be written
+	void confirm();
+
+	/// @brief Checks if a number has been typed, not just a sign or a decimal point
+	/// @returns True if the entry contains a digit
+	bool has_value() const;
+
+	/// @brief Redraws the entry and recolours it when the value is out of range
+	void refresh_display();
+
+	/// @brief Creates one key and adds it to the keypad
+	/// @param[in] text The label of the key
+	/// @param[in] action What the key does when it is pressed
+	/// @returns A pointer to the created button
+	TextButton *add_key(const String &text, std::function<void()> action);
+
+	static constexpr int KEY_SIZE = 60; ///< Key size in pixels. Keeps the dialog under the 430 px JUCE allows on an 800 x 480 screen
+	static constexpr int KEY_GAP = 6; ///< Space between the keys
+	static constexpr int DISPLAY_HEIGHT = 72; ///< Height of the entry and range readout
+	static constexpr int NUMBER_OF_COLUMNS = 4; ///< Digits take three columns, edit keys the fourth
+	static constexpr int NUMBER_OF_ROWS = 4; ///< Three digit rows plus the bottom row
+
+	/// @brief Draws the key labels large enough to read at arm's length
+	class KeyLookAndFeel : public LookAndFeel_V4
+	{
+	public:
+		Font getTextButtonFont(TextButton &, int buttonHeight) override;
+	};
+
+	KeyLookAndFeel keyLookAndFeel; ///< Declared before the keys, so it outlives them
+	OwnedArray<TextButton> keys;
+	TextButton *confirmKey = nullptr;
+	Label entryLabel;
+	Label rangeLabel;
+	String entry;
+	double minimum;
+	double maximum;
+	std::uint8_t decimals;
+	juce::juce_wchar separator; ///< Shown in place of the '.' the entry is kept with
+	bool edited = false;
+	bool hasTypedSinceOpening = false; ///< The keypad opens showing the object's current value, not something the operator typed. The first digit/decimal-point press should overwrite it rather than append to it, or an operator has to press Clear first to get the same result - see append().
+
+	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NumericKeypadComponent)
+};
+
+#endif // NUMERIC_KEYPAD_COMPONENT_HPP

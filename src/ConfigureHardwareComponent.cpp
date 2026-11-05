@@ -76,8 +76,6 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 	addAndMakeVisible(socketCANNameEditor);
 #endif
 	okButton.onClick = [this, &parent]() {
-		parent.setVisible(false);
-
 #ifdef JUCE_WINDOWS
 		if (3 == hardwareInterfaceSelector.getSelectedId()) // TouCAN
 		{
@@ -96,6 +94,10 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 		isobus::CANStackLogger::info("Updated socket CAN interface name to: " + socketCANNameEditor.getText().toStdString());
 #endif
 		parent.parentServer.save_settings();
+		parent.exitModalState(1);
+		parent.setVisible(false);
+		// The dialog is hidden rather than destroyed, so its text caret would otherwise outlive it
+		parent.parentServer.release_text_input_focus();
 	};
 }
 

@@ -36,30 +36,13 @@
 #include "SoftKeyMaskComponent.hpp"
 #include "StringVariableComponent.hpp"
 #include "WorkingSetComponent.hpp"
-#include "WorkingSetSelectorComponent.hpp"
 
-std::vector<JuceManagedWorkingSetCache::ComponentCacheClass> JuceManagedWorkingSetCache::workingSetComponentCache;
 int JuceManagedWorkingSetCache::dataAndAlarmMaskSize = 480;
 SoftKeyMaskDimensions JuceManagedWorkingSetCache::softKeyDimensionInfo = SoftKeyMaskDimensions();
 
 std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::shared_ptr<isobus::VTObject> sourceObject)
 {
 	std::shared_ptr<Component> retVal;
-	bool isWorkingSetKnown = false;
-
-	for (auto &knownWorkingSet : workingSetComponentCache)
-	{
-		if (knownWorkingSet.workingSet == workingSet)
-		{
-			isWorkingSetKnown = true;
-			break;
-		}
-	}
-
-	if (!isWorkingSetKnown)
-	{
-		workingSetComponentCache.emplace_back(workingSet);
-	}
 
 	if (nullptr != sourceObject)
 	{
@@ -192,6 +175,11 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 			break;
 
 			case isobus::VirtualTerminalObjectType::OutputArchedBarGraph:
+			{
+				retVal = std::make_shared<OutputArchedBarGraphComponent>(workingSet, *std::static_pointer_cast<isobus::OutputArchedBarGraph>(sourceObject));
+			}
+			break;
+
 			case isobus::VirtualTerminalObjectType::GraphicsContext:
 			case isobus::VirtualTerminalObjectType::Animation:
 			{
@@ -212,7 +200,7 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 
 			case isobus::VirtualTerminalObjectType::WorkingSet:
 			{
-				retVal = std::make_shared<WorkingSetComponent>(workingSet, *std::static_pointer_cast<isobus::WorkingSet>(sourceObject), WorkingSetSelectorComponent::BUTTON_WIDTH, WorkingSetSelectorComponent::BUTTON_HEIGHT);
+				retVal = std::make_shared<WorkingSetComponent>(workingSet, *std::static_pointer_cast<isobus::WorkingSet>(sourceObject), softKeyDimensionInfo.keyHeight, softKeyDimensionInfo.keyWidth);
 			}
 			break;
 
@@ -233,4 +221,9 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 void JuceManagedWorkingSetCache::set_softkey_mask_dimension_info(const SoftKeyMaskDimensions &info)
 {
 	softKeyDimensionInfo = info;
+}
+
+const SoftKeyMaskDimensions &JuceManagedWorkingSetCache::get_softkey_mask_dimension_info()
+{
+	return softKeyDimensionInfo;
 }
