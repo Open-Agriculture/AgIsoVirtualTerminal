@@ -19,6 +19,8 @@ void OutputPolygonComponent::paint(Graphics &g)
 	if (get_number_of_points() >= 3)
 	{
 		Path polygonPath;
+		// ISO 11783-6 B.10.5: the VT shall use the even-odd fill rule, non-zero winding is not supported
+		polygonPath.setUsingNonZeroWinding(false);
 		float lineWidth = 0.0f;
 		std::uint16_t lineArt = line_art::SOLID;
 		auto lineColour = Colour::fromFloatRGBA(0.0f, 0.0f, 0.0f, 1.0);
@@ -53,13 +55,11 @@ void OutputPolygonComponent::paint(Graphics &g)
 		// If the polygon type is not open, it must be closed by us
 		if (PolygonType::Open != get_type())
 		{
-			const auto thisPoint = get_point(static_cast<std::uint8_t>(get_number_of_points() - 1));
-			const auto nextPoint = get_point(0U);
-
 			polygonPath.closeSubPath();
 		}
 
-		if (isobus::NULL_OBJECT_ID != get_fill_attributes())
+		// Table B.33: an open polygon cannot be filled
+		if ((PolygonType::Open != get_type()) && (isobus::NULL_OBJECT_ID != get_fill_attributes()))
 		{
 			auto child = get_object_by_id(get_fill_attributes(), parentWorkingSet->get_object_tree());
 
