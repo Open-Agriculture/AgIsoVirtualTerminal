@@ -51,6 +51,7 @@ private:
 	static constexpr std::size_t MAX_QUEUED_FILE_LINES = 20000; ///< Cap so a stuck disk cannot eat all memory
 	static constexpr std::int64_t MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 	static constexpr int LOG_RETENTION_DAYS = 14;
+	static constexpr int KEPT_FIRST_LINES = 2; ///< Version and start time survive every trim
 
 	void handleAsyncUpdate() override;
 

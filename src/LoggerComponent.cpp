@@ -223,6 +223,11 @@ void LoggerComponent::trim_file()
 
 		if (in.openedOk() && out.openedOk())
 		{
+			for (int i = 0; i < KEPT_FIRST_LINES; i++)
+			{
+				out << in.readNextLine() << newLine;
+			}
+			out << "[Logger]: Older lines were trimmed" << newLine;
 			in.setPosition(in.getTotalLength() - MAX_FILE_SIZE_BYTES);
 			in.readNextLine(); // Skips the partial first line
 			out.writeFromInputStream(in, -1);
