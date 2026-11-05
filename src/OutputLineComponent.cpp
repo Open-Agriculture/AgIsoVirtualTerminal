@@ -6,6 +6,75 @@
 #include "OutputLineComponent.hpp"
 #include "LineArt.hpp"
 
+namespace
+{
+	/// @brief Returns the points of a line from Bresenham's line algorithm, from its start to its end.
+	std::vector<Point<int>> get_line_points(Point<int> from, Point<int> to)
+	{
+		std::vector<Point<int>> points;
+		const int deltaX = std::abs(to.x - from.x);
+		const int deltaY = -std::abs(to.y - from.y);
+		const int stepX = (from.x < to.x) ? 1 : -1;
+		const int stepY = (from.y < to.y) ? 1 : -1;
+		int error = deltaX + deltaY;
+		Point<int> point = from;
+
+		while (true)
+		{
+			points.push_back(point);
+			if (point == to)
+			{
+				break;
+			}
+			const int doubledError = 2 * error;
+			if (doubledError >= deltaY)
+			{
+				error += deltaY;
+				point.x += stepX;
+			}
+			if (doubledError <= deltaX)
+			{
+				error += deltaX;
+				point.y += stepY;
+			}
+		}
+		return points;
+	}
+
+	/// @brief Paints a dashed line: one brush per drawn spot of the line art.
+	/// @details Spot k is the brush at the point k brush sizes along the line's longer axis (ISO 11783-6:2018,
+	/// Figures B.14 and B.15). A spot cut short by the end of the line is the part of the last brush past its start.
+	void paint_line_art(Graphics &g, const std::vector<Point<int>> &points, Point<int> from, Point<int> to, int brushSize, std::uint16_t lineArt)
+	{
+		const bool alongX = (std::abs(to.x - from.x) >= std::abs(to.y - from.y));
+		// On a line drawn upwards along y, the start of the line is the brush's bottom edge
+		const bool startsAtFarEdge = !alongX && (to.y < from.y);
+		const int lastStep = static_cast<int>(points.size()) - 1;
+		const int lineLength = lastStep + brushSize;
+
+		for (int spot = 0; (spot * brushSize) < lineLength; spot++)
+		{
+			if (!line_art::is_spot_drawn(lineArt, spot))
+			{
+				continue;
+			}
+			const int step = std::min(spot * brushSize, lastStep);
+			const int skipped = (spot * brushSize) - step; // Pixels of the last brush before a cut short spot
+			const int length = brushSize - skipped;
+			const Point<int> &point = points[static_cast<std::size_t>(step)];
+
+			if (alongX)
+			{
+				g.fillRect(point.x + skipped, point.y, length, brushSize);
+			}
+			else
+			{
+				g.fillRect(point.x, point.y + (startsAtFarEdge ? 0 : skipped), brushSize, length);
+			}
+		}
+	}
+}
+
 OutputLineComponent::OutputLineComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputLine sourceObject) :
   isobus::OutputLine(sourceObject),
   parentWorkingSet(workingSet)
@@ -33,76 +102,25 @@ void OutputLineComponent::paint(Graphics &g)
 				// ISO 11783-6 draws lines with a square paintbrush the size of the line width, each point of the line
 				// being the brush's upper left corner. The brush stays inside the object's box, so the line runs
 				// between the corners that leave room for it; where the box is smaller than the brush, the brush is
-				// clipped to the box (Figure B.4).
+				// clipped to the box (ISO 11783-6:2018, Figure B.5).
 				const int endX = std::max(0, static_cast<int>(get_width()) - brushSize);
 				const int endY = std::max(0, static_cast<int>(get_height()) - brushSize);
 				const bool bottomLeftToTopRight = (LineDirection::BottomLeftToTopRight == get_line_direction());
 				const Point<int> from(0, bottomLeftToTopRight ? endY : 0);
 				const Point<int> to(endX, bottomLeftToTopRight ? 0 : endY);
 
-				// Bresenham's line algorithm, painting the brush at every point. The line art has one bit per spot
-				// the size of the brush, counted along the line's longer axis from its start (Figure B.13). Each step
-				// moves one pixel along that axis, and the brush covers the brush size pixels from its step on, so
-				// only the slices of the brush whose spot is drawn are painted. Otherwise each dash would grow into
-				// the gap after it, and a spot cut short by the end of the line would not be drawn at all.
-				const int deltaX = std::abs(to.x - from.x);
-				const int deltaY = -std::abs(to.y - from.y);
-				const int stepX = (from.x < to.x) ? 1 : -1;
-				const int stepY = (from.y < to.y) ? 1 : -1;
-				const bool alongX = (deltaX >= -deltaY);
-				const bool startsAtFarEdge = !alongX && (stepY < 0);
-				int error = deltaX + deltaY;
-				Point<int> point = from;
-				int step = 0;
+				const std::vector<Point<int>> points = get_line_points(from, to);
 
-				while (true)
+				if (line_art::SOLID == lineArt)
 				{
-					if (line_art::SOLID == lineArt)
+					for (const auto &point : points)
 					{
 						g.fillRect(point.x, point.y, brushSize, brushSize);
 					}
-					else
-					{
-						// Slice i of the brush is i pixels along the axis from the brush's upper left corner. On a line
-						// drawn upwards, the start of the line is at the brush's bottom edge instead.
-						int sliceStart = 0;
-						for (int i = 0; i <= brushSize; i++)
-						{
-							const int distance = step + (startsAtFarEdge ? (brushSize - 1 - i) : i);
-							const bool drawn = (i < brushSize) && line_art::is_spot_drawn(lineArt, distance / brushSize);
-							if (!drawn)
-							{
-								if (i > sliceStart)
-								{
-									if (alongX)
-									{
-										g.fillRect(point.x + sliceStart, point.y, i - sliceStart, brushSize);
-									}
-									else
-									{
-										g.fillRect(point.x, point.y + sliceStart, brushSize, i - sliceStart);
-									}
-								}
-								sliceStart = i + 1;
-							}
-						}
-					}
-					step++;
-					if (point == to)
-					{
-						break;
-					}
-					const int doubledError = 2 * error;
-					if (doubledError >= deltaY)
-					{
-						error += deltaY;
-						point.x += stepX;
-					}
-					if (doubledError <= deltaX)
-					{
-						error += deltaX;
-						point.y += stepY;
-					}
+				}
+				else
+				{
+					paint_line_art(g, points, from, to, brushSize, lineArt);
 				}
 			}
 		}
