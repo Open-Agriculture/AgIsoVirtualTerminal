@@ -8,9 +8,11 @@
 #include <cmath>
 
 /// The start and end angle attributes count in steps of 2 degrees
-static constexpr float DEGREES_PER_ANGLE_STEP = 2.0f;
+constexpr float DEGREES_PER_ANGLE_STEP = 2.0f;
+/// The start and end angle attributes count a full turn in this many steps
+constexpr int FULL_TURN_ANGLE_STEPS = 180;
 /// The arcs are drawn as polygons with a corner at least every degree
-static constexpr float RADIANS_PER_ARC_SEGMENT = MathConstants<float>::pi / 180.0f;
+constexpr float RADIANS_PER_ARC_SEGMENT = MathConstants<float>::pi / 180.0f;
 
 OutputArchedBarGraphComponent::OutputArchedBarGraphComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputArchedBarGraph sourceObject) :
   isobus::OutputArchedBarGraph(sourceObject),
@@ -93,7 +95,7 @@ void OutputArchedBarGraphComponent::draw_radial_line(Graphics &g, Point<float> c
 
 void OutputArchedBarGraphComponent::paint(Graphics &g)
 {
-	if ((get_width() < 2) || (get_height() < 2))
+	if ((get_width() < 3) || (get_height() < 3))
 	{
 		return;
 	}
@@ -106,13 +108,10 @@ void OutputArchedBarGraphComponent::paint(Graphics &g)
 	// The VT may draw a thinner bar than requested when it would not fit, but must not store the reduced value
 	const float bandWidth = jlimit(1.0f, std::min(radiusX, radiusY), static_cast<float>(get_bar_graph_width()));
 
-	// Angles run anticlockwise from the positive X axis; equal start and end angles mean a closed ring
+	// Angles run anticlockwise from the positive X axis; start and end angles in the same direction mean a closed ring
 	const float startAngle = degreesToRadians(DEGREES_PER_ANGLE_STEP * static_cast<float>(get_start_angle()));
-	float sweep = degreesToRadians(DEGREES_PER_ANGLE_STEP * (static_cast<float>(get_end_angle()) - static_cast<float>(get_start_angle())));
-	if (sweep <= 0.0f)
-	{
-		sweep += MathConstants<float>::twoPi;
-	}
+	const int sweepSteps = ((get_end_angle() - get_start_angle()) % FULL_TURN_ANGLE_STEPS + FULL_TURN_ANGLE_STEPS) % FULL_TURN_ANGLE_STEPS;
+	const float sweep = degreesToRadians(DEGREES_PER_ANGLE_STEP * static_cast<float>((0 == sweepSteps) ? FULL_TURN_ANGLE_STEPS : sweepSteps));
 	const float endAngle = startAngle + sweep;
 	const bool clockwise = get_option(Options::Deflection);
 
@@ -137,18 +136,8 @@ void OutputArchedBarGraphComponent::paint(Graphics &g)
 
 	if (get_option(Options::DrawBorder))
 	{
-		if (sweep >= MathConstants<float>::twoPi)
-		{
-			// A closed ring has no ends to draw
-			g.drawEllipse(centre.x - radiusX, centre.y - radiusY, 2.0f * radiusX, 2.0f * radiusY, 1.0f);
-			const float innerRadiusX = std::max(0.0f, radiusX - bandWidth);
-			const float innerRadiusY = std::max(0.0f, radiusY - bandWidth);
-			g.drawEllipse(centre.x - innerRadiusX, centre.y - innerRadiusY, 2.0f * innerRadiusX, 2.0f * innerRadiusY, 1.0f);
-		}
-		else
-		{
-			g.strokePath(make_band(centre, radiusX, radiusY, bandWidth, startAngle, endAngle), PathStrokeType(1.0f));
-		}
+		// The start and end lines are always drawn, also on a closed ring (Table B.39)
+		g.strokePath(make_band(centre, radiusX, radiusY, bandWidth, startAngle, endAngle), PathStrokeType(1.0f));
 	}
 
 	if (get_option(Options::DrawTargetLine))
