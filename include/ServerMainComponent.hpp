@@ -10,6 +10,7 @@
 #ifndef SERVER_MAIN_COMPONENT_HPP
 #define SERVER_MAIN_COMPONENT_HPP
 
+#include "AuxiliaryAssignmentComponent.hpp"
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
 #include "LoggerComponent.hpp"
@@ -142,6 +143,13 @@ public:
 	std::shared_ptr<isobus::ControlFunction> get_client_control_function_for_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) const;
 
 	void change_selected_working_set(std::uint8_t index);
+
+	/// @brief Shows the auxiliary assignment screen in place of the active working set
+	void show_auxiliary_page();
+
+	/// @brief Returns if the auxiliary assignment screen is shown
+	/// @returns True if it is shown
+	bool get_is_auxiliary_page_shown() const;
 
 	void send_alarm_ack_command(isobus::VirtualTerminalBase::KeyActivationCode activationCode);
 
@@ -305,6 +313,18 @@ private:
 
 	/// @brief Removes a working set from the renderers and the selector, and selects another one if none is active
 	void stop_presenting_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
+
+	/// @brief Gives the mask areas back to the working sets
+	void hide_auxiliary_page();
+
+	/// @brief Collects the auxiliary functions, inputs and assignments for the assignment screen
+	/// @returns The current state
+	AuxiliaryControlSnapshot get_auxiliary_snapshot() const;
+
+	/// @brief Passes an assignment event to the assignment screen, and marks the AUX button for a problem
+	/// @param[in] assignment The assignment
+	/// @param[in] event What happened to it
+	void on_auxiliary_assignment_event(const AuxiliaryAssignment &assignment, AuxiliaryAssignmentEvent event);
 	void send_held_button_activation(const HeldButtonData &button, KeyActivationCode activationCode);
 	void clear_iso_data();
 
@@ -319,6 +339,7 @@ private:
 	WorkingSetSelectorComponent workingSetSelector;
 	DataMaskRenderAreaComponent dataMaskRenderer;
 	SoftKeyMaskRenderAreaComponent softKeyMaskRenderer;
+	AuxiliaryAssignmentComponent auxiliaryPage;
 	MenuBarComponent menuBar;
 	LoggerComponent logger;
 	Viewport loggerViewport;
@@ -336,6 +357,8 @@ private:
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;
 	std::set<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> rejectedWorkingSets; ///< Their last object pool was rejected, so they are never selected automatically
+	isobus::EventCallbackHandle auxiliaryAssignmentListener = 0;
+	isobus::EventCallbackHandle auxiliaryInputStatusListener = 0;
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	juce::int64 lastUpdateCheck = 0;
@@ -350,6 +373,7 @@ private:
 	bool hasStartBeenCalled = false;
 	bool alarmAckKeyPressed = false;
 	bool showAckButton = false;
+	bool auxiliaryPageShown = false; ///< The assignment screen covers the mask areas, so no working set is active
 	bool saveIopBeforeParse = false;
 	bool checkForUpdatesOnStartup = true;
 	bool alwaysOnTop = false;

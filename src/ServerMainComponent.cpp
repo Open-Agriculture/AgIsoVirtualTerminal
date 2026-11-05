@@ -42,7 +42,7 @@ ServerMainComponent::ServerMainComponent(
   const std::string &canLogPath_,
   std::uint8_t vtNumberArg,
   std::string screenCaptureDir) :
-  VirtualTerminalServer(serverControlFunction), screenCaptureDirArgument(screenCaptureDir), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers), canLogPath(canLogPath_)
+  VirtualTerminalServer(serverControlFunction), screenCaptureDirArgument(screenCaptureDir), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), auxiliaryPage(*this), parentCANDrivers(canDrivers), canLogPath(canLogPath_)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
@@ -80,11 +80,16 @@ ServerMainComponent::ServerMainComponent(
 		diagnosticProtocol->update();
 	});
 
+	// update() dispatches these on the message thread
+	auxiliaryAssignmentListener = get_on_auxiliary_assignment_event_dispatcher().add_listener([this](const AuxiliaryAssignment &assignment, const AuxiliaryAssignmentEvent &event) { on_auxiliary_assignment_event(assignment, event); });
+	auxiliaryInputStatusListener = get_on_auxiliary_input_status_event_dispatcher().add_listener([this](const AuxiliaryInputStatus &status) { auxiliaryPage.on_input_status(status); });
+
 	mAudioDeviceManager.initialise(0, 1, nullptr, true);
 	mAudioDeviceManager.addAudioCallback(&mSoundPlayer);
 	addAndMakeVisible(workingSetSelector);
 	addAndMakeVisible(dataMaskRenderer);
 	addAndMakeVisible(softKeyMaskRenderer);
+	addChildComponent(auxiliaryPage);
 	addChildComponent(loggerViewport);
 	addChildComponent(vtNumberComponent);
 	vtNumber = vtNumberArg;
@@ -120,6 +125,8 @@ ServerMainComponent::ServerMainComponent(
 
 ServerMainComponent::~ServerMainComponent()
 {
+	get_on_auxiliary_assignment_event_dispatcher().remove_listener(auxiliaryAssignmentListener);
+	get_on_auxiliary_input_status_event_dispatcher().remove_listener(auxiliaryInputStatusListener);
 	setApplicationCommandManagerToWatch(nullptr);
 }
 
@@ -379,6 +386,11 @@ void ServerMainComponent::timerCallback()
 {
 	update();
 
+	if (auxiliaryPageShown)
+	{
+		auxiliaryPage.set_snapshot(get_auxiliary_snapshot());
+	}
+
 	auto activeCANDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
 	bool isAdapterConnected = (nullptr != activeCANDriver) && activeCANDriver->get_is_valid();
 	bool isInterfaceRunning = isobus::CANHardwareInterface::is_running();
@@ -516,6 +528,10 @@ void ServerMainComponent::resized()
 
 	softKeyMaskRenderer.setBounds(softKeyLeft, lMenuBarHeight, softKeyWidth, dataMaskHeight);
 	softKeyMaskRenderer.setTransform(juce::AffineTransform::scale(scale, scale, static_cast<float>(softKeyLeft), static_cast<float>(lMenuBarHeight)));
+
+	// Takes both mask areas, as a working set does
+	auxiliaryPage.setBounds(dataMaskLeft, lMenuBarHeight, dataMaskWidth + softKeyWidth, dataMaskHeight);
+	auxiliaryPage.setTransform(juce::AffineTransform::scale(scale, scale, static_cast<float>(dataMaskLeft), static_cast<float>(lMenuBarHeight)));
 
 	// Not part of a pool, so placed against the scaled rectangle
 	const auto scaledDataMask = juce::Rectangle<int>(dataMaskLeft, lMenuBarHeight, juce::roundToInt(dataMaskWidth * scale), juce::roundToInt(dataMaskHeight * scale));
@@ -1171,6 +1187,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 	    (std::static_pointer_cast<isobus::WorkingSet>(managedWorkingSetList.at(index)->get_working_set_object())->get_selectable()))
 	{
 		bool lProcessActivateDeactivateMacros = false;
+		hide_auxiliary_page();
 
 		for (auto &ws : managedWorkingSetList)
 		{
@@ -1659,8 +1676,12 @@ void ServerMainComponent::object_pool_parse_finished(std::shared_ptr<isobus::Vir
 
 void ServerMainComponent::select_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
-	auto position = std::find(managedWorkingSetList.begin(), managedWorkingSetList.end(), workingSet);
-	change_selected_working_set(static_cast<std::uint8_t>(std::distance(managedWorkingSetList.begin(), position)));
+	// The operator leaves the assignment screen by choosing a working set
+	if (!auxiliaryPageShown)
+	{
+		auto position = std::find(managedWorkingSetList.begin(), managedWorkingSetList.end(), workingSet);
+		change_selected_working_set(static_cast<std::uint8_t>(std::distance(managedWorkingSetList.begin(), position)));
+	}
 }
 
 void ServerMainComponent::object_pool_deleted(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
@@ -1701,7 +1722,7 @@ void ServerMainComponent::stop_presenting_working_set(std::shared_ptr<isobus::Vi
 	softKeyMaskRenderer.on_working_set_disconnect(workingSet);
 
 	// The stack already cleared activeWorkingSet if this one was active
-	for (std::size_t i = 0; (nullptr == activeWorkingSet) && (i < managedWorkingSetList.size()); i++)
+	for (std::size_t i = 0; (nullptr == activeWorkingSet) && (!auxiliaryPageShown) && (i < managedWorkingSetList.size()); i++)
 	{
 		const auto &nextWorkingSet = managedWorkingSetList.at(i);
 
@@ -1713,6 +1734,92 @@ void ServerMainComponent::stop_presenting_working_set(std::shared_ptr<isobus::Vi
 	}
 	workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
 	update_ack_button_visibility();
+}
+
+void ServerMainComponent::show_auxiliary_page()
+{
+	if (!auxiliaryPageShown)
+	{
+		release_held_buttons(true);
+
+		for (auto &ws : managedWorkingSetList)
+		{
+			ws->clear_callback_handles();
+		}
+
+		if (nullptr != activeWorkingSet)
+		{
+			const auto activeMask = activeWorkingSet->get_object_by_id(activeWorkingSetDataMaskObjectID);
+			process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnDeactivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
+			process_macro(activeMask, isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+			process_macro(activeMask, isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+		}
+
+		// A VT screen that covers the masks leaves the VT without an owner (ISO 11783-6 G.2)
+		activeWorkingSet = nullptr;
+		activeWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
+		activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
+		activeWorkingSetSoftkeyMaskObjectID = isobus::NULL_OBJECT_ID;
+		auxiliaryPageShown = true;
+
+		dataMaskRenderer.on_change_active_mask(nullptr);
+		softKeyMaskRenderer.on_change_active_mask(nullptr);
+		dataMaskRenderer.setVisible(false);
+		softKeyMaskRenderer.setVisible(false);
+		auxiliaryPage.set_snapshot(get_auxiliary_snapshot());
+		auxiliaryPage.set_shown(true);
+		auxiliaryPage.setVisible(true);
+		workingSetSelector.set_auxiliary_notice(false);
+		workingSetSelector.update_auxiliary_button();
+		update_ack_button_visibility();
+		workingSetSelector.redraw();
+
+		if (send_status_message())
+		{
+			statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+		}
+		else
+		{
+			statusMessageTimestamp_ms = 0;
+		}
+	}
+}
+
+bool ServerMainComponent::get_is_auxiliary_page_shown() const
+{
+	return auxiliaryPageShown;
+}
+
+void ServerMainComponent::hide_auxiliary_page()
+{
+	if (auxiliaryPageShown)
+	{
+		auxiliaryPageShown = false;
+		auxiliaryPage.set_shown(false);
+		auxiliaryPage.setVisible(false);
+		dataMaskRenderer.setVisible(true);
+		softKeyMaskRenderer.setVisible(true);
+		workingSetSelector.update_auxiliary_button();
+	}
+}
+
+AuxiliaryControlSnapshot ServerMainComponent::get_auxiliary_snapshot() const
+{
+	// Only the VT with function instance 0 makes assignments (ISO 11783-6 J.3.1)
+	const bool isPrimaryVT = (nullptr != serverInternalControlFunction) && (0 == serverInternalControlFunction->get_NAME().get_function_instance());
+	return AuxiliaryControlSnapshot::build(managedWorkingSetList, get_auxiliary_assignments(), isPrimaryVT);
+}
+
+void ServerMainComponent::on_auxiliary_assignment_event(const AuxiliaryAssignment &assignment, AuxiliaryAssignmentEvent event)
+{
+	const bool isProblem = (AuxiliaryAssignmentEvent::Removed == event) || (AuxiliaryAssignmentEvent::Rejected == event) || (AuxiliaryAssignmentEvent::NotAvailable == event);
+
+	auxiliaryPage.on_assignment_event(assignment, event);
+
+	if (isProblem && (!auxiliaryPageShown))
+	{
+		workingSetSelector.set_auxiliary_notice(true);
+	}
 }
 
 void ServerMainComponent::repaint_data_and_soft_key_mask()

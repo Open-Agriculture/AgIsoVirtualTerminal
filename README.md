@@ -43,15 +43,16 @@ This section is temporary and will be updated as progress is made on the project
 - **Layout:** containers and object pointers
 - **Macros:** most common macro and extended macro functionality
 - **Working sets:** multiple simultaneous VT clients, and switching between them
+- **Auxiliary controls:** AUX-N (type 2) assignment page with learn mode. Preferred assignments are stored by the implement, not the VT.
 - **Application:** logging, and checking GitHub for a newer release on launch (turn it off with "About > Check for Updates on launch", or skip a single version from the update dialog)
 
 ### Not supported yet
 
 We are always adding new features.
 
-- **Loaded but not shown:** window masks, key groups, Aux N/O, output lists, output arched bar graphs, graphic data, scaled graphics, colour maps, and working set special controls. A pool that contains them still loads.
+- **Loaded but not shown:** window masks, key groups, Aux O (type 1), AUX-N control designators, output lists, output arched bar graphs, graphic data, scaled graphics, colour maps, and working set special controls. A pool that contains them still loads.
 - **Not loaded:** animations, graphics contexts, object label reference lists, extended input attributes, external object definitions, external reference NAMEs, external object pointers, and colour palettes. The VT can't load an object pool that contains any of these, so the working set never shows up.
-- **Commands:** Get Attribute Value, Change Object Label, Select Colour Map, Lock/Unlock Mask, Graphics Context, Select Active Working Set, and Auxiliary Capabilities are answered with "unsupported VT function" when the VT reports version 5 or later, and are ignored otherwise. Preferred Assignment is acknowledged but not stored.
+- **Commands:** Get Attribute Value, Change Object Label, Select Colour Map, Lock/Unlock Mask, Graphics Context, and Select Active Working Set are answered with "unsupported VT function" when the VT reports version 5 or later, and are ignored otherwise.
 - **Other:** arbitrary audio control (only the alarm beeps play), pointing events, TAN, and OpenGL rendering (only software rendering is supported, though JUCE's software rendering is very RAM efficient compared to GL). Probably more things, to be honest.
 
 ## Download
