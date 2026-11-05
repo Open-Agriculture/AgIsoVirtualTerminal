@@ -96,7 +96,7 @@ Settings, logs, and stored object pools are kept in an `Open-Agriculture` folder
 It holds:
 
 - `vt_settings.xml`: your settings
-- `AgISOVirtualTerminalLog_*.txt`: the log, one file per session. Logs older than 3 days are deleted when the VT starts.
+- `AgISOVirtualTerminalLog_*.txt`: the log, one file per session. Logs older than 14 days are deleted when the VT starts.
 - `CANLog_*.asc`: CAN traffic logs, written only when turned on in "Configure > Logging". Logs older than 3 days are deleted when the VT starts.
 - `iso_data/`: the object pools implements stored on the VT, in one folder per implement, named after its NAME
 - `screen captures/`: screen captures, unless `--screen-capture-dir` says otherwise

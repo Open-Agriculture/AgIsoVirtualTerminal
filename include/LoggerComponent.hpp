@@ -16,6 +16,7 @@
 #include "JuceHeader.h"
 
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -48,9 +49,8 @@ private:
 	};
 	static constexpr std::size_t MAX_NUMBER_MESSAGES = 3000;
 	static constexpr std::size_t MAX_QUEUED_FILE_LINES = 20000; ///< Cap so a stuck disk cannot eat all memory
-	static constexpr std::int64_t MAX_FILE_SIZE_BYTES = 1024000;
-	static constexpr int WRITE_INTERVAL_MS = 250;
-	static constexpr int LOG_RETENTION_DAYS = 3;
+	static constexpr std::int64_t MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+	static constexpr int LOG_RETENTION_DAYS = 14;
 
 	void handleAsyncUpdate() override;
 
@@ -65,6 +65,7 @@ private:
 	std::size_t droppedFileLines = 0;
 
 	File logFile;
+	std::unique_ptr<FileOutputStream> logStream;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LoggerComponent)
 };

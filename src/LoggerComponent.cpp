@@ -112,6 +112,7 @@ void LoggerComponent::sink_CAN_stack_log(LoggingLevel level, const std::string &
 		}
 	}
 	triggerAsyncUpdate();
+	notify();
 }
 
 void LoggerComponent::handleAsyncUpdate()
@@ -170,39 +171,43 @@ void LoggerComponent::run()
 
 		if (!isExiting)
 		{
-			wait(WRITE_INTERVAL_MS);
+			wait(-1);
 		}
 	}
 }
 
 void LoggerComponent::write_to_file(const std::vector<std::string> &lines, std::size_t droppedLines)
 {
-	std::int64_t fileSize = 0;
+	if (nullptr == logStream)
 	{
-		// A failed open drops this batch, the next one tries again
-		FileOutputStream logStream(logFile);
+		// Unbuffered, so every line written so far survives a crash
+		logStream = std::make_unique<FileOutputStream>(logFile, 0);
 
-		if (!logStream.openedOk())
+		if (!logStream->openedOk())
 		{
+			// Drops this batch, the next one tries again
+			logStream.reset();
 			return;
 		}
-
-		for (const auto &line : lines)
-		{
-			logStream.write(line.data(), line.size());
-			logStream << newLine;
-		}
-
-		if (0 != droppedLines)
-		{
-			logStream << "[Logger]: " << static_cast<int64>(droppedLines) << " lines were dropped because the log file could not keep up" << newLine;
-		}
-		logStream.flush();
-		fileSize = logStream.getPosition();
 	}
 
-	if (fileSize > 2 * MAX_FILE_SIZE_BYTES)
+	MemoryOutputStream batch;
+	for (const auto &line : lines)
 	{
+		batch.write(line.data(), line.size());
+		batch << newLine;
+	}
+
+	if (0 != droppedLines)
+	{
+		batch << "[Logger]: " << static_cast<int64>(droppedLines) << " lines were dropped because the log file could not keep up" << newLine;
+	}
+	logStream->write(batch.getData(), batch.getDataSize());
+
+	if (logStream->getPosition() > 2 * MAX_FILE_SIZE_BYTES)
+	{
+		// Windows can not replace a file that is still open
+		logStream.reset();
 		trim_file();
 	}
 }
