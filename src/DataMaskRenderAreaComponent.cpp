@@ -11,6 +11,7 @@
 #include "AppImages.h"
 #include "ButtonComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "OutputListComponent.hpp"
 #include "ServerMainComponent.hpp"
 #include "isobus/isobus/can_stack_logger.hpp"
 
@@ -920,6 +921,13 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 
 		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
 		{
+			// The other items of an Output List aren't on screen, so they can't be pressed
+			if ((isobus::VirtualTerminalObjectType::OutputList == object->get_object_type()) &&
+			    (i != OutputListComponent::get_selected_index(*std::static_pointer_cast<isobus::OutputList>(object), parentWorkingSet)))
+			{
+				continue;
+			}
+
 			auto child = object->get_object_by_id(object->get_child_id(i), parentWorkingSet->get_object_tree());
 
 			if ((nullptr != child) &&

@@ -134,7 +134,7 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 
 			case isobus::VirtualTerminalObjectType::OutputList:
 			{
-				//retVal = std::make_shared<OutputListComponent>(workingSet, *std::static_pointer_cast<isobus::OutputList>(sourceObject));
+				retVal = std::make_shared<OutputListComponent>(workingSet, *std::static_pointer_cast<isobus::OutputList>(sourceObject));
 			}
 			break;
 
