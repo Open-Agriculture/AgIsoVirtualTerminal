@@ -164,10 +164,7 @@ void LoggerComponent::run()
 			std::swap(droppedLines, droppedFileLines);
 		}
 
-		if ((!lines.empty()) || (0 != droppedLines))
-		{
-			write_to_file(lines, droppedLines);
-		}
+		write_to_file(lines, droppedLines);
 
 		if (!isExiting)
 		{
@@ -202,11 +199,17 @@ void LoggerComponent::write_to_file(const std::vector<std::string> &lines, std::
 	{
 		batch << "[Logger]: " << static_cast<int64>(droppedLines) << " lines were dropped because the log file could not keep up" << newLine;
 	}
-	logStream->write(batch.getData(), batch.getDataSize());
+	const auto sizeBefore = logStream->getPosition();
 
-	if (logStream->getPosition() > 2 * MAX_FILE_SIZE_BYTES)
+	if (!logStream->write(batch.getData(), batch.getDataSize()))
 	{
-		// Windows can not replace a file that is still open
+		// A JUCE stream stays failed after one error, so the next batch reopens the file
+		logStream.reset();
+	}
+	else if ((logStream->getPosition() >= 2 * MAX_FILE_SIZE_BYTES) && (sizeBefore / MAX_FILE_SIZE_BYTES < logStream->getPosition() / MAX_FILE_SIZE_BYTES))
+	{
+		// Only on crossing a new step, so a failed trim is not retried on every batch.
+		// Windows can not replace a file that is still open.
 		logStream.reset();
 		trim_file();
 	}
@@ -232,7 +235,8 @@ void LoggerComponent::trim_file()
 			in.readNextLine(); // Skips the partial first line
 			out.writeFromInputStream(in, -1);
 			out.flush();
-			copied = in.getStatus().wasOk() && out.getStatus().wasOk();
+			// A short write does not set the stream status, so check what reached the disk
+			copied = in.getStatus().wasOk() && out.getStatus().wasOk() && (out.getPosition() == trimmedFile.getFile().getSize());
 		}
 	}
 
