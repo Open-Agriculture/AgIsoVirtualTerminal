@@ -1,0 +1,33 @@
+name: Build the VT
+description: Configures and builds the VT with CMake, the same way on every platform.
+inputs:
+  source-dir:
+    description: The VT source tree
+    default: .
+  build-dir:
+    description: The CMake build folder
+    default: build
+  cmake-args:
+    description: Extra arguments for the CMake configure step
+    default: ''
+  target:
+    description: The CMake target to build; everything if empty
+    default: ''
+  build-args:
+    description: Extra arguments for the CMake build step, such as --parallel
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Configure and build
+      shell: bash
+      env:
+        SOURCE_DIR: ${{ inputs.source-dir }}
+        BUILD_DIR: ${{ inputs.build-dir }}
+        CMAKE_ARGS: ${{ inputs.cmake-args }}
+        TARGET: ${{ inputs.target }}
+        BUILD_ARGS: ${{ inputs.build-args }}
+      run: |
+        # CMAKE_ARGS and BUILD_ARGS are split into words on purpose
+        cmake -S "$SOURCE_DIR" -B "$BUILD_DIR" -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev $CMAKE_ARGS
+        cmake --build "$BUILD_DIR" --config Release ${TARGET:+--target "$TARGET"} $BUILD_ARGS

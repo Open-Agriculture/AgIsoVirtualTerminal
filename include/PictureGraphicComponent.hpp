@@ -35,7 +35,16 @@ public:
 
 	void timerCallback() override;
 
+	/// @brief Sets whether pictures are decoded into software images instead of the platform's native
+	/// (possibly GPU backed) image type, which is the default. Only vt-render turns this on, so that its
+	/// renders do not depend on the platform's graphics stack
+	static void set_use_software_images(bool useSoftware);
+
+	/// @brief Returns the image type to create images with, as set by set_use_software_images
+	static const ImageType &get_image_type();
+
 private:
+	static bool useSoftwareImages;
 	static FillType get_fill_pattern(const Component &shape, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t pictureId);
 
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
