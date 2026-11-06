@@ -16,14 +16,19 @@
 #include "JuceHeader.h"
 
 #include <deque>
+#include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 /// @brief Defines a GUI component that will draw log info sunk from the stack
+///
+/// @details The sink runs on the logging thread, mostly the CAN thread, which must answer
+/// transport protocol handshakes in time, so it only queues. The file is written on this class's own thread.
 class LoggerComponent : public Component
-  , public FileLogger
   , public isobus::CANStackLogger
   , private AsyncUpdater
+  , private Thread
 {
 public:
 	LoggerComponent();
@@ -34,7 +39,7 @@ public:
 	void sink_CAN_stack_log(LoggingLevel level, const std::string &logText) override;
 	static constexpr int HEIGHT = 200;
 
-	std::uint64_t initialPos() const;
+	const File &getLogFile() const;
 
 private:
 	struct LogData
@@ -43,13 +48,25 @@ private:
 		isobus::CANStackLogger::LoggingLevel logLevel;
 	};
 	static constexpr std::size_t MAX_NUMBER_MESSAGES = 3000;
+	static constexpr std::size_t MAX_QUEUED_FILE_LINES = 20000; ///< Cap so a stuck disk cannot eat all memory
+	static constexpr std::int64_t MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+	static constexpr int LOG_RETENTION_DAYS = 14;
+	static constexpr int KEPT_FIRST_LINES = 2; ///< Version and start time survive every trim
+
 	void handleAsyncUpdate() override;
+
+	void run() override;
+	void write_to_file(const std::vector<std::string> &lines, std::size_t droppedLines);
+	void trim_file();
 
 	std::deque<LogData> loggedMessages;
 	std::mutex pendingMessagesMutex;
-	std::vector<LogData> pendingMessages;
+	std::deque<LogData> pendingMessages;
+	std::vector<std::string> pendingFileLines;
+	std::size_t droppedFileLines = 0;
 
-	std::uint64_t startPos = 0;
+	File logFile;
+	std::unique_ptr<FileOutputStream> logStream;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LoggerComponent)
 };

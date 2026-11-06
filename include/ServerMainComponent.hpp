@@ -12,6 +12,7 @@
 
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
+#include "DiagnosticsWindow.hpp"
 #include "LoggerComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
@@ -153,6 +154,8 @@ public:
 
 	void save_settings();
 
+	void show_diagnostics_window();
+
 	void identify_vt() override;
 
 	void screen_capture(std::uint8_t item, std::uint8_t path, std::shared_ptr<isobus::ControlFunction> requestor) override;
@@ -215,7 +218,8 @@ private:
 		AutoCheckForUpdates,
 		AlwaysOnTop,
 		FitMasksToWindow,
-		ScalePoolsToDataMask
+		ScalePoolsToDataMask,
+		ShowDiagnostics
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -225,8 +229,6 @@ private:
 	public:
 		void operator()(int result) const noexcept;
 		ServerMainComponent &mParent;
-
-	private:
 	};
 	friend class LanguageCommandConfigClosed;
 
@@ -331,6 +333,7 @@ private:
 	std::unique_ptr<isobus::DiagnosticProtocol> diagnosticProtocol;
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::unique_ptr<ConfigureHardwareWindow> configureHardwareWindow;
+	std::unique_ptr<DiagnosticsWindow> diagnosticsWindow;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;

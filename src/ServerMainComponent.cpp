@@ -579,6 +579,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackage));
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
+	allCommands.add(static_cast<int>(CommandIDs::ShowDiagnostics));
 	allCommands.add(static_cast<int>(CommandIDs::StartStop));
 	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
 	allCommands.add(static_cast<int>(CommandIDs::CheckForUpdates));
@@ -642,6 +643,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::ClearISOData:
 		{
 			result.setInfo("Clear ISO Data", "Clears all saved ISO data", "Troubleshooting", 0);
+		}
+		break;
+
+		case CommandIDs::ShowDiagnostics:
+		{
+			result.setInfo("Diagnostics", "Show active diagnostic trouble codes from devices on the bus", "Troubleshooting", 0);
 		}
 		break;
 
@@ -887,13 +894,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			auto canLogFileName = File(canLogPath);
 			diagnosticFileBuilder->addFile(canLogFileName, 9, canLogFileName.getFileName());
 
-			// Cut the output logging where we started
-			FileInputStream *fis = new FileInputStream(logger.getLogFile());
-			if (fis->openedOk())
-			{
-				fis->setPosition(logger.initialPos());
-				diagnosticFileBuilder->addEntry(fis, 9, "AgISOVirtualTerminalLog.txt", Time::getCurrentTime());
-			}
+			diagnosticFileBuilder->addFile(logger.getLogFile(), 9, logger.getLogFile().getFileName());
 
 			auto userDataFolder = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString());
 
@@ -947,6 +948,13 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			// window is pinned on top, or it would open behind it.
 			configureHardwareWindow->setAlwaysOnTop(alwaysOnTop);
 			configureHardwareWindow->enterModalState(true);
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::ShowDiagnostics):
+		{
+			show_diagnostics_window();
 			retVal = true;
 		}
 		break;
@@ -1078,6 +1086,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackage));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ClearISOData));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ShowDiagnostics));
 		}
 		break;
 
@@ -1098,6 +1107,23 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 void ServerMainComponent::menuItemSelected(int, int)
 {
 	// Do nothing
+}
+
+void ServerMainComponent::show_diagnostics_window()
+{
+	if (nullptr == diagnosticsWindow)
+	{
+		diagnosticsWindow = std::make_unique<DiagnosticsWindow>(*this);
+		diagnosticsWindow->addToDesktop();
+		Rectangle<int> area(0, 0, DiagnosticsComponent::WIDTH + 40, 400);
+		RectanglePlacement placement(RectanglePlacement::centred |
+		                             RectanglePlacement::doNotResize);
+		auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
+		diagnosticsWindow->setBounds(result);
+	}
+	diagnosticsWindow->setAlwaysOnTop(alwaysOnTop);
+	diagnosticsWindow->setVisible(true);
+	diagnosticsWindow->toFront(true);
 }
 
 std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control_function_for_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) const

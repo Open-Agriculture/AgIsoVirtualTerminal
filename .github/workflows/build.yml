@@ -8,6 +8,9 @@ on:
     types: [opened, synchronize, reopened]
   workflow_call:
 
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
 jobs:
   windows_build:
     name: Windows Build
