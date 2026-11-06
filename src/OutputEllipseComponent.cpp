@@ -7,6 +7,38 @@
 #include "JuceManagedWorkingSetCache.hpp"
 #include "LineArt.hpp"
 
+constexpr double ARC_STEP_RADIANS = 0.05;
+
+// Figure B.8: the angle is the real angle of the line from the centre, not the parametric angle of the ellipse
+static Point<float> get_point_at_angle(float x, float y, float w, float h, double radians)
+{
+	const double halfWidth = w / 2.0;
+	const double halfHeight = h / 2.0;
+	const double angle = std::fmod(radians, juce::MathConstants<double>::twoPi);
+	const double tanAngle = std::tan(angle);
+	const double div = std::sqrt((halfHeight * halfHeight) + (halfWidth * halfWidth) * (tanAngle * tanAngle));
+	double x_ = (halfWidth * halfHeight) / div;
+	double y_ = -(halfWidth * halfHeight * tanAngle) / div;
+
+	if (std::fabs(angle - juce::MathConstants<double>::halfPi) < 1e-6)
+	{
+		x_ = 0.0;
+		y_ = -halfHeight;
+	}
+	else if (std::fabs(angle - 3 * juce::MathConstants<double>::halfPi) < 1e-6)
+	{
+		x_ = 0.0;
+		y_ = halfHeight;
+	}
+	else if (!(angle < juce::MathConstants<double>::halfPi || angle > 3 * juce::MathConstants<double>::halfPi))
+	{
+		x_ = -x_;
+		y_ = -y_;
+	}
+
+	return { static_cast<float>(x_ + halfWidth + x), static_cast<float>(y_ + halfHeight + y) };
+}
+
 OutputEllipseComponent::OutputEllipseComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputEllipse sourceObject) :
   isobus::OutputEllipse(sourceObject),
   parentWorkingSet(workingSet)
@@ -63,39 +95,30 @@ void OutputEllipseComponent::paint(Graphics &g)
 			float centerX = get_width() / 2.0f;
 			float centerY = get_height() / 2.0f;
 
-			if (get_ellipse_type() == isobus::OutputEllipse::EllipseType::Closed)
+			// Angles are stored halved, so 0 and 180 are both the positive x-axis
+			const bool sameAngles = ((get_start_angle() % 180) == (get_end_angle() % 180));
+
+			if (sameAngles && (isobus::OutputEllipse::EllipseType::ClosedEllipseSegment == get_ellipse_type()))
 			{
-				if (get_start_angle() == get_end_angle() && get_ellipse_type() != isobus::OutputEllipse::EllipseType::Closed)
-				{
-					/* B.10 / Table B.31 / Ellipse type / NOTE 2:
-					 * If type = closed ellipse segment and start and end angle are the same, a
-					 * single line with width = border width shall be drawn from the centre point to the
-					 * point on the border defined by the start and end angles.*/
-					auto angleRadians = degreesToRadians(-((get_start_angle() * 2.0f) - 90));
-					if (angleRadians < 0)
-					{
-						angleRadians += juce::MathConstants<float>().twoPi;
-					}
+				// Table B.31 NOTE 2: a closed segment with equal angles is one line from the centre to the border
+				const float wOffset = line->get_width() / 2.0f;
+				const auto borderPoint = get_point_at_angle(wOffset, wOffset, get_width() - line->get_width(), get_height() - line->get_width(), juce::degreesToRadians(get_start_angle() * 2.0f));
 
-					auto pointX = (centerX + (centerX - (line->get_width() / 2.0f)) * std::cos(angleRadians));
-					auto pointY = (centerY - (centerY - (line->get_height() / 2.0f)) * std::sin(angleRadians));
-
-					g.setColour(Colour::fromFloatRGBA(lineColour.r, lineColour.g, lineColour.b, 1.0f));
-					g.drawLine(centerX, centerY, pointX, pointY, line->get_width());
-				}
-				else
+				g.setColour(Colour::fromFloatRGBA(lineColour.r, lineColour.g, lineColour.b, 1.0f));
+				g.drawLine(centerX, centerY, borderPoint.x, borderPoint.y, line->get_width());
+			}
+			else if (sameAngles || (isobus::OutputEllipse::EllipseType::Closed == get_ellipse_type()))
+			{
+				// Table B.31 NOTE 1: any type with equal angles is drawn closed
+				if (fillNeeded)
 				{
-					if (fillNeeded)
-					{
-						g.setColour(Colour::fromFloatRGBA(fillColour.r, fillColour.g, fillColour.b, 1.0f));
-						g.fillEllipse(0, 0, get_width(), get_height());
-					}
-					/* If type > 0 (!= Closed) and start and end angles are the same, the ellipse is drawn closed. */
-					g.setColour(Colour::fromFloatRGBA(lineColour.r, lineColour.g, lineColour.b, 1.0f));
-					Path ellipse;
-					ellipse.addEllipse(line->get_width() / 2.0f, line->get_width() / 2.0f, get_width() - line->get_width(), get_height() - line->get_width());
-					line_art::stroke_path(g, ellipse, line->get_width(), line->get_line_art_bit_pattern());
+					g.setColour(Colour::fromFloatRGBA(fillColour.r, fillColour.g, fillColour.b, 1.0f));
+					g.fillEllipse(0, 0, get_width(), get_height());
 				}
+				g.setColour(Colour::fromFloatRGBA(lineColour.r, lineColour.g, lineColour.b, 1.0f));
+				Path ellipse;
+				ellipse.addEllipse(line->get_width() / 2.0f, line->get_width() / 2.0f, get_width() - line->get_width(), get_height() - line->get_width());
+				line_art::stroke_path(g, ellipse, line->get_width(), line->get_line_art_bit_pattern());
 			}
 			else
 			{
@@ -158,52 +181,25 @@ void OutputEllipseComponent::paint(Graphics &g)
  */
 void OutputEllipseComponent::addArcToPath(Path &path, float x, float y, float w, float h, float fromRadians, float toRadians, bool startAsNewSubPath) const
 {
-	float halfWidth = w / 2;
-	float halfHeight = h / 2;
-	bool first = true;
 	if (toRadians < fromRadians)
 	{
 		toRadians += juce::MathConstants<float>().twoPi;
 	}
 
-	for (double drawAngle = fromRadians; drawAngle < toRadians; drawAngle += 0.05)
+	// A fixed step count lands the last point on toRadians; stepping by ARC_STEP_RADIANS stopped up to one step short
+	const int steps = std::max(1, static_cast<int>(std::ceil((toRadians - fromRadians) / ARC_STEP_RADIANS)));
+
+	for (int i = 0; i <= steps; i++)
 	{
-		double angle = std::fmod(drawAngle, juce::MathConstants<float>().twoPi);
-		double tanAngle = std::tan(angle);
-		double div = std::sqrt((halfHeight * halfHeight) + (halfWidth * halfWidth) * (tanAngle * tanAngle));
-		double x_ = (halfWidth * halfHeight) / div;
-		double y_ = -(halfWidth * halfHeight * tanAngle) / div;
+		const auto point = get_point_at_angle(x, y, w, h, fromRadians + (toRadians - fromRadians) * i / steps);
 
-		if (std::fabs(angle - juce::MathConstants<float>().halfPi) < 1e-6)
+		if ((0 == i) && startAsNewSubPath)
 		{
-			// handle 90°
-			x_ = 0.0;
-			y_ = -halfHeight;
-		}
-		else if (std::fabs(angle - 3 * juce::MathConstants<float>().halfPi) < 1e-6)
-		{
-			// handle 270°
-			x_ = 0.0;
-			y_ = halfHeight;
-		}
-		else if (!(angle < juce::MathConstants<float>().halfPi || angle > 3 * juce::MathConstants<float>().halfPi))
-		{
-			// handle left quadrants 1, 2
-			x_ = -x_;
-			y_ = -y_;
-		}
-
-		x_ += w / 2.0 + x;
-		y_ += h / 2.0 + y;
-
-		if (first && startAsNewSubPath)
-		{
-			first = false;
-			path.startNewSubPath(x_, y_);
+			path.startNewSubPath(point);
 		}
 		else
 		{
-			path.lineTo(x_, y_);
+			path.lineTo(point);
 		}
 	}
 }
