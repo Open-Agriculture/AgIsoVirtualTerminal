@@ -176,6 +176,7 @@ if(AGISOVT_BUILD_POOL_RENDERER)
             src/SoftKeyPageBar.cpp
             src/NumberComponent.cpp
             src/ObjectPointerComponent.cpp
+            src/OutputArchedBarGraphComponent.cpp
             src/OutputEllipseComponent.cpp
             src/OutputLineComponent.cpp
             src/OutputLinearBarGraphComponent.cpp

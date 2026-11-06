@@ -82,7 +82,7 @@ images[]             file, object_id, object_type, width, height, sha256; screen
                      functions also assignment_restriction
 unsupported_objects[] object_id, object_type, status, reason
                      unsupported: a drawable object type the VT does not draw (window mask, key group,
-                                  output list, arched bar graph, graphics context, animation, ...)
+                                  output list, graphics context, animation, ...)
                      ignored:     an object no image shows (type 1 auxiliary functions and inputs,
                                   auxiliary control designators, external object definitions)
 errors[]             file, object_id, object_type, error for each image that could not be produced

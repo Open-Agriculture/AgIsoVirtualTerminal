@@ -14,7 +14,7 @@ PictureGraphicComponent::PictureGraphicComponent(std::shared_ptr<isobus::Virtual
                      get_actual_width(),
                      get_actual_height(),
                      true,
-                     useSoftwareImages ? static_cast<const ImageType &>(SoftwareImageType()) : static_cast<const ImageType &>(NativeImageType()))
+                     get_image_type())
 {
 	generate_and_store_image();
 	setSize(PictureGraphic::get_width(), PictureGraphic::get_height());
@@ -76,7 +76,7 @@ FillType PictureGraphicComponent::get_fill_pattern(const Component &shape, std::
 		if ((0 < width) && (0 < height) && (rawData.size() >= static_cast<std::size_t>(width) * height))
 		{
 			// Tiled at its actual size, ignoring transparency and flashing
-			Image pattern(Image::PixelFormat::RGB, width, height, false);
+			Image pattern(Image::PixelFormat::RGB, width, height, false, get_image_type());
 			for (int y = 0; y < height; y++)
 			{
 				for (int x = 0; x < width; x++)
@@ -177,6 +177,18 @@ void PictureGraphicComponent::visibilityChanged()
 void PictureGraphicComponent::set_use_software_images(bool useSoftware)
 {
 	useSoftwareImages = useSoftware;
+}
+
+const ImageType &PictureGraphicComponent::get_image_type()
+{
+	static const SoftwareImageType softwareImageType;
+	static const NativeImageType nativeImageType;
+
+	if (useSoftwareImages)
+	{
+		return softwareImageType;
+	}
+	return nativeImageType;
 }
 
 void PictureGraphicComponent::timerCallback()
