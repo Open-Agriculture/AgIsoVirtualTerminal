@@ -1924,6 +1924,9 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
 			}
 #ifdef JUCE_WINDOWS
+			load_can_device(child, CANDeviceList::PCAN_DRIVER_INDEX);
+			load_can_device(child, CANDeviceList::CANDLELIGHT_DRIVER_INDEX);
+
 			if (!child.getProperty("TouCANSerial").isVoid())
 			{
 				std::static_pointer_cast<isobus::TouCANPlugin>(parentCANDrivers.at(2))->reconfigure(0, static_cast<std::uint32_t>(static_cast<int>(child.getProperty("TouCANSerial"))));
@@ -2181,6 +2184,45 @@ void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &
 	}
 }
 
+void ServerMainComponent::select_can_device(std::size_t driverIndex, const CANDeviceList::Device &device)
+{
+	auto driver = CANDeviceList::create_driver(driverIndex, device);
+
+	if ((nullptr != driver) && (driverIndex < parentCANDrivers.size()))
+	{
+		parentCANDrivers.at(driverIndex) = driver;
+		selectedCANDevices[driverIndex] = device;
+		isobus::CANStackLogger::info("Selected CAN adapter: " + device.description);
+	}
+}
+
+CANDeviceList::Device ServerMainComponent::get_selected_can_device(std::size_t driverIndex) const
+{
+	auto selected = selectedCANDevices.find(driverIndex);
+	return (selectedCANDevices.end() != selected) ? selected->second : CANDeviceList::get_default_device(driverIndex);
+}
+
+std::string ServerMainComponent::get_can_device_setting_prefix(std::size_t driverIndex)
+{
+	return (CANDeviceList::PCAN_DRIVER_INDEX == driverIndex) ? "PCAN" : "CandleLight";
+}
+
+void ServerMainComponent::load_can_device(const ValueTree &hardwareSettings, std::size_t driverIndex)
+{
+	const auto prefix = get_can_device_setting_prefix(driverIndex);
+	const auto savedID = hardwareSettings.getProperty(Identifier(String(prefix + "DeviceID")));
+
+	if (!savedID.isVoid())
+	{
+		// The saved adapter is used even when it is not plugged in yet
+		CANDeviceList::Device saved;
+		saved.id = static_cast<std::uint32_t>(static_cast<int>(savedID));
+		saved.serial = hardwareSettings.getProperty(Identifier(String(prefix + "DeviceSerial"))).toString().toStdString();
+		saved.description = "the saved adapter, " + (saved.serial.empty() ? std::to_string(saved.id) : saved.serial) + ", which is not connected";
+		select_can_device(driverIndex, CANDeviceList::find_device(CANDeviceList::list_devices(driverIndex), saved));
+	}
+}
+
 void ServerMainComponent::save_settings()
 {
 	File dataDirectory(getAppDataDir());
@@ -2241,6 +2283,13 @@ void ServerMainComponent::save_settings()
 
 #ifdef JUCE_WINDOWS
 		hardwareSettings.setProperty("TouCANSerial", static_cast<int>(std::static_pointer_cast<isobus::TouCANPlugin>(parentCANDrivers.at(2))->get_serial_number()), nullptr);
+
+		for (const auto &selected : selectedCANDevices)
+		{
+			const auto prefix = get_can_device_setting_prefix(selected.first);
+			hardwareSettings.setProperty(Identifier(String(prefix + "DeviceID")), static_cast<int>(selected.second.id), nullptr);
+			hardwareSettings.setProperty(Identifier(String(prefix + "DeviceSerial")), String(selected.second.serial), nullptr);
+		}
 #elif JUCE_LINUX
 		hardwareSettings.setProperty("SocketCANInterface", String(std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->get_device_name()), nullptr);
 #endif

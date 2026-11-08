@@ -10,6 +10,7 @@
 #ifndef SERVER_MAIN_COMPONENT_HPP
 #define SERVER_MAIN_COMPONENT_HPP
 
+#include "CANDeviceList.hpp"
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
 #include "DiagnosticsWindow.hpp"
@@ -25,6 +26,7 @@
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
 #include <filesystem>
+#include <map>
 #include <set>
 
 class ServerMainComponent : public juce::Component
@@ -154,6 +156,12 @@ public:
 
 	void save_settings();
 
+	/// @brief Switches the PCAN or candleLight driver to the given adapter and remembers it for the settings
+	void select_can_device(std::size_t driverIndex, const CANDeviceList::Device &device);
+
+	/// @brief Returns the adapter selected for the PCAN or candleLight driver
+	CANDeviceList::Device get_selected_can_device(std::size_t driverIndex) const;
+
 	void show_diagnostics_window();
 
 	void identify_vt() override;
@@ -199,6 +207,12 @@ public:
 	void apply_window_size_limits();
 
 private:
+	/// @brief Returns the start of the setting names for the adapter of this driver
+	static std::string get_can_device_setting_prefix(std::size_t driverIndex);
+
+	/// @brief Selects the adapter saved for this driver, if there is one
+	void load_can_device(const ValueTree &hardwareSettings, std::size_t driverIndex);
+
 	enum class CommandIDs : int
 	{
 		NoCommand = 0, /// 0 Is an invalid command ID
@@ -336,6 +350,7 @@ private:
 	std::unique_ptr<DiagnosticsWindow> diagnosticsWindow;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
+	std::map<std::size_t, CANDeviceList::Device> selectedCANDevices; ///< The adapter chosen for each driver that picks one of several
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;
 	std::set<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> rejectedWorkingSets; ///< Their last object pool was rejected, so they are never selected automatically

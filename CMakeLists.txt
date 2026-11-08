@@ -26,10 +26,11 @@ if(WIN32)
 
   if(NOT (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND MINGW))
     list(APPEND CAN_DRIVER "WindowsInnoMakerUSB2CAN")
+    list(APPEND CAN_DRIVER "WindowsCandleLight")
   else()
     message(
       STATUS
-        "InnoMaker hardware will not be supported in this build because you are using mingw"
+        "InnoMaker and candleLight hardware will not be supported in this build because you are using mingw"
     )
   endif()
   list(APPEND CAN_DRIVER "SYS_TEC")
@@ -122,7 +123,8 @@ target_sources(
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
           "src/StringDrawingComponent.cpp"
-          "src/VersionStorage.cpp")
+          "src/VersionStorage.cpp"
+          "src/CANDeviceList.cpp")
 
 target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -133,6 +135,11 @@ target_link_libraries(
           isobus::Isobus isobus::HardwareIntegration isobus::Utility
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
          cmake_git_version_tracking)
+
+if("WindowsCandleLight" IN_LIST CAN_DRIVER)
+  # Listing the attached candleLight adapters
+  target_link_libraries(AgISOVirtualTerminal PRIVATE setupapi cfgmgr32)
+endif()
 
 if(WIN32)
   add_custom_command(

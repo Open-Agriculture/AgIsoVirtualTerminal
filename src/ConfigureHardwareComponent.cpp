@@ -17,6 +17,7 @@
 #endif
 
 ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &parent, std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers) :
+  parentWindow(parent),
   okButton("OK"),
   parentCANDrivers(canDrivers)
 {
@@ -30,9 +31,9 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 	hardwareInterfaceSelector.setTextWhenNothingSelected("Select Hardware Interface");
 
 #ifdef ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE
-	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec" }, 1);
+	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec", "candleLight / gs_usb" }, 1);
 #else
-	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN (not supported with mingw)", "TouCAN", "SysTec" }, 1);
+	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN (not supported with mingw)", "TouCAN", "SysTec", "candleLight / gs_usb (not supported with mingw)" }, 1);
 #endif
 	int selectedID = 1;
 
@@ -48,18 +49,13 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 	hardwareInterfaceSelector.setSelectedId(selectedID);
 	hardwareInterfaceSelector.setSize(getWidth() - 20, 30);
 	hardwareInterfaceSelector.setTopLeftPosition(10, 80);
-	hardwareInterfaceSelector.onChange = [this]() {
-		if (3 == hardwareInterfaceSelector.getSelectedId())
-		{
-			touCANSerialEditor.setVisible(true);
-		}
-		else
-		{
-			touCANSerialEditor.setVisible(false);
-		}
-		repaint();
-	};
+	hardwareInterfaceSelector.onChange = [this]() { update_driver_options(); };
 	addAndMakeVisible(hardwareInterfaceSelector);
+
+	deviceSelector.setName("CAN Adapter");
+	deviceSelector.setSize(getWidth() - 20, 30);
+	deviceSelector.setTopLeftPosition(10, 140);
+	addChildComponent(deviceSelector);
 
 	auto inputFilter = new TextEditor::LengthAndCharacterRestriction(10, "1234567890");
 	touCANSerialEditor.setName("TouCAN Serial Number");
@@ -68,6 +64,7 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 	touCANSerialEditor.setTopLeftPosition(10, 140);
 	touCANSerialEditor.setInputFilter(inputFilter, true);
 	addChildComponent(touCANSerialEditor);
+	update_driver_options();
 #elif JUCE_LINUX
 	socketCANNameEditor.setName("SocketCAN Interface Name");
 	socketCANNameEditor.setText(std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->get_device_name());
@@ -82,6 +79,7 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 			int serial = touCANSerialEditor.getText().trim().getIntValue();
 			std::static_pointer_cast<isobus::TouCANPlugin>(parentCANDrivers.at(hardwareInterfaceSelector.getSelectedId() - 1))->reconfigure(0, static_cast<std::uint32_t>(serial));
 		}
+		apply_selected_device();
 
 		if (nullptr != isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
 		{
@@ -122,6 +120,10 @@ void ConfigureHardwareComponent::paint(Graphics &graphics)
 	{
 		graphics.drawFittedText("TouCAN Serial Number", touCANSerialEditor.getBounds().getX(), touCANSerialEditor.getBounds().getY() - 14, touCANSerialEditor.getBounds().getWidth(), 12, Justification::centredLeft, 1);
 	}
+	else if (deviceSelector.isVisible())
+	{
+		graphics.drawFittedText("Adapter", deviceSelector.getBounds().getX(), deviceSelector.getBounds().getY() - 14, deviceSelector.getBounds().getWidth(), 12, Justification::centredLeft, 1);
+	}
 #elif JUCE_LINUX
 	graphics.drawFittedText("Socket CAN Interface Name", socketCANNameEditor.getBounds().getX(), socketCANNameEditor.getBounds().getY() - 14, socketCANNameEditor.getBounds().getWidth(), 12, Justification::centredLeft, 1);
 #endif
@@ -129,4 +131,51 @@ void ConfigureHardwareComponent::paint(Graphics &graphics)
 
 void ConfigureHardwareComponent::resized()
 {
+}
+
+void ConfigureHardwareComponent::update_driver_options()
+{
+	const auto driverIndex = static_cast<std::size_t>(hardwareInterfaceSelector.getSelectedId() - 1);
+
+	touCANSerialEditor.setVisible(3 == hardwareInterfaceSelector.getSelectedId());
+	deviceSelector.setVisible(CANDeviceList::has_device_list(driverIndex));
+
+	if (deviceSelector.isVisible())
+	{
+		fill_device_list(driverIndex);
+	}
+	repaint();
+}
+
+void ConfigureHardwareComponent::fill_device_list(std::size_t driverIndex)
+{
+	listedDevices = CANDeviceList::list_devices(driverIndex);
+	const auto current = CANDeviceList::find_device(listedDevices, parentWindow.parentServer.get_selected_can_device(driverIndex));
+
+	deviceSelector.clear(dontSendNotification);
+	for (std::size_t i = 0; i < listedDevices.size(); i++)
+	{
+		deviceSelector.addItem(listedDevices.at(i).description, static_cast<int>(i) + 1);
+
+		if ((listedDevices.at(i).id == current.id) && (listedDevices.at(i).serial == current.serial))
+		{
+			deviceSelector.setSelectedId(static_cast<int>(i) + 1, dontSendNotification);
+		}
+	}
+
+	if (0 == deviceSelector.getSelectedId())
+	{
+		deviceSelector.setSelectedId(1, dontSendNotification);
+	}
+}
+
+void ConfigureHardwareComponent::apply_selected_device()
+{
+	const auto driverIndex = static_cast<std::size_t>(hardwareInterfaceSelector.getSelectedId() - 1);
+	const auto listIndex = deviceSelector.getSelectedItemIndex();
+
+	if (CANDeviceList::has_device_list(driverIndex) && (listIndex >= 0) && (static_cast<std::size_t>(listIndex) < listedDevices.size()))
+	{
+		parentWindow.parentServer.select_can_device(driverIndex, listedDevices.at(static_cast<std::size_t>(listIndex)));
+	}
 }
