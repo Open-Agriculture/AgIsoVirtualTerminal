@@ -132,14 +132,30 @@ run, where other pools were drawn first. Finally it checks that a pool that cann
 
 ## Comparing two builds
 
-Render the same pools with both builds, on the same platform, into two folders:
+To see what a change does to how pools are drawn, render the same pools with two builds of vt-render and
+compare the results. It is the same program, built from two versions of the VT source:
+
+- **From releases:** download the vt-render zip of two releases and unpack each into its own folder.
+- **From source:** build vt-render once from each version, for example `main` and a pull request branch,
+  into two build folders.
+
+Render the same pools with each build, on the same platform, into its own output folder. For example on
+Windows, with the zips of 1.7.0 and 1.8.0 unpacked into `C:\vt-render-1.7.0` and `C:\vt-render-1.8.0`:
 
 ```
-vt-render-before --all <collection root> --out before
-vt-render-after  --all <collection root> --out after
+C:\vt-render-1.7.0\vt-render.exe --all C:\AgIsoObjectPoolCollection --out C:\renders\1.7.0
+C:\vt-render-1.8.0\vt-render.exe --all C:\AgIsoObjectPoolCollection --out C:\renders\1.8.0
 ```
 
-Images whose `sha256` differs between `before/<pool id>/manifest.json` and `after/<pool id>/manifest.json`
-are the ones the change affects. The hash is taken over the pixels, so equal hashes mean identical
-images. Compare `render_settings` first: if it differs, for example another platform, every image
-differs.
+Each output folder then has a folder per pool, with its images and a `manifest.json`. For each pool,
+compare the `images` lists of its two manifests:
+
+- An image whose `sha256` differs between the two manifests is drawn differently. The hash is taken over
+  the pixels, so images with equal hashes are identical and don't need to be opened.
+- An image in only one of the two manifests is new, or no longer produced.
+- A pool whose `load.ok` changed from `true` to `false` no longer loads.
+
+Check `render_settings` first. If it differs, for example because the two renders come from different
+platforms, every image differs and the comparison says nothing about the change.
+
+vt-render doesn't compare the manifests itself; that is left to a script or a diff tool.
