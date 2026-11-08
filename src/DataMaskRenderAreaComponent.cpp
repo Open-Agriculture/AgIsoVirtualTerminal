@@ -883,17 +883,20 @@ void DataMaskRenderAreaComponent::InputNumberListener::set_target(std::shared_pt
 	targetObject = objectBeingModified;
 }
 
-std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y)
+std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path)
 {
 	std::shared_ptr<isobus::VTObject> retVal;
 
 	if ((nullptr == object) ||
 	    (nullptr == parentWorkingSet) ||
 	    ((isobus::VirtualTerminalObjectType::ObjectPointer != object->get_object_type()) &&
-	     (0 == object->get_number_children())))
+	     (0 == object->get_number_children())) ||
+	    (path.end() != std::find(path.begin(), path.end(), object->get_id())))
 	{
 		return nullptr;
 	}
+	// Each branch gets its own copy of the path, so a reference cycle stops but an object used twice is still searched
+	path.push_back(object->get_id());
 
 	if (isobus::VirtualTerminalObjectType::ObjectPointer == object->get_object_type())
 	{
@@ -907,7 +910,7 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 		}
 		else if (!objectCanBeClicked(child))
 		{
-			retVal = getClickedChildRecursive(child, x, y);
+			retVal = getClickedChildRecursive(child, x, y, path);
 		}
 	}
 	else
@@ -938,7 +941,7 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 			}
 			else if (!objectCanBeClicked(child))
 			{
-				retVal = getClickedChildRecursive(child, x - object->get_child_x(i), y - object->get_child_y(i));
+				retVal = getClickedChildRecursive(child, x - object->get_child_x(i), y - object->get_child_y(i), path);
 
 				if (nullptr != retVal)
 				{

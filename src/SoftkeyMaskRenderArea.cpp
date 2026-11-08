@@ -7,6 +7,8 @@
 #include "ServerMainComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 
+#include <algorithm>
+
 SoftKeyMaskRenderAreaComponent::SoftKeyMaskRenderAreaComponent(ServerMainComponent &parentServer) :
   ownerServer(parentServer)
 {
@@ -276,17 +278,20 @@ void SoftKeyMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 	repaint();
 }
 
-std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y)
+std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path)
 {
 	std::shared_ptr<isobus::VTObject> retVal;
 	const SoftKeyMaskDimensions &keyDimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
 
 	if ((nullptr == object) ||
 	    ((isobus::VirtualTerminalObjectType::ObjectPointer != object->get_object_type()) &&
-	     (0 == object->get_number_children())))
+	     (0 == object->get_number_children())) ||
+	    (path.end() != std::find(path.begin(), path.end(), object->get_id())))
 	{
 		return nullptr;
 	}
+	// Each branch gets its own copy of the path, so a reference cycle stops but an object used twice is still searched
+	path.push_back(object->get_id());
 
 	if (isobus::VirtualTerminalObjectType::ObjectPointer == object->get_object_type())
 	{
@@ -300,7 +305,7 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 		}
 		else if (!objectCanBeClicked(child))
 		{
-			retVal = getClickedChildRecursive(child, x, y);
+			retVal = getClickedChildRecursive(child, x, y, path);
 		}
 	}
 	else
@@ -321,7 +326,7 @@ std::shared_ptr<isobus::VTObject> SoftKeyMaskRenderAreaComponent::getClickedChil
 			}
 			else if (!objectCanBeClicked(child))
 			{
-				retVal = getClickedChildRecursive(child, x - position.x, y - position.y);
+				retVal = getClickedChildRecursive(child, x - position.x, y - position.y, path);
 
 				if (nullptr != retVal)
 				{

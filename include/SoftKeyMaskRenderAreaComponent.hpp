@@ -16,6 +16,8 @@
 
 #include "JuceHeader.h"
 
+#include <vector>
+
 class ServerMainComponent;
 
 class SoftKeyMaskRenderAreaComponent : public Component
@@ -44,7 +46,7 @@ private:
 
 	void change_page(int delta);
 	void update_page_bar(int pageCount);
-	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
+	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path = {});
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
 
