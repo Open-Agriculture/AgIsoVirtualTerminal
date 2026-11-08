@@ -97,7 +97,7 @@ void OutputEllipseComponent::paint(Graphics &g)
 				if (fill.has_value())
 				{
 					g.setFillType(fill.value());
-					line_art::fill_inside_border(g, path, line_art::outline(path, lineWidth, line_art::SOLID), line->get_line_art_bit_pattern());
+					line_art::fill_inside_border(g, path, line_art::outline(path, lineWidth, line_art::SOLID), line->get_line_art_bit_pattern(), PictureGraphicComponent::get_image_type());
 					g.setColour(lineColour);
 				}
 			}

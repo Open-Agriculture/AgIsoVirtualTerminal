@@ -30,13 +30,26 @@ jobs:
       - name: Compile
         run: |
           mkdir build
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DAGISOVT_BUILD_POOL_RENDERER=ON -Wno-dev
           cmake --build build --config Release --target package
+          cmake --build build --config Release --target VtRender
       - name: 'Upload Windows Installer'
         uses: actions/upload-artifact@v7
         with:
           name: 'Windows Installer'
           path: build/_CPack_Packages/win64/NSIS/*.exe
+          if-no-files-found: error
+      - name: Collect vt-render
+        shell: bash
+        run: |
+          mkdir vt-render
+          cp build/VtRender_artefacts/Release/vt-render.exe tools/vt-render/README.md vt-render/
+          cp res/fonts/LICENSE vt-render/DejaVu-fonts-LICENSE
+      - name: 'Upload vt-render for Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'vt-render Windows'
+          path: vt-render/
           if-no-files-found: error
   mac_build:
     name: MacOS Build
@@ -102,7 +115,7 @@ jobs:
           mkdir build
           sudo apt update
           sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev git cmake
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DAGISOVT_BUILD_POOL_RENDERER=ON -Wno-dev
           cmake --build build --config Release
           cd build
           cpack -G DEB
@@ -111,6 +124,17 @@ jobs:
         with:
           name: 'Ubuntu 24.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
+          if-no-files-found: error
+      - name: Collect vt-render
+        run: |
+          mkdir vt-render
+          cp "$(find build/VtRender_artefacts -type f -name vt-render | head -n 1)" tools/vt-render/README.md vt-render/
+          cp res/fonts/LICENSE vt-render/DejaVu-fonts-LICENSE
+      - name: 'Upload vt-render for Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'vt-render Ubuntu 24.04'
+          path: vt-render/
           if-no-files-found: error
   ubuntu_26_04_build:
     name: Ubuntu 26.04 Build
