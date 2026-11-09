@@ -11,6 +11,7 @@
 #include "AppImages.h"
 #include "ButtonComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "OutputListComponent.hpp"
 #include "ServerMainComponent.hpp"
 #include "isobus/isobus/can_stack_logger.hpp"
 
@@ -882,17 +883,20 @@ void DataMaskRenderAreaComponent::InputNumberListener::set_target(std::shared_pt
 	targetObject = objectBeingModified;
 }
 
-std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y)
+std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path)
 {
 	std::shared_ptr<isobus::VTObject> retVal;
 
 	if ((nullptr == object) ||
 	    (nullptr == parentWorkingSet) ||
 	    ((isobus::VirtualTerminalObjectType::ObjectPointer != object->get_object_type()) &&
-	     (0 == object->get_number_children())))
+	     (0 == object->get_number_children())) ||
+	    (path.end() != std::find(path.begin(), path.end(), object->get_id())))
 	{
 		return nullptr;
 	}
+	// Each branch gets its own copy of the path, so a reference cycle stops but an object used twice is still searched
+	path.push_back(object->get_id());
 
 	if (isobus::VirtualTerminalObjectType::ObjectPointer == object->get_object_type())
 	{
@@ -906,7 +910,7 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 		}
 		else if (!objectCanBeClicked(child))
 		{
-			retVal = getClickedChildRecursive(child, x, y);
+			retVal = getClickedChildRecursive(child, x, y, path);
 		}
 	}
 	else
@@ -920,6 +924,13 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 
 		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
 		{
+			// The other items of an Output List aren't on screen, so they can't be pressed
+			if ((isobus::VirtualTerminalObjectType::OutputList == object->get_object_type()) &&
+			    (i != OutputListComponent::get_selected_index(*std::static_pointer_cast<isobus::OutputList>(object), parentWorkingSet)))
+			{
+				continue;
+			}
+
 			auto child = object->get_object_by_id(object->get_child_id(i), parentWorkingSet->get_object_tree());
 
 			if ((nullptr != child) &&
@@ -930,7 +941,7 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 			}
 			else if (!objectCanBeClicked(child))
 			{
-				retVal = getClickedChildRecursive(child, x - object->get_child_x(i), y - object->get_child_y(i));
+				retVal = getClickedChildRecursive(child, x - object->get_child_x(i), y - object->get_child_y(i), path);
 
 				if (nullptr != retVal)
 				{

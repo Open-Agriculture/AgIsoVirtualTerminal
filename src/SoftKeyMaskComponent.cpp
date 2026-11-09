@@ -62,13 +62,12 @@ void SoftKeyMaskComponent::on_content_changed(bool initial)
 		{
 			childComponents.push_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
 
-			if (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type())
-			{
-				childComponents.back()->setSize(dimensionInfo.keyWidth, dimensionInfo.keyHeight);
-			}
-
 			if (nullptr != childComponents.back())
 			{
+				if (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type())
+				{
+					childComponents.back()->setSize(dimensionInfo.keyWidth, dimensionInfo.keyHeight);
+				}
 				addAndMakeVisible(*childComponents.back());
 				childComponents.back()->setTopLeftPosition(position);
 			}

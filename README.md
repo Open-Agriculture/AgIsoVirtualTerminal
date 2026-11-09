@@ -49,7 +49,7 @@ This section is temporary and will be updated as progress is made on the project
 
 We are always adding new features.
 
-- **Loaded but not shown:** window masks, key groups, Aux N/O, output lists, graphic data, scaled graphics, colour maps, working set special controls, extended input attributes, and object label reference lists. A pool that contains them still loads.
+- **Loaded but not shown:** window masks, key groups, Aux N/O, graphic data, scaled graphics, colour maps, working set special controls, extended input attributes, and object label reference lists. A pool that contains them still loads.
 - **Not loaded:** animations, graphics contexts, external object definitions, external reference NAMEs, external object pointers, and colour palettes. The VT can't load an object pool that contains any of these, so the working set never shows up.
 - **Commands:** Get Attribute Value, Change Object Label, Select Colour Map, Lock/Unlock Mask, Graphics Context, Select Active Working Set, and Auxiliary Capabilities are answered with "unsupported VT function" when the VT reports version 5 or later, and are ignored otherwise. Preferred Assignment is acknowledged but not stored.
 - **Other:** arbitrary audio control (only the alarm beeps play), pointing events, TAN, and OpenGL rendering (only software rendering is supported, though JUCE's software rendering is very RAM efficient compared to GL). Probably more things, to be honest.
