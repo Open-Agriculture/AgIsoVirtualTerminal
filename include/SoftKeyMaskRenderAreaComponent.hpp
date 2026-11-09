@@ -12,6 +12,8 @@
 #include "isobus/isobus/isobus_virtual_terminal_objects.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server_managed_working_set.hpp"
 
+#include "SoftKeyPageBar.hpp"
+
 #include "JuceHeader.h"
 
 class ServerMainComponent;
@@ -38,19 +40,10 @@ public:
 	void mouseUp(const MouseEvent &event) override;
 
 private:
-	static constexpr int PAGE_BUTTON_HEIGHT = 40;
-	static constexpr int PAGE_BUTTON_GAP = 4;
 	static constexpr int PRESSED_RING_WIDTH = 3;
 
-	class PageButtonLookAndFeel : public LookAndFeel_V4
-	{
-	public:
-		void drawButtonBackground(Graphics &g, Button &button, const Colour &backgroundColour, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
-		void drawButtonText(Graphics &g, TextButton &button, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
-	};
-
 	void change_page(int delta);
-	void update_page_buttons(int pageCount);
+	void update_page_bar(int pageCount);
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
@@ -58,9 +51,7 @@ private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
 	ServerMainComponent &ownerServer;
-	PageButtonLookAndFeel pageButtonLookAndFeel; // Declared before the buttons, so it outlives them
-	juce::TextButton previousPageButton;
-	juce::TextButton nextPageButton;
+	SoftKeyPageBar pageBar;
 	juce::Rectangle<int> pressedKeyBounds;
 	std::uint16_t currentPage = 0;
 	std::uint16_t previousActiveMaskID = isobus::NULL_OBJECT_ID;

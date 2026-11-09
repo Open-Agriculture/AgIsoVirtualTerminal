@@ -14,12 +14,18 @@
 
 #include "JuceHeader.h"
 
+#include <optional>
+
 class PictureGraphicComponent : public isobus::PictureGraphic
   , public Component
   , private juce::Timer
 {
 public:
 	PictureGraphicComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::PictureGraphic sourceObject);
+
+	/// @brief Returns what an output shape is filled with, or nothing if it is not filled
+	/// @param lineColour The colour of the shape's line, if it has Line Attributes
+	static std::optional<FillType> get_shape_fill(const Component &shape, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t fillAttributesId, std::optional<Colour> lineColour);
 
 	void generate_and_store_image();
 
@@ -30,6 +36,8 @@ public:
 	void timerCallback() override;
 
 private:
+	static FillType get_fill_pattern(const Component &shape, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t pictureId);
+
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	Image reconstructedImage;
 	bool visible = false;

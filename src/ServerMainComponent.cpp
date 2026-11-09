@@ -288,78 +288,53 @@ void ServerMainComponent::send_alarm_ack_command(KeyActivationCode activationCod
 	}
 }
 
-// A .iopx file is a 7 byte version label then the pool, a .iopx32 file a 32 byte one
-static std::string get_version_file_extension(std::size_t versionLabelLength)
+// A version saved in several files by an older version may have grown on every Store after a Load (#271)
+static void log_retired_versions(const VersionStorage &storage, std::size_t labelLength, isobus::NAME clientNAME)
 {
-	return (32 == versionLabelLength) ? ".iopx32" : ".iopx";
-}
-
-static std::vector<std::filesystem::path> list_version_files(const std::string &directory, std::size_t versionLabelLength)
-{
-	std::vector<std::filesystem::path> retVal;
-
-	if (std::filesystem::is_directory(directory))
+	for (const auto &label : storage.get_retired_labels(labelLength))
 	{
-		for (const auto &entry : std::filesystem::directory_iterator(directory))
-		{
-			if (entry.path().extension() == get_version_file_extension(versionLabelLength))
-			{
-				retVal.push_back(entry.path());
-			}
-		}
+		std::ostringstream nameString;
+		nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
+		isobus::CANStackLogger::info("[VT Server]: Not offering version \"" + std::string(label.begin(), label.end()) + "\" of client " + nameString.str() +
+		                             ", an older version stored it in several files. The client has to upload its object pool again.");
 	}
-	else
-	{
-		isobus::CANStackLogger::info("[VT Server]: No saved object pool data in " + directory);
-	}
-	return retVal;
-}
-
-template<std::size_t LabelLength>
-static std::vector<std::array<std::uint8_t, LabelLength>> read_version_labels(const std::string &directory)
-{
-	std::vector<std::array<std::uint8_t, LabelLength>> retVal;
-
-	for (const auto &file : list_version_files(directory, LabelLength))
-	{
-		std::ifstream iopxFile(file, std::ios::binary);
-		std::array<std::uint8_t, LabelLength> versionLabel;
-
-		if (iopxFile.read(reinterpret_cast<char *>(versionLabel.data()), LabelLength) &&
-		    (retVal.end() == std::find(retVal.begin(), retVal.end(), versionLabel)))
-		{
-			retVal.push_back(versionLabel);
-		}
-	}
-	return retVal;
-}
-
-static std::vector<std::filesystem::path> find_version_files(const std::string &directory, const std::vector<std::uint8_t> &versionLabel)
-{
-	std::vector<std::filesystem::path> retVal;
-
-	for (const auto &file : list_version_files(directory, versionLabel.size()))
-	{
-		std::ifstream iopxFile(file, std::ios::binary);
-		std::vector<std::uint8_t> storedVersionLabel(versionLabel.size());
-
-		if (iopxFile.read(reinterpret_cast<char *>(storedVersionLabel.data()), static_cast<std::streamsize>(storedVersionLabel.size())) &&
-		    (storedVersionLabel == versionLabel))
-		{
-			retVal.push_back(file);
-		}
-	}
-	return retVal;
 }
 
 std::vector<std::array<std::uint8_t, 7>> ServerMainComponent::get_versions(isobus::NAME clientNAME)
 {
-	return read_version_labels<7>(get_client_iso_data_path(clientNAME));
+	std::vector<std::array<std::uint8_t, 7>> retVal;
+	const auto storage = get_version_storage(clientNAME);
+	log_retired_versions(storage, 7, clientNAME);
+
+	for (const auto &label : storage.get_labels(7))
+	{
+		std::array<std::uint8_t, 7> versionLabel;
+		std::copy(label.begin(), label.end(), versionLabel.begin());
+		retVal.push_back(versionLabel);
+	}
+
+	if (retVal.empty())
+	{
+		std::ostringstream nameString;
+		nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
+		isobus::CANStackLogger::info("[VT Server]: No saved object pool data for client: " + nameString.str());
+	}
+	return retVal;
 }
 
 std::vector<std::array<std::uint8_t, 32>> ServerMainComponent::get_extended_versions(isobus::NAME clientNAME)
 {
-	return read_version_labels<32>(get_client_iso_data_path(clientNAME));
+	std::vector<std::array<std::uint8_t, 32>> retVal;
+	const auto storage = get_version_storage(clientNAME);
+	log_retired_versions(storage, 32, clientNAME);
+
+	for (const auto &label : storage.get_labels(32))
+	{
+		std::array<std::uint8_t, 32> versionLabel;
+		std::copy(label.begin(), label.end(), versionLabel.begin());
+		retVal.push_back(versionLabel);
+	}
+	return retVal;
 }
 
 std::vector<std::uint8_t> ServerMainComponent::get_supported_objects() const
@@ -370,80 +345,22 @@ std::vector<std::uint8_t> ServerMainComponent::get_supported_objects() const
 
 std::vector<std::uint8_t> ServerMainComponent::load_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
-	std::vector<std::uint8_t> loadedIOPData;
-
-	for (const auto &file : find_version_files(get_client_iso_data_path(clientNAME), versionLabel))
-	{
-		std::ifstream iopxFile(file, std::ios::binary);
-
-		if (iopxFile.is_open())
-		{
-			iopxFile.unsetf(std::ios::skipws);
-			iopxFile.seekg(static_cast<std::streamoff>(versionLabel.size()), std::ios::beg);
-			loadedIOPData.insert(loadedIOPData.end(), std::istream_iterator<std::uint8_t>(iopxFile), std::istream_iterator<std::uint8_t>());
-		}
-	}
-	return loadedIOPData;
+	return get_version_storage(clientNAME).load(versionLabel);
 }
 
 bool ServerMainComponent::save_version(const std::vector<std::uint8_t> &objectPool, const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
-	bool retVal = false;
-	const auto path = get_client_iso_data_path(clientNAME);
-	std::filesystem::create_directories(path);
-
-	const auto fileNumber = std::to_string(number_of_iop_files_in_directory(path));
-	std::ofstream iopxFile(path + "/object_pool_with_label_" + fileNumber + get_version_file_extension(versionLabel.size()), std::ios::trunc | std::ios::binary);
-	std::ofstream iopFile(path + "/object_pool_" + fileNumber + ".iop", std::ios::trunc | std::ios::binary);
-
-	if (iopxFile.is_open())
-	{
-		iopxFile.write(reinterpret_cast<const char *>(versionLabel.data()), static_cast<std::streamsize>(versionLabel.size()));
-		iopxFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast<std::streamsize>(objectPool.size()));
-		iopxFile.close();
-		retVal = true;
-	}
-	if (iopFile.is_open())
-	{
-		iopFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast<std::streamsize>(objectPool.size()));
-		iopFile.close();
-	}
-	return retVal;
+	return get_version_storage(clientNAME).save(objectPool, versionLabel);
 }
 
 bool ServerMainComponent::delete_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
-	auto filesToRemove = find_version_files(get_client_iso_data_path(clientNAME), versionLabel);
-	bool retVal = !filesToRemove.empty();
-
-	for (const auto &file : filesToRemove)
-	{
-		retVal &= std::filesystem::remove(file);
-	}
-	return retVal;
+	return get_version_storage(clientNAME).remove(versionLabel);
 }
 
 bool ServerMainComponent::delete_all_versions(std::uint8_t versionLabelLength, isobus::NAME clientNAME)
 {
-	bool retVal = true;
-
-	for (const auto &file : list_version_files(get_client_iso_data_path(clientNAME), versionLabelLength))
-	{
-		retVal &= std::filesystem::remove(file);
-	}
-	return retVal;
-}
-
-std::string ServerMainComponent::get_client_iso_data_path(isobus::NAME clientNAME) const
-{
-	std::ostringstream nameString;
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-	return (getAppDataDir() +
-	        File::getSeparatorString() +
-	        ISO_DATA_PATH +
-	        File::getSeparatorString() +
-	        nameString.str())
-	  .toStdString();
+	return get_version_storage(clientNAME).remove_all(versionLabelLength);
 }
 
 bool ServerMainComponent::delete_object_pool(isobus::NAME)
@@ -667,6 +584,7 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackage));
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
+	allCommands.add(static_cast<int>(CommandIDs::ShowDiagnostics));
 	allCommands.add(static_cast<int>(CommandIDs::StartStop));
 	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
 	allCommands.add(static_cast<int>(CommandIDs::CheckForUpdates));
@@ -730,6 +648,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::ClearISOData:
 		{
 			result.setInfo("Clear ISO Data", "Clears all saved ISO data", "Troubleshooting", 0);
+		}
+		break;
+
+		case CommandIDs::ShowDiagnostics:
+		{
+			result.setInfo("Diagnostics", "Show active diagnostic trouble codes from devices on the bus", "Troubleshooting", 0);
 		}
 		break;
 
@@ -975,13 +899,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			auto canLogFileName = File(canLogPath);
 			diagnosticFileBuilder->addFile(canLogFileName, 9, canLogFileName.getFileName());
 
-			// Cut the output logging where we started
-			FileInputStream *fis = new FileInputStream(logger.getLogFile());
-			if (fis->openedOk())
-			{
-				fis->setPosition(logger.initialPos());
-				diagnosticFileBuilder->addEntry(fis, 9, "AgISOVirtualTerminalLog.txt", Time::getCurrentTime());
-			}
+			diagnosticFileBuilder->addFile(logger.getLogFile(), 9, logger.getLogFile().getFileName());
 
 			auto userDataFolder = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString());
 
@@ -1035,6 +953,13 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			// window is pinned on top, or it would open behind it.
 			configureHardwareWindow->setAlwaysOnTop(alwaysOnTop);
 			configureHardwareWindow->enterModalState(true);
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::ShowDiagnostics):
+		{
+			show_diagnostics_window();
 			retVal = true;
 		}
 		break;
@@ -1166,6 +1091,7 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackage));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ClearISOData));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ShowDiagnostics));
 		}
 		break;
 
@@ -1186,6 +1112,23 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 void ServerMainComponent::menuItemSelected(int, int)
 {
 	// Do nothing
+}
+
+void ServerMainComponent::show_diagnostics_window()
+{
+	if (nullptr == diagnosticsWindow)
+	{
+		diagnosticsWindow = std::make_unique<DiagnosticsWindow>(*this);
+		diagnosticsWindow->addToDesktop();
+		Rectangle<int> area(0, 0, DiagnosticsComponent::WIDTH + 40, 400);
+		RectanglePlacement placement(RectanglePlacement::centred |
+		                             RectanglePlacement::doNotResize);
+		auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
+		diagnosticsWindow->setBounds(result);
+	}
+	diagnosticsWindow->setAlwaysOnTop(alwaysOnTop);
+	diagnosticsWindow->setVisible(true);
+	diagnosticsWindow->toFront(true);
 }
 
 std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control_function_for_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) const
@@ -1588,18 +1531,11 @@ ServerMainComponent::VTVersion ServerMainComponent::get_version_from_setting(std
 	return retVal;
 }
 
-std::size_t ServerMainComponent::number_of_iop_files_in_directory(std::filesystem::path path)
+VersionStorage ServerMainComponent::get_version_storage(isobus::NAME clientNAME) const
 {
-	std::size_t retVal = 0;
-
-	for (const auto &entry : std::filesystem::directory_iterator(path))
-	{
-		if (entry.path().has_extension() && entry.path().extension() == ".iop")
-		{
-			retVal++;
-		}
-	}
-	return retVal;
+	std::ostringstream nameString;
+	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
+	return VersionStorage(std::filesystem::u8path(getAppDataDir()) / ISO_DATA_PATH / nameString.str());
 }
 
 bool ServerMainComponent::timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDate)

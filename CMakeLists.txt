@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   "AgISOVirtualTerminal"
   LANGUAGES CXX C
-  VERSION 1.6.0)
+  VERSION 1.7.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
@@ -90,16 +90,20 @@ target_sources(
           "src/ObjectPointerComponent.cpp"
           "src/OutputNumberComponent.cpp"
           "src/SoftkeyMaskRenderArea.cpp"
+          "src/SoftKeyPageBar.cpp"
           "src/KeyComponent.cpp"
           "src/DesignatorFit.cpp"
           "src/SoftKeyMaskComponent.cpp"
           "src/OutputMeterComponent.cpp"
           "src/InputBooleanComponent.cpp"
           "src/LoggerComponent.cpp"
+          "src/DiagnosticsComponent.cpp"
+          "src/DiagnosticsWindow.cpp"
           "src/InputNumberComponent.cpp"
           "src/OutputEllipseComponent.cpp"
           "src/OutputLineComponent.cpp"
           "src/OutputLinearBarGraphComponent.cpp"
+          "src/OutputArchedBarGraphComponent.cpp"
           "src/OutputPolygonComponent.cpp"
           "src/InputStringComponent.cpp"
           "src/NumberComponent.cpp"
@@ -117,7 +121,8 @@ target_sources(
           "src/IndentedToggleButton.cpp"
           "src/VT_NumberComponent.cpp"
           "src/TextDrawingComponent.cpp"
-          "src/StringDrawingComponent.cpp")
+          "src/StringDrawingComponent.cpp"
+          "src/VersionStorage.cpp")
 
 target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)

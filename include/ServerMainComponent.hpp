@@ -12,11 +12,13 @@
 
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
+#include "DiagnosticsWindow.hpp"
 #include "LoggerComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 #include "UpdateChecker.hpp"
 #include "VT_NumberComponent.hpp"
+#include "VersionStorage.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_diagnostic_protocol.hpp"
 #include "isobus/isobus/isobus_time_date_interface.hpp"
@@ -77,8 +79,8 @@ public:
 	/// @brief This function is called when the client wants the server to save an object pool
 	/// to the VT's non-volatile memory.
 	/// If the object pool is saved successfully, return true, otherwise return false.
-	/// @note This may be called multiple times with the same version, but different data. When this
-	/// happens, the expectation is that you will append each objectPool together into one large file.
+	/// @note This is called once per object pool transfer, in transfer order. The server calls delete_version()
+	/// with the same label first, so each call adds the next component of the version.
 	/// @param[in] objectPool The object pool data to save
 	/// @param[in] versionLabel The object pool version to save for the given client NAME
 	/// @param[in] clientNAME The client requesting the object pool
@@ -153,6 +155,8 @@ public:
 
 	void save_settings();
 
+	void show_diagnostics_window();
+
 	void identify_vt() override;
 
 	void screen_capture(std::uint8_t item, std::uint8_t path, std::shared_ptr<isobus::ControlFunction> requestor) override;
@@ -215,7 +219,8 @@ private:
 		AutoCheckForUpdates,
 		AlwaysOnTop,
 		FitMasksToWindow,
-		ScalePoolsToDataMask
+		ScalePoolsToDataMask,
+		ShowDiagnostics
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -225,8 +230,6 @@ private:
 	public:
 		void operator()(int result) const noexcept;
 		ServerMainComponent &mParent;
-
-	private:
 	};
 	friend class LanguageCommandConfigClosed;
 
@@ -244,10 +247,7 @@ private:
 
 	static VTVersion get_version_from_setting(std::uint8_t aVersion);
 
-	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
-
-	/// @brief The client's stored object pool directory, which may not exist yet
-	std::string get_client_iso_data_path(isobus::NAME clientNAME) const;
+	VersionStorage get_version_storage(isobus::NAME clientNAME) const;
 
 	bool timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDateToPopulate);
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
@@ -343,6 +343,7 @@ private:
 	std::unique_ptr<isobus::DiagnosticProtocol> diagnosticProtocol;
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::unique_ptr<ConfigureHardwareWindow> configureHardwareWindow;
+	std::unique_ptr<DiagnosticsWindow> diagnosticsWindow;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;

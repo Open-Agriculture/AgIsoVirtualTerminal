@@ -7,45 +7,11 @@
 #include "ServerMainComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 
-static int count_used_soft_keys(std::shared_ptr<isobus::VTObject> softKeyMask, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
-{
-	const auto &objectTree = workingSet->get_object_tree();
-	int usedKeyCount = softKeyMask->get_number_children();
-
-	while (0 < usedKeyCount)
-	{
-		auto child = isobus::VTObject::get_object_by_id(softKeyMask->get_child_id(static_cast<std::uint16_t>(usedKeyCount - 1)), objectTree);
-
-		// Capped, since pointers can form a cycle
-		for (std::size_t hops = 0; (nullptr != child) && (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type()) && (hops < objectTree.size()); hops++)
-		{
-			child = isobus::VTObject::get_object_by_id(std::static_pointer_cast<isobus::ObjectPointer>(child)->get_value(), objectTree);
-		}
-
-		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::ObjectPointer != child->get_object_type()))
-		{
-			break;
-		}
-		usedKeyCount--;
-	}
-	return usedKeyCount;
-}
-
 SoftKeyMaskRenderAreaComponent::SoftKeyMaskRenderAreaComponent(ServerMainComponent &parentServer) :
-  ownerServer(parentServer),
-  previousPageButton(juce::String::fromUTF8("\xe2\x97\x80")),
-  nextPageButton(juce::String::fromUTF8("\xe2\x96\xb6"))
+  ownerServer(parentServer)
 {
-	previousPageButton.onClick = [this]() { change_page(-1); };
-	nextPageButton.onClick = [this]() { change_page(1); };
-	for (auto button : { &previousPageButton, &nextPageButton })
-	{
-		button->setWantsKeyboardFocus(false);
-		button->setLookAndFeel(&pageButtonLookAndFeel);
-		button->setColour(juce::TextButton::buttonColourId, juce::Colours::lightgrey);
-		button->setColour(juce::TextButton::textColourOffId, juce::Colours::black);
-		addChildComponent(*button);
-	}
+	pageBar.onPageChange = [this](int delta) { change_page(delta); };
+	addChildComponent(pageBar);
 }
 
 void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
@@ -97,26 +63,22 @@ void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobu
 	if (nullptr != softKeyMask)
 	{
 		const SoftKeyMaskDimensions &dimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
-		const int slots = dimensions.key_count();
-		std::uint16_t firstKey = 0;
+		pageCount = SoftKeyMaskComponent::get_page_count(softKeyMask, parentWorkingSet, dimensions);
 
-		if (0 < slots)
+		if (currentPage >= pageCount)
 		{
-			pageCount = (count_used_soft_keys(softKeyMask, parentWorkingSet) + slots - 1) / slots;
-
-			if (currentPage >= pageCount)
-			{
-				currentPage = static_cast<std::uint16_t>(std::max(pageCount - 1, 0));
-			}
-			firstKey = static_cast<std::uint16_t>(currentPage * slots);
+			currentPage = static_cast<std::uint16_t>(std::max(pageCount - 1, 0));
 		}
+		const auto firstKey = static_cast<std::uint16_t>(currentPage * dimensions.key_count());
 
 		auto softKeyMaskComponent = std::make_shared<SoftKeyMaskComponent>(parentWorkingSet, *std::static_pointer_cast<isobus::SoftKeyMask>(softKeyMask), dimensions, firstKey);
 		softKeyMaskComponent->setInterceptsMouseClicks(false, false);
+		const auto vtColour = parentWorkingSet->get_colour(softKeyMaskComponent->get_background_color());
+		pageBar.set_mask_background(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 		childComponents.emplace_back(softKeyMaskComponent);
 		addAndMakeVisible(*childComponents.back());
 	}
-	update_page_buttons(pageCount);
+	update_page_bar(pageCount);
 	repaint();
 }
 
@@ -126,7 +88,7 @@ void SoftKeyMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<i
 	{
 		parentWorkingSet = nullptr;
 		childComponents.clear();
-		update_page_buttons(0);
+		update_page_bar(0);
 		repaint();
 	}
 }
@@ -137,45 +99,13 @@ void SoftKeyMaskRenderAreaComponent::change_page(int delta)
 	on_change_active_mask(parentWorkingSet);
 }
 
-void SoftKeyMaskRenderAreaComponent::update_page_buttons(int pageCount)
+void SoftKeyMaskRenderAreaComponent::update_page_bar(int pageCount)
 {
-	const SoftKeyMaskDimensions &dimensions = JuceManagedWorkingSetCache::get_softkey_mask_dimension_info();
-	const bool showButtons = (1 < pageCount);
-	const int y = dimensions.total_height();
-	const int width = (dimensions.total_width() - 2 * SoftKeyMaskDimensions::PADDING - PAGE_BUTTON_GAP) / 2;
+	pageBar.setBounds(SoftKeyPageBar::get_area(JuceManagedWorkingSetCache::get_softkey_mask_dimension_info()));
+	pageBar.set_page(currentPage, pageCount);
 
-	previousPageButton.setBounds(SoftKeyMaskDimensions::PADDING, y, width, PAGE_BUTTON_HEIGHT);
-	nextPageButton.setBounds(SoftKeyMaskDimensions::PADDING + width + PAGE_BUTTON_GAP, y, width, PAGE_BUTTON_HEIGHT);
-	previousPageButton.setEnabled(0 < currentPage);
-	nextPageButton.setEnabled(currentPage + 1 < pageCount);
-	previousPageButton.setVisible(showButtons);
-	nextPageButton.setVisible(showButtons);
-
-	// Otherwise the rebuilt mask component covers them
-	previousPageButton.toFront(false);
-	nextPageButton.toFront(false);
-}
-
-void SoftKeyMaskRenderAreaComponent::PageButtonLookAndFeel::drawButtonBackground(Graphics &g, Button &button, const Colour &backgroundColour, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
-{
-	// LookAndFeel_V4 fades a disabled face, so the mask shows through
-	auto colour = backgroundColour;
-	if (shouldDrawButtonAsDown || shouldDrawButtonAsHighlighted)
-	{
-		colour = colour.contrasting(shouldDrawButtonAsDown ? 0.2f : 0.05f);
-	}
-	const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
-	g.setColour(colour);
-	g.fillRoundedRectangle(bounds, 6.0f);
-	g.setColour(button.findColour(ComboBox::outlineColourId));
-	g.drawRoundedRectangle(bounds, 6.0f, 1.0f);
-}
-
-void SoftKeyMaskRenderAreaComponent::PageButtonLookAndFeel::drawButtonText(Graphics &g, TextButton &button, bool, bool)
-{
-	g.setFont(Font(std::min(0.4f * button.getWidth(), static_cast<float>(button.getHeight()))));
-	g.setColour(button.findColour(TextButton::textColourOffId).withMultipliedAlpha(button.isEnabled() ? 1.0f : 0.35f));
-	g.drawText(button.getButtonText(), button.getLocalBounds(), Justification::centred, false);
+	// Otherwise the rebuilt mask component covers it
+	pageBar.toFront(false);
 }
 
 void SoftKeyMaskRenderAreaComponent::paint(Graphics &g)

@@ -19,6 +19,36 @@ SoftKeyMaskComponent::SoftKeyMaskComponent(std::shared_ptr<isobus::VirtualTermin
 	on_content_changed(true);
 }
 
+static int count_used_soft_keys(std::shared_ptr<isobus::VTObject> softKeyMask, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	const auto &objectTree = workingSet->get_object_tree();
+	int usedKeyCount = softKeyMask->get_number_children();
+
+	while (0 < usedKeyCount)
+	{
+		auto child = isobus::VTObject::get_object_by_id(softKeyMask->get_child_id(static_cast<std::uint16_t>(usedKeyCount - 1)), objectTree);
+
+		// Capped, since pointers can form a cycle
+		for (std::size_t hops = 0; (nullptr != child) && (isobus::VirtualTerminalObjectType::ObjectPointer == child->get_object_type()) && (hops < objectTree.size()); hops++)
+		{
+			child = isobus::VTObject::get_object_by_id(std::static_pointer_cast<isobus::ObjectPointer>(child)->get_value(), objectTree);
+		}
+
+		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::ObjectPointer != child->get_object_type()))
+		{
+			break;
+		}
+		usedKeyCount--;
+	}
+	return usedKeyCount;
+}
+
+int SoftKeyMaskComponent::get_page_count(std::shared_ptr<isobus::VTObject> softKeyMask, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, const SoftKeyMaskDimensions &dimensions)
+{
+	const int slots = dimensions.key_count();
+	return (0 < slots) ? (count_used_soft_keys(softKeyMask, workingSet) + slots - 1) / slots : 0;
+}
+
 void SoftKeyMaskComponent::on_content_changed(bool initial)
 {
 	const int lastKey = firstKey + dimensionInfo.key_count();
