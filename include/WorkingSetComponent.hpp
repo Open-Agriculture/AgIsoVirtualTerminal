@@ -22,6 +22,9 @@ public:
 
 	void paint(Graphics &g) override;
 
+	/// @brief Draws the highlight that marks the active working set's selector button
+	static void paint_active_highlight(Graphics &g, juce::Rectangle<int> button);
+
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;

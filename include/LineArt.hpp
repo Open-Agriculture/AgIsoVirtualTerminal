@@ -63,7 +63,7 @@ namespace line_art
 
 	/// @brief Fills a closed path with the current fill, leaving every pixel of the given border unfilled.
 	/// @details The background has to show through the gaps of the line art.
-	inline void fill_inside_border(Graphics &g, const Path &path, const Path &border, std::uint16_t lineArt)
+	inline void fill_inside_border(Graphics &g, const Path &path, const Path &border, std::uint16_t lineArt, const ImageType &imageType)
 	{
 		const auto area = path.getBounds().getSmallestIntegerContainer();
 
@@ -75,7 +75,7 @@ namespace line_art
 		else if (!area.isEmpty())
 		{
 			const auto toArea = AffineTransform::translation(static_cast<float>(-area.getX()), static_cast<float>(-area.getY()));
-			Image outside(Image::SingleChannel, area.getWidth(), area.getHeight(), true);
+			Image outside(Image::SingleChannel, area.getWidth(), area.getHeight(), true, imageType);
 			{
 				Graphics borderGraphics(outside);
 				borderGraphics.setColour(Colours::white);

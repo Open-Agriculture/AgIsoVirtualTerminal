@@ -1,0 +1,16 @@
+{
+  "name": "vt-visual-diff",
+  "private": true,
+  "description": "Compares vt-render outputs of two builds and writes the visual diff report",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "pixelmatch": "7.2.0",
+    "pngjs": "7.0.0"
+  }
+}
