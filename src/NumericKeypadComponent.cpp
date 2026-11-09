@@ -21,11 +21,11 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 	entry = String(initialValue, static_cast<int>(decimals));
 
 	entryLabel.setJustificationType(Justification::centredRight);
-	entryLabel.setFont(Font(32.0f, Font::bold));
+	entryLabel.setFont(Font(FontOptions(32.0f, Font::bold).withMetricsKind(TypefaceMetricsKind::legacy)));
 	addAndMakeVisible(entryLabel);
 
 	rangeLabel.setJustificationType(Justification::centredRight);
-	rangeLabel.setFont(Font(13.0f));
+	rangeLabel.setFont(Font(FontOptions(13.0f).withMetricsKind(TypefaceMetricsKind::legacy)));
 	rangeLabel.setText("Range " + String(minimum, static_cast<int>(decimals)).replaceCharacter('.', separator) +
 	                     " to " + String(maximum, static_cast<int>(decimals)).replaceCharacter('.', separator),
 	                   dontSendNotification);
@@ -274,5 +274,5 @@ bool NumericKeypadComponent::keyPressed(const KeyPress &key)
 
 Font NumericKeypadComponent::KeyLookAndFeel::getTextButtonFont(TextButton &, int buttonHeight)
 {
-	return Font(static_cast<float>(buttonHeight) * 0.42f);
+	return Font(FontOptions(static_cast<float>(buttonHeight) * 0.42f).withMetricsKind(TypefaceMetricsKind::legacy));
 }
