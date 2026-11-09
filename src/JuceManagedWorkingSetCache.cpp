@@ -37,15 +37,21 @@
 #include "StringVariableComponent.hpp"
 #include "WorkingSetComponent.hpp"
 
+#include <algorithm>
+
 int JuceManagedWorkingSetCache::dataAndAlarmMaskSize = 480;
 SoftKeyMaskDimensions JuceManagedWorkingSetCache::softKeyDimensionInfo = SoftKeyMaskDimensions();
+std::vector<std::uint16_t> JuceManagedWorkingSetCache::objectsBeingCreated;
 
 std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::shared_ptr<isobus::VTObject> sourceObject)
 {
 	std::shared_ptr<Component> retVal;
 
-	if (nullptr != sourceObject)
+	// A malformed pool can nest an object inside itself. Only objects still being built are skipped, because a mask can legitimately use the same object twice.
+	if ((nullptr != sourceObject) && (objectsBeingCreated.end() == std::find(objectsBeingCreated.begin(), objectsBeingCreated.end(), sourceObject->get_id())))
 	{
+		objectsBeingCreated.push_back(sourceObject->get_id());
+
 		switch (sourceObject->get_object_type())
 		{
 			case isobus::VirtualTerminalObjectType::AlarmMask:
@@ -134,7 +140,7 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 
 			case isobus::VirtualTerminalObjectType::OutputList:
 			{
-				//retVal = std::make_shared<OutputListComponent>(workingSet, *std::static_pointer_cast<isobus::OutputList>(sourceObject));
+				retVal = std::make_shared<OutputListComponent>(workingSet, *std::static_pointer_cast<isobus::OutputList>(sourceObject));
 			}
 			break;
 
@@ -209,6 +215,7 @@ std::shared_ptr<Component> JuceManagedWorkingSetCache::create_component(std::sha
 			}
 			break;
 		}
+		objectsBeingCreated.pop_back();
 	}
 
 	if (nullptr != retVal)
