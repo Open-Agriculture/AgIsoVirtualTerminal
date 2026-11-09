@@ -181,6 +181,7 @@ if(AGISOVT_BUILD_POOL_RENDERER)
             src/OutputEllipseComponent.cpp
             src/OutputLineComponent.cpp
             src/OutputLinearBarGraphComponent.cpp
+            src/OutputListComponent.cpp
             src/OutputMeterComponent.cpp
             src/OutputNumberComponent.cpp
             src/OutputPolygonComponent.cpp
