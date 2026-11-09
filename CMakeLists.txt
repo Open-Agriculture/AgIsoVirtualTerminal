@@ -116,6 +116,7 @@ target_sources(
           "src/ConfigureHardwareComponent.cpp"
           "src/StringEncodingConversions.cpp"
           "src/InputListComponent.cpp"
+          "src/OutputListComponent.cpp"
           "src/AckSettingsWindow.cpp"
           "src/Settings.cpp"
           "src/UpdateChecker.cpp"
