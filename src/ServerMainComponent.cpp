@@ -1214,7 +1214,11 @@ static std::shared_ptr<isobus::VTObject> get_active_mask(const std::shared_ptr<i
 
 void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 {
+	const auto highestAlarmWorkingSet = get_highest_priority_alarm_working_set();
+
+	// The highest priority alarm stays on screen until its owner changes the mask
 	if ((index < managedWorkingSetList.size()) &&
+	    ((nullptr == highestAlarmWorkingSet) || (highestAlarmWorkingSet == managedWorkingSetList.at(index))) &&
 	    (nullptr != managedWorkingSetList.at(index)->get_working_set_object()) &&
 	    (std::static_pointer_cast<isobus::WorkingSet>(managedWorkingSetList.at(index)->get_working_set_object())->get_selectable() ||
 	     can_show_alarm(managedWorkingSetList.at(index))))
@@ -1584,7 +1588,8 @@ void ServerMainComponent::transferred_object_pool_parse_start(std::shared_ptr<is
 	fs.close();
 }
 
-// VT version 6 lets a working set that is not selectable show alarms
+// VT version 6 lets a working set that is not selectable show alarms.
+// The working set has to be version 6 too, but the stack doesn't keep the version it reports.
 bool ServerMainComponent::can_show_alarm(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const
 {
 	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(workingSet->get_working_set_object());
@@ -1936,7 +1941,6 @@ void ServerMainComponent::stop_presenting_working_set(std::shared_ptr<isobus::Vi
 	{
 		lastDataMaskWorkingSet.reset();
 	}
-	workingSet->clear_callback_handles();
 	auto removedButtons = std::stable_partition(heldButtons.begin(), heldButtons.end(), [&workingSet](const HeldButtonData &button) { return workingSet != button.associatedWorkingSet; });
 	std::for_each(removedButtons, heldButtons.end(), [this](const HeldButtonData &button) { send_held_button_activation(button, KeyActivationCode::ButtonUnlatchedOrReleased); });
 	heldButtons.erase(removedButtons, heldButtons.end());
@@ -2696,7 +2700,10 @@ void ServerMainComponent::apply_window_size_limits()
 
 	if (auto *peer = window->getPeer())
 	{
-		frame = peer->getFrameSize();
+		if (const auto frameSize = peer->getFrameSizeIfPresent())
+		{
+			frame = *frameSize;
+		}
 	}
 	window->setResizeLimits(minimumWidth + frame.getLeftAndRight(), minimumHeight + frame.getTopAndBottom(), 32768, 32768);
 }
