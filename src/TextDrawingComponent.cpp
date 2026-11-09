@@ -5,8 +5,6 @@
 *******************************************************************************/
 #include "TextDrawingComponent.hpp"
 
-bool TextDrawingComponent::fontFallbackEnabled = true;
-
 TextDrawingComponent::TextDrawingComponent(
   std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) :
   parentWorkingSet(workingSet)
@@ -143,8 +141,7 @@ std::uint8_t TextDrawingComponent::prepare_text_painting(Graphics &g,
 	Font juceFont(FontOptions(Font::getDefaultMonospacedFontName(),
 	                          font->get_font_height_pixels(),
 	                          fontStyleFlags)
-	                .withMetricsKind(juce::TypefaceMetricsKind::legacy)
-	                .withFallbackEnabled(fontFallbackEnabled));
+	                .withMetricsKind(juce::TypefaceMetricsKind::legacy));
 
 	auto fontWidth = GlyphArrangement::getStringWidth(juceFont, juce::String::fromUTF8(&referenceCharForWidthCalc, 1));
 	fontHeight = font->get_font_height_pixels();
@@ -171,11 +168,6 @@ std::uint8_t TextDrawingComponent::prepare_text_painting(Graphics &g,
 	g.setFont(juceFont);
 
 	return fontHeight;
-}
-
-void TextDrawingComponent::set_font_fallback_enabled(bool enabled)
-{
-	fontFallbackEnabled = enabled;
 }
 
 void TextDrawingComponent::drawStrikeThrough(Graphics &g, int w, int h, const String &str, isobus::TextualVTObject::HorizontalJustification justification)

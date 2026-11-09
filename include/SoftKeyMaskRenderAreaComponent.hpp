@@ -31,6 +31,13 @@ public:
 
 	void paint(Graphics &g) override;
 
+	/// @brief Paints the area behind the soft key mask
+	/// @param g The graphics context
+	/// @param bounds The area to paint
+	/// @param background The background colour
+	/// @param hasWorkingSet Whether a working set is shown
+	static void paint_area(Graphics &g, juce::Rectangle<int> bounds, Colour background, bool hasWorkingSet);
+
 	void paintOverChildren(Graphics &g) override;
 
 	// Used to calculate button press events

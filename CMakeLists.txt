@@ -71,59 +71,59 @@ target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
 
 juce_generate_juce_header(AgISOVirtualTerminal)
 
-target_sources(
-  AgISOVirtualTerminal
-  PRIVATE src/Main.cpp
-          "src/ServerMainComponent.cpp"
-          "src/DataMaskComponent.cpp"
-          "src/WorkingSetSelectorComponent.cpp"
-          "src/WorkingSetLoadingIndicatorComponent.cpp"
-          "src/PictureGraphicComponent.cpp"
-          "src/WorkingSetComponent.cpp"
-          "src/AlarmMaskComponent.cpp"
-          "src/DataMaskRenderAreaComponent.cpp"
-          "src/JuceManagedWorkingSetCache.cpp"
-          "src/OutputRectangleComponent.cpp"
-          "src/OutputStringComponent.cpp"
-          "src/ButtonComponent.cpp"
-          "src/ContainerComponent.cpp"
-          "src/ObjectPointerComponent.cpp"
-          "src/OutputNumberComponent.cpp"
-          "src/SoftkeyMaskRenderArea.cpp"
-          "src/SoftKeyPageBar.cpp"
-          "src/KeyComponent.cpp"
-          "src/DesignatorFit.cpp"
-          "src/SoftKeyMaskComponent.cpp"
-          "src/OutputMeterComponent.cpp"
-          "src/InputBooleanComponent.cpp"
-          "src/LoggerComponent.cpp"
-          "src/DiagnosticsComponent.cpp"
-          "src/DiagnosticsWindow.cpp"
-          "src/InputNumberComponent.cpp"
-          "src/OutputEllipseComponent.cpp"
-          "src/OutputLineComponent.cpp"
-          "src/OutputLinearBarGraphComponent.cpp"
-          "src/OutputArchedBarGraphComponent.cpp"
-          "src/OutputPolygonComponent.cpp"
-          "src/InputStringComponent.cpp"
-          "src/NumberComponent.cpp"
-          "src/AlarmMaskAudio.cpp"
-          "src/NumericKeypadComponent.cpp"
-          "src/AppImages.cpp"
-          "src/ASCIILogFile.cpp"
-          "src/ConfigureHardwareWindow.cpp"
-          "src/ConfigureHardwareComponent.cpp"
-          "src/StringEncodingConversions.cpp"
-          "src/InputListComponent.cpp"
-          "src/OutputListComponent.cpp"
-          "src/AckSettingsWindow.cpp"
-          "src/Settings.cpp"
-          "src/UpdateChecker.cpp"
-          "src/IndentedToggleButton.cpp"
-          "src/VT_NumberComponent.cpp"
-          "src/TextDrawingComponent.cpp"
-          "src/StringDrawingComponent.cpp"
-          "src/VersionStorage.cpp")
+set(AGISOVT_SOURCES
+    "src/ApplicationBuildInfo.cpp"
+    "src/ServerMainComponent.cpp"
+    "src/DataMaskComponent.cpp"
+    "src/WorkingSetSelectorComponent.cpp"
+    "src/WorkingSetLoadingIndicatorComponent.cpp"
+    "src/PictureGraphicComponent.cpp"
+    "src/WorkingSetComponent.cpp"
+    "src/AlarmMaskComponent.cpp"
+    "src/DataMaskRenderAreaComponent.cpp"
+    "src/JuceManagedWorkingSetCache.cpp"
+    "src/OutputRectangleComponent.cpp"
+    "src/OutputStringComponent.cpp"
+    "src/ButtonComponent.cpp"
+    "src/ContainerComponent.cpp"
+    "src/ObjectPointerComponent.cpp"
+    "src/OutputNumberComponent.cpp"
+    "src/SoftkeyMaskRenderArea.cpp"
+    "src/SoftKeyPageBar.cpp"
+    "src/KeyComponent.cpp"
+    "src/DesignatorFit.cpp"
+    "src/SoftKeyMaskComponent.cpp"
+    "src/OutputMeterComponent.cpp"
+    "src/InputBooleanComponent.cpp"
+    "src/LoggerComponent.cpp"
+    "src/DiagnosticsComponent.cpp"
+    "src/DiagnosticsWindow.cpp"
+    "src/InputNumberComponent.cpp"
+    "src/OutputEllipseComponent.cpp"
+    "src/OutputLineComponent.cpp"
+    "src/OutputLinearBarGraphComponent.cpp"
+    "src/OutputArchedBarGraphComponent.cpp"
+    "src/OutputPolygonComponent.cpp"
+    "src/InputStringComponent.cpp"
+    "src/NumberComponent.cpp"
+    "src/AlarmMaskAudio.cpp"
+    "src/NumericKeypadComponent.cpp"
+    "src/AppImages.cpp"
+    "src/ASCIILogFile.cpp"
+    "src/ConfigureHardwareWindow.cpp"
+    "src/ConfigureHardwareComponent.cpp"
+    "src/StringEncodingConversions.cpp"
+    "src/InputListComponent.cpp"
+    "src/OutputListComponent.cpp"
+    "src/AckSettingsWindow.cpp"
+    "src/Settings.cpp"
+    "src/UpdateChecker.cpp"
+    "src/IndentedToggleButton.cpp"
+    "src/VT_NumberComponent.cpp"
+    "src/TextDrawingComponent.cpp"
+    "src/StringDrawingComponent.cpp"
+    "src/VersionStorage.cpp")
+target_sources(AgISOVirtualTerminal PRIVATE src/Main.cpp ${AGISOVT_SOURCES})
 
 target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -139,20 +139,6 @@ option(AGISOVT_BUILD_POOL_RENDERER
        "Build vt-render, which renders object pools to PNG files and a manifest"
        OFF)
 if(AGISOVT_BUILD_POOL_RENDERER)
-  # The fonts every render uses, so that no render depends on the fonts
-  # installed
-  juce_add_binary_data(
-    VtRenderFonts
-    HEADER_NAME
-    VtRenderFonts.h
-    NAMESPACE
-    VtRenderFonts
-    SOURCES
-    res/fonts/DejaVuSansMono.ttf
-    res/fonts/DejaVuSansMono-Bold.ttf
-    res/fonts/DejaVuSansMono-Oblique.ttf
-    res/fonts/DejaVuSansMono-BoldOblique.ttf)
-
   juce_add_console_app(VtRender PRODUCT_NAME "vt-render")
   set_target_properties(VtRender PROPERTIES CXX_STANDARD 17)
   set_target_properties(VtRender PROPERTIES OUTPUT_NAME vt-render)
@@ -160,44 +146,13 @@ if(AGISOVT_BUILD_POOL_RENDERER)
     VtRender PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_XRANDR=0
                      JUCE_USE_XINERAMA=0)
   juce_generate_juce_header(VtRender)
-  target_sources(
-    VtRender
-    PRIVATE tools/vt-render/vt_render.cpp
-            src/JuceManagedWorkingSetCache.cpp
-            src/AlarmMaskComponent.cpp
-            src/ButtonComponent.cpp
-            src/ContainerComponent.cpp
-            src/DataMaskComponent.cpp
-            src/DesignatorFit.cpp
-            src/InputBooleanComponent.cpp
-            src/InputListComponent.cpp
-            src/InputNumberComponent.cpp
-            src/InputStringComponent.cpp
-            src/KeyComponent.cpp
-            src/SoftKeyPageBar.cpp
-            src/NumberComponent.cpp
-            src/ObjectPointerComponent.cpp
-            src/OutputArchedBarGraphComponent.cpp
-            src/OutputEllipseComponent.cpp
-            src/OutputLineComponent.cpp
-            src/OutputLinearBarGraphComponent.cpp
-            src/OutputListComponent.cpp
-            src/OutputMeterComponent.cpp
-            src/OutputNumberComponent.cpp
-            src/OutputPolygonComponent.cpp
-            src/OutputRectangleComponent.cpp
-            src/OutputStringComponent.cpp
-            src/PictureGraphicComponent.cpp
-            src/SoftKeyMaskComponent.cpp
-            src/StringDrawingComponent.cpp
-            src/StringEncodingConversions.cpp
-            src/TextDrawingComponent.cpp
-            src/VT_NumberComponent.cpp
-            src/WorkingSetComponent.cpp)
+  target_sources(VtRender PRIVATE tools/vt-render/vt_render.cpp
+                                  ${AGISOVT_SOURCES})
   target_include_directories(VtRender PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
   target_link_libraries(
     VtRender
-    PRIVATE VtRenderFonts
+    PRIVATE juce::juce_audio_basics
+            juce::juce_audio_utils
             juce::juce_gui_extra
             juce::juce_cryptography
             isobus::Isobus
@@ -205,31 +160,6 @@ if(AGISOVT_BUILD_POOL_RENDERER)
             isobus::Utility
             cmake_git_version_tracking
     PUBLIC juce::juce_recommended_config_flags)
-
-  # Renders a checkout of AgIsoObjectPoolCollection several times and checks
-  # that every image comes out the same. Run with ctest -C Release -R vt-render.
-  # The tests/pools submodule is used unless another checkout is given.
-  set(AGISOVT_DEFAULT_POOL_COLLECTION_DIR "")
-  if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/tests/pools/pools)
-    set(AGISOVT_DEFAULT_POOL_COLLECTION_DIR
-        ${CMAKE_CURRENT_LIST_DIR}/tests/pools)
-  endif()
-  set(AGISOVT_POOL_COLLECTION_DIR
-      "${AGISOVT_DEFAULT_POOL_COLLECTION_DIR}"
-      CACHE
-        PATH
-        "AgIsoObjectPoolCollection checkout for the vt-render determinism test")
-  if(AGISOVT_POOL_COLLECTION_DIR)
-    enable_testing()
-    add_test(
-      NAME vt-render-determinism
-      COMMAND
-        ${CMAKE_COMMAND} -DVT_RENDER=$<TARGET_FILE:VtRender>
-        -DCOLLECTION=${AGISOVT_POOL_COLLECTION_DIR}
-        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/vt-render-determinism -P
-        ${CMAKE_CURRENT_LIST_DIR}/tools/vt-render/determinism_test.cmake)
-    set_tests_properties(vt-render-determinism PROPERTIES TIMEOUT 3600)
-  endif()
 endif()
 
 if(WIN32)

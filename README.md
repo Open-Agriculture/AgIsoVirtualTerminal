@@ -58,8 +58,6 @@ We are always adding new features.
 
 If you don't want to compile the software yourself or contribute code to this project, the [releases page](https://github.com/Open-Agriculture/AgIsoVirtualTerminal/releases) has Windows installers, macOS .dmg files, and Ubuntu .deb packages which you can use to easily run this software. Pick the .deb built for your Ubuntu version.
 
-The releases also have `vt-render` for Windows and Linux, a command line tool that renders object pools to PNG files with the VT's own drawing code, for example to compare how two VT versions draw a pool. See [tools/vt-render](tools/vt-render/README.md).
-
 The application checks GitHub for newer releases on launch, so you'll know when there is a new one.
 
 ## Getting Started
@@ -154,6 +152,10 @@ cmake --build build
 ```
 
 The program ends up under `build/AgISOVirtualTerminal_artefacts/`.
+
+### Building vt-render
+
+`vt-render` is a developer tool that renders object pools to PNG files with the VT's own drawing code, for example to compare how `main` and a pull request draw a pool. See [tools/vt-render](tools/vt-render/README.md).
 
 ### Creating a Windows Installer
 

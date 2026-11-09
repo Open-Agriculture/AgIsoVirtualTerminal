@@ -112,11 +112,16 @@ void SoftKeyMaskRenderAreaComponent::update_page_bar(int pageCount)
 
 void SoftKeyMaskRenderAreaComponent::paint(Graphics &g)
 {
-	g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+	paint_area(g, getLocalBounds(), getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId), nullptr != parentWorkingSet);
+}
 
-	if (nullptr != parentWorkingSet)
+void SoftKeyMaskRenderAreaComponent::paint_area(Graphics &g, juce::Rectangle<int> bounds, Colour background, bool hasWorkingSet)
+{
+	g.fillAll(background);
+
+	if (hasWorkingSet)
 	{
-		g.drawRect(0, 0, getWidth(), getHeight(), 1);
+		g.drawRect(bounds, 1);
 	}
 }
 
