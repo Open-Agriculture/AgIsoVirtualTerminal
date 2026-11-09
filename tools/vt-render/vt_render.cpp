@@ -1,8 +1,6 @@
 /*******************************************************************************
 ** @file       vt_render.cpp
-** @brief      vt-render: renders the masks of an ISOBUS object pool to PNG files
-**             and a manifest.json, with the VT's own drawing components and
-**             without a CAN bus or a window.
+** @brief      vt-render: renders an object pool to PNG files and a manifest.json
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "JuceHeader.h"
@@ -28,15 +26,15 @@
 
 enum ExitCode
 {
-	EXIT_OK = 0, ///< The pool loaded and every image was written
-	EXIT_RENDER_FAILED = 1, ///< The pool loaded, but at least one image could not be rendered or written
-	EXIT_LOAD_FAILED = 2, ///< The pool could not be loaded; only manifest.json was written
+	EXIT_OK = 0, ///< Every image was written
+	EXIT_RENDER_FAILED = 1, ///< An image could not be rendered or written
+	EXIT_LOAD_FAILED = 2, ///< The pool could not be loaded
 	EXIT_USAGE = 3
 };
 
 constexpr int MANIFEST_VERSION = 1;
 
-/// Collects the CAN stack's error messages, which carry the reason a pool failed to parse
+/// Collects the CAN stack's error messages
 class ErrorCollector : public isobus::CANStackLogger
 {
 public:
@@ -53,7 +51,7 @@ public:
 
 struct RenderSettings
 {
-	int dataMaskSize = 480; // what the VT uses until the user sets another size
+	int dataMaskSize = 480; // the VT's default
 	int softKeyWidth = SoftKeyMaskDimensions().keyWidth;
 	int softKeyHeight = SoftKeyMaskDimensions().keyHeight;
 	int softKeyCount = SoftKeyMaskDimensions().key_count();
@@ -71,14 +69,14 @@ struct RenderSettings
 		return dimensions;
 	}
 
-	/// Width of the VT's soft key area, which ServerMainComponent::resized takes from the dimensions
+	/// Width of the VT's soft key area
 	int get_soft_key_area_width() const
 	{
 		return get_dimensions().total_width();
 	}
 };
 
-/// A pool as read from disk, before it is parsed
+/// A pool read from disk
 struct PoolInput
 {
 	String id;
@@ -383,8 +381,7 @@ private:
 		}
 	}
 
-	/// What an object type is to the renders: something the VT draws, something drawn objects only refer to
-	/// (fonts, variables, macros, ...), or something no mask shows.
+	/// Whether an object type is drawn, only referred to, or ignored
 	enum class ObjectRole
 	{
 		Drawn,
@@ -425,7 +422,7 @@ private:
 	static RenderSettings resolve_settings()
 	{
 		RenderSettings settings;
-		// One column top to bottom, as many as fit, then the next column to the left
+		// Fill a column, then the next one to the left
 		const int rowsThatFit = std::max(1, (settings.dataMaskSize - SoftKeyMaskDimensions::PADDING) / (settings.softKeyHeight + SoftKeyMaskDimensions::PADDING));
 		settings.softKeyRows = std::min(settings.softKeyCount, rowsThatFit);
 		settings.softKeyColumns = (settings.softKeyCount + settings.softKeyRows - 1) / settings.softKeyRows;
@@ -454,7 +451,7 @@ private:
 		return SHA256(stream.getData(), stream.getDataSize()).toHexString();
 	}
 
-	/// Paints into a software image, clearing the glyph cache so text does not depend on earlier images
+	/// Paints into a software image, with an empty glyph cache
 	static Image paint_image(int width, int height, const std::function<void(Graphics &)> &paint)
 	{
 		Typeface::clearTypefaceCache();
@@ -540,8 +537,7 @@ private:
 			const auto id = entry.first;
 			const auto &object = entry.second;
 
-			// get_object_by_id adds an empty entry for an id that is not in the pool, and the VT's
-			// components call it while they are created, so empty entries turn up during the loop
+			// The VT's components add empty entries for missing ids
 			if (nullptr == object)
 			{
 				continue;
@@ -596,7 +592,7 @@ private:
 		render_designator(workingSet, true);
 	}
 
-	/// Asked once per type, because creating a container also creates its children
+	/// Asked once per type: a container creates its children
 	bool is_drawable(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, const std::shared_ptr<isobus::VTObject> &object)
 	{
 		const auto type = object->get_object_type();
@@ -624,7 +620,7 @@ private:
 		add_image(fileName, mask, image);
 	}
 
-	/// A data or alarm mask next to its soft key mask, laid out as the VT's render areas
+	/// A data or alarm mask next to its soft keys
 	void render_screen(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet,
 	                   const std::shared_ptr<isobus::VTObject> &mask)
 	{
@@ -668,7 +664,7 @@ private:
 		return std::static_pointer_cast<isobus::DataMask>(mask)->get_soft_key_mask();
 	}
 
-	/// Clips a mask to its bounds, as JUCE does for a child of a render area
+	/// Paints a mask clipped to its bounds
 	static void paint_clipped(Graphics &g, Component &component)
 	{
 		Graphics::ScopedSaveState state(g);
@@ -678,7 +674,7 @@ private:
 
 	void paint_screen(Graphics &g, Component &mask, Component *softKeyMask, Colour softKeyBackground, int pageCount)
 	{
-		// The mask covers all of DataMaskRenderAreaComponent::paint
+		// The mask covers its render area
 		g.fillAll(background);
 		paint_clipped(g, mask);
 
@@ -694,7 +690,7 @@ private:
 		}
 	}
 
-	/// The designator as the working set selector shows it
+	/// The designator as the selector shows it
 	void render_designator(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, bool active)
 	{
 		const String fileName = active ? "ws_designator_active.png" : "ws_designator.png";
@@ -745,7 +741,7 @@ private:
 		}
 	}
 
-	/// An auxiliary function or input, drawn by the VT's key component
+	/// An auxiliary function or input, drawn as a key
 	void render_auxiliary_designator(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet,
 	                                 const std::shared_ptr<isobus::VTObject> &auxiliaryObject)
 	{
@@ -789,7 +785,7 @@ private:
 		}
 	}
 
-	/// Each page of a soft key mask, with the VT's page bar when there is more than one
+	/// Each page of a soft key mask
 	void render_soft_key_mask(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet,
 	                          const std::shared_ptr<isobus::VTObject> &softKeyMask)
 	{
@@ -820,7 +816,7 @@ private:
 		paint_page_bar(g, background, page, pageCount);
 	}
 
-	/// The VT's page bar, if the soft key mask has more than one page
+	/// The VT's page bar, if there is more than one page
 	void paint_page_bar(Graphics &g, Colour background, int page, int pageCount)
 	{
 		if (pageCount < 2)
@@ -931,7 +927,6 @@ private:
 		manifest->setProperty("pool_sha256", input.sha256.isEmpty() ? var() : var(input.sha256));
 		manifest->setProperty("pool_size", static_cast<int64>(input.data.getSize()));
 		manifest->setProperty("vt_commit", String(AgISOVirtualTerminalApplication::getApplicationBuildInfo()));
-		//placeholder
 		manifest->setProperty("render_settings", describe_settings());
 		manifest->setProperty("load", load.get());
 		manifest->setProperty("images", images);
