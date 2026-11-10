@@ -66,6 +66,12 @@ juce_add_gui_app(
 
 set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 17)
 
+# MSVC's permissive mode misreads JUCE 9's "std::unique_lock lock (mutex);" as a
+# function declaration
+if(MSVC)
+  target_compile_options(AgISOVirtualTerminal PRIVATE /permissive-)
+endif()
+
 target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
                                                         JUCE_WEB_BROWSER=0)
 

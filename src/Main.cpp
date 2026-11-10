@@ -76,6 +76,8 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 	serverNAME.set_industry_group(2);
 	serverNAME.set_manufacturer_code(1407);
 	serverInternalControlFunction = isobus::CANNetworkManager::CANNetwork.create_internal_control_function(serverNAME, 0, 0x26);
+	// JUCE 9 turned this off by default, which makes Windows treat a held touch as a right click
+	setUsingWindowsMultiTouch(true);
 	setUsingNativeTitleBar(true);
 	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, settings.settingsValueTree(), canLogPath, vtNumber, screenCaptureDir), true);
 
