@@ -153,6 +153,10 @@ cmake --build build
 
 The program ends up under `build/AgISOVirtualTerminal_artefacts/`.
 
+### Building vt-render
+
+`vt-render` is a developer tool that renders object pools to PNG files with the VT's own drawing code, for example to compare how `main` and a pull request draw a pool. See [tools/vt-render](tools/vt-render/README.md).
+
 ### Creating a Windows Installer
 
 This project supports automatic creation of a Windows installer.

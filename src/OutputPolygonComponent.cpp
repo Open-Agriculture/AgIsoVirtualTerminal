@@ -161,7 +161,7 @@ void OutputPolygonComponent::paint(Graphics &g)
 				border.addPath(stroke_pieces(centredLines, centredCorners, lineWidth, PathStrokeType::rounded));
 			}
 			g.setFillType(fill.value());
-			line_art::fill_inside_border(g, inward ? pixelCentres : polygonPath, border, lineArt);
+			line_art::fill_inside_border(g, inward ? pixelCentres : polygonPath, border, lineArt, PictureGraphicComponent::get_image_type());
 		}
 
 		g.resetToDefaultState();

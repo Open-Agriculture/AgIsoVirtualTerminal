@@ -48,3 +48,4 @@ CMakeFiles
 
 *.orig
 *.rej
+build-*/
