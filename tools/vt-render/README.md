@@ -72,9 +72,9 @@ Build vt-render once from each version into its own build folder, then on the sa
 ```
 vt-render --pool pool.iop --out out/main
 vt-render --pool pool.iop --out out/my-branch
-diff -rq out/main out/my-branch
+diff -rq --exclude=manifest.json out/main out/my-branch
 ```
 
-Only look at the images that differ. `vt_commit` in the manifest differs by design.
+`manifest.json` is left out because its `vt_commit` always differs.
 
 Text uses the machine's monospaced font, as the VT does, so only compare renders made on the same machine.

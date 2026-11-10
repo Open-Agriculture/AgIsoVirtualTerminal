@@ -49,33 +49,6 @@ public:
 	StringArray messages;
 };
 
-struct RenderSettings
-{
-	int dataMaskSize = 480; // the VT's default
-	int softKeyWidth = SoftKeyMaskDimensions().keyWidth;
-	int softKeyHeight = SoftKeyMaskDimensions().keyHeight;
-	int softKeyCount = SoftKeyMaskDimensions().key_count();
-	int softKeyRows = 0;
-	int softKeyColumns = 0;
-
-	SoftKeyMaskDimensions get_dimensions() const
-	{
-		SoftKeyMaskDimensions dimensions;
-		dimensions.keyWidth = softKeyWidth;
-		dimensions.keyHeight = softKeyHeight;
-		dimensions.rowCount = softKeyRows;
-		dimensions.columnCount = softKeyColumns;
-		dimensions.height = dataMaskSize;
-		return dimensions;
-	}
-
-	/// Width of the VT's soft key area
-	int get_soft_key_area_width() const
-	{
-		return get_dimensions().total_width();
-	}
-};
-
 /// A pool read from disk
 struct PoolInput
 {
@@ -100,7 +73,6 @@ public:
 		skippedObjects.clear();
 		errors.clear();
 		drawableTypes.clear();
-		settings = resolve_settings();
 		directory = outputDirectory;
 
 		String loadError = input.error;
@@ -120,8 +92,6 @@ public:
 
 		if (nullptr != workingSet)
 		{
-			JuceManagedWorkingSetCache::set_data_mask_size(settings.dataMaskSize);
-			JuceManagedWorkingSetCache::set_softkey_mask_dimension_info(settings.get_dimensions());
 			render_working_set(workingSet);
 		}
 
@@ -419,16 +389,6 @@ private:
 		}
 	}
 
-	static RenderSettings resolve_settings()
-	{
-		RenderSettings settings;
-		// Fill a column, then the next one to the left
-		const int rowsThatFit = std::max(1, (settings.dataMaskSize - SoftKeyMaskDimensions::PADDING) / (settings.softKeyHeight + SoftKeyMaskDimensions::PADDING));
-		settings.softKeyRows = std::min(settings.softKeyCount, rowsThatFit);
-		settings.softKeyColumns = (settings.softKeyCount + settings.softKeyRows - 1) / settings.softKeyRows;
-		return settings;
-	}
-
 	/// SHA-256 of the width, height and unpremultiplied RGBA8 pixels
 	static String get_pixel_sha256(const Image &image)
 	{
@@ -640,11 +600,11 @@ private:
 		if ((nullptr != softKeyMask) && (isobus::VirtualTerminalObjectType::SoftKeyMask == softKeyMask->get_object_type()))
 		{
 			softKeyMaskComponent = JuceManagedWorkingSetCache::create_component(workingSet, softKeyMask);
-			pageCount = SoftKeyMaskComponent::get_page_count(softKeyMask, workingSet, settings.get_dimensions());
+			pageCount = SoftKeyMaskComponent::get_page_count(softKeyMask, workingSet, dimensions);
 			softKeyBackground = get_background(workingSet, softKeyMask);
 		}
 
-		const auto image = paint_image(settings.dataMaskSize + settings.get_soft_key_area_width(), settings.dataMaskSize, [&](Graphics &g) {
+		const auto image = paint_image(dimensions.height + dimensions.total_width(), dimensions.height, [&](Graphics &g) {
 			paint_screen(g, *maskComponent, softKeyMaskComponent.get(), softKeyBackground, pageCount);
 		});
 
@@ -678,9 +638,9 @@ private:
 		g.fillAll(background);
 		paint_clipped(g, mask);
 
-		const juce::Rectangle<int> softKeyArea(0, 0, settings.get_soft_key_area_width(), settings.dataMaskSize);
+		const juce::Rectangle<int> softKeyArea(0, 0, dimensions.total_width(), dimensions.height);
 		Graphics::ScopedSaveState state(g);
-		g.setOrigin(settings.dataMaskSize, 0);
+		g.setOrigin(dimensions.height, 0);
 		g.reduceClipRegion(softKeyArea);
 		SoftKeyMaskRenderAreaComponent::paint_area(g, softKeyArea, background, true);
 		if (nullptr != softKeyMask)
@@ -755,7 +715,7 @@ private:
 			key.add_child(auxiliaryObject->get_child_id(i), auxiliaryObject->get_child_x(i), auxiliaryObject->get_child_y(i));
 		}
 
-		KeyComponent component(workingSet, key, settings.softKeyWidth, settings.softKeyHeight);
+		KeyComponent component(workingSet, key, dimensions.keyWidth, dimensions.keyHeight);
 		const auto image = paint_image(component.getWidth(), component.getHeight(), [&](Graphics &g) {
 			component.paintEntireComponent(g, true);
 		});
@@ -789,7 +749,6 @@ private:
 	void render_soft_key_mask(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet,
 	                          const std::shared_ptr<isobus::VTObject> &softKeyMask)
 	{
-		const auto dimensions = settings.get_dimensions();
 		const int pageCount = std::max(1, SoftKeyMaskComponent::get_page_count(softKeyMask, workingSet, dimensions));
 		const auto background = get_background(workingSet, softKeyMask);
 
@@ -825,7 +784,7 @@ private:
 		}
 
 		SoftKeyPageBar bar;
-		bar.setBounds(SoftKeyPageBar::get_area(settings.get_dimensions()));
+		bar.setBounds(SoftKeyPageBar::get_area(dimensions));
 		bar.set_page(page, pageCount);
 		bar.set_mask_background(background);
 
@@ -894,12 +853,12 @@ private:
 		result->setProperty("renderer", "JUCE software renderer");
 		result->setProperty("juce_version", SystemStats::getJUCEVersion());
 		result->setProperty("pixels_per_vt_pixel", 1);
-		result->setProperty("data_mask_size", settings.dataMaskSize);
-		result->setProperty("softkey_count", settings.softKeyCount);
-		result->setProperty("softkey_width", settings.softKeyWidth);
-		result->setProperty("softkey_height", settings.softKeyHeight);
-		result->setProperty("softkey_rows", settings.softKeyRows);
-		result->setProperty("softkey_columns", settings.softKeyColumns);
+		result->setProperty("data_mask_size", dimensions.height);
+		result->setProperty("softkey_count", dimensions.key_count());
+		result->setProperty("softkey_width", dimensions.keyWidth);
+		result->setProperty("softkey_height", dimensions.keyHeight);
+		result->setProperty("softkey_rows", dimensions.rowCount);
+		result->setProperty("softkey_columns", dimensions.columnCount);
 		result->setProperty("softkey_padding", static_cast<int>(SoftKeyMaskDimensions::PADDING));
 		result->setProperty("working_set_button_size", WorkingSetSelectorComponent::BUTTON_WIDTH);
 
@@ -939,7 +898,7 @@ private:
 
 	const Colour background;
 	ErrorCollector &collector;
-	RenderSettings settings;
+	const SoftKeyMaskDimensions dimensions; // the VT's defaults
 	File directory;
 	Array<var> images;
 	Array<var> skippedObjects;
