@@ -7,7 +7,6 @@
 
 #include "Main.hpp"
 #include "Settings.hpp"
-#include "git.h"
 
 AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
                                                         const std::string &canLogPath,
@@ -103,27 +102,6 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 void AgISOVirtualTerminalApplication::MainWindow::closeButtonPressed()
 {
 	JUCEApplication::getInstance()->systemRequestedQuit();
-}
-
-std::string AgISOVirtualTerminalApplication::getApplicationBuildInfo()
-{
-	std::string gitDescribe = std::string(git::Describe());
-	if (gitDescribe.length() > 0)
-	{
-		return gitDescribe + (git::AnyUncommittedChanges() ? "-dirty" : "");
-	}
-	return ProjectInfo::versionString;
-}
-
-std::string AgISOVirtualTerminalApplication::getApplicationNameWithBuildInfo()
-{
-	std::string name = ProjectInfo::projectName;
-	auto buildInfo = getApplicationBuildInfo();
-	if (buildInfo.length() > 0)
-	{
-		name.append(" - " + buildInfo);
-	}
-	return name;
 }
 
 START_JUCE_APPLICATION(AgISOVirtualTerminalApplication)

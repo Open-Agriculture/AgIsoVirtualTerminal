@@ -30,13 +30,28 @@ jobs:
       - name: Compile
         run: |
           mkdir build
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DAGISOVT_BUILD_POOL_RENDERER=ON -Wno-dev
           cmake --build build --config Release --target package
+          cmake --build build --config Release --target VtRender
       - name: 'Upload Windows Installer'
         uses: actions/upload-artifact@v7
         with:
           name: 'Windows Installer'
           path: build/_CPack_Packages/win64/NSIS/*.exe
+          if-no-files-found: error
+      - name: Render the seeder example pool
+        shell: bash
+        run: build/VtRender_artefacts/Release/vt-render.exe --pool build/_deps/can_stack-src/examples/seeder_example/BasePool.iop --out seeder-render
+      - name: Collect vt-render
+        shell: bash
+        run: |
+          mkdir vt-render
+          cp build/VtRender_artefacts/Release/vt-render.exe tools/vt-render/README.md vt-render/
+      - name: 'Upload vt-render for Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'vt-render Windows'
+          path: vt-render/
           if-no-files-found: error
   mac_build:
     name: MacOS Build

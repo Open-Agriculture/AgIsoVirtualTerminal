@@ -84,15 +84,19 @@ void WorkingSetSelectorComponent::paint(Graphics &g)
 	// background colour instead of leaving the app's default panel colour showing through
 	for (std::size_t i = 0; i < children.size(); i++)
 	{
-		const auto &workingSet = children.at(i).workingSet;
-		auto workingSetObject = workingSet->get_working_set_object();
+		paint_button_background(g, button_bounds(static_cast<int>(i)), children.at(i).workingSet);
+	}
+}
 
-		if (nullptr != workingSetObject)
-		{
-			auto vtColour = workingSet->get_colour(workingSetObject->get_background_color());
-			g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
-			g.fillRect(button_bounds(static_cast<int>(i)));
-		}
+void WorkingSetSelectorComponent::paint_button_background(Graphics &g, juce::Rectangle<int> bounds, const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet)
+{
+	auto workingSetObject = workingSet->get_working_set_object();
+
+	if (nullptr != workingSetObject)
+	{
+		auto vtColour = workingSet->get_colour(workingSetObject->get_background_color());
+		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+		g.fillRect(bounds);
 	}
 }
 
@@ -108,15 +112,13 @@ void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
 	}
 	const auto activeName = activeWorkingSet->get_control_function()->get_NAME().get_full_name();
 
-	g.setColour(juce::Colours::yellow.withAlpha(0.4f));
-
 	for (std::size_t i = 0; i < children.size(); i++)
 	{
 		auto controlFunction = children.at(i).workingSet->get_control_function();
 
 		if ((nullptr != controlFunction) && (activeName == controlFunction->get_NAME().get_full_name()))
 		{
-			g.drawRoundedRectangle(button_bounds(static_cast<int>(i)).toFloat().expanded(2.0f), 4.0f, 4.0f);
+			WorkingSetComponent::paint_active_highlight(g, button_bounds(static_cast<int>(i)));
 		}
 	}
 }
@@ -194,14 +196,17 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	{
 		workingSetComponent = std::make_shared<WorkingSetLoadingIndicatorComponent>(workingSet, BUTTON_HEIGHT, BUTTON_WIDTH);
 	}
-	const auto bounds = button_bounds(workingSetIndex);
-
-	workingSetComponent->setTopLeftPosition(bounds.getPosition());
-	// Unlike a soft key, a working set designator is the only thing in its button, so artwork
-	// smaller than the button is enlarged to fill it.
-	fit_designator_to_button(*workingSetComponent, bounds, juce::RectanglePlacement::centred);
+	place_designator(*workingSetComponent, button_bounds(workingSetIndex));
 	addAndMakeVisible(*workingSetComponent);
 	return workingSetComponent;
+}
+
+void WorkingSetSelectorComponent::place_designator(Component &designator, juce::Rectangle<int> bounds)
+{
+	designator.setTopLeftPosition(bounds.getPosition());
+	// Unlike a soft key, a working set designator is the only thing in its button, so artwork
+	// smaller than the button is enlarged to fill it.
+	fit_designator_to_button(designator, bounds, juce::RectanglePlacement::centred);
 }
 
 void WorkingSetSelectorComponent::update_ack_button_bounds()

@@ -35,7 +35,14 @@ public:
 
 	void timerCallback() override;
 
+	/// @brief Sets whether pictures use software images
+	static void set_use_software_images(bool useSoftware);
+
+	/// @brief Returns the image type for new images
+	static const ImageType &get_image_type();
+
 private:
+	static bool useSoftwareImages;
 	static FillType get_fill_pattern(const Component &shape, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t pictureId);
 
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
