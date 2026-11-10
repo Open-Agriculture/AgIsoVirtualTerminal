@@ -157,7 +157,7 @@ void ConfigureHardwareComponent::fill_device_list(std::size_t driverIndex)
 	{
 		deviceSelector.addItem(listedDevices.at(i).description, static_cast<int>(i) + 1);
 
-		if ((listedDevices.at(i).id == current.id) && (listedDevices.at(i).serial == current.serial))
+		if (current.has_value() && (listedDevices.at(i).id == current->id) && (listedDevices.at(i).serial == current->serial))
 		{
 			deviceSelector.setSelectedId(static_cast<int>(i) + 1, dontSendNotification);
 		}

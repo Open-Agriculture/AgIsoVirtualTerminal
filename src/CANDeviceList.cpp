@@ -120,16 +120,21 @@ CANDeviceList::Device CANDeviceList::get_default_device(std::size_t driverIndex)
 	return device;
 }
 
-CANDeviceList::Device CANDeviceList::find_device(const std::vector<Device> &devices, const Device &wanted)
+std::optional<CANDeviceList::Device> CANDeviceList::find_device(const std::vector<Device> &devices, const Device &wanted)
 {
-	// The ID can change when adapters are plugged in another order, the serial can't
-	auto match = std::find_if(devices.begin(), devices.end(), [&wanted](const Device &device) { return !wanted.serial.empty() && (device.serial == wanted.serial); });
+	const auto match = std::find_if(devices.begin(), devices.end(), [&wanted](const Device &device) { return is_same_device(device, wanted); });
 
 	if (devices.end() == match)
 	{
-		match = std::find_if(devices.begin(), devices.end(), [&wanted](const Device &device) { return device.id == wanted.id; });
+		return std::nullopt;
 	}
-	return (devices.end() != match) ? *match : wanted;
+	return *match;
+}
+
+bool CANDeviceList::is_same_device(const Device &device, const Device &wanted)
+{
+	// The ID changes when adapters are plugged in another order, the serial doesn't
+	return wanted.serial.empty() ? (device.id == wanted.id) : (device.serial == wanted.serial);
 }
 
 std::shared_ptr<isobus::CANHardwarePlugin> CANDeviceList::create_driver(std::size_t driverIndex, const Device &device)

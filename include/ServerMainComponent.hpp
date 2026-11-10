@@ -213,6 +213,13 @@ private:
 	/// @brief Selects the adapter saved for this driver, if there is one
 	void load_can_device(const ValueTree &hardwareSettings, std::size_t driverIndex);
 
+	/// @brief Finds the selected adapter again, since its index changes when adapters are plugged in or out
+	/// @returns false if the selected adapter is not connected
+	bool update_can_device();
+
+	/// @brief Returns the position of the channel 0 driver in the driver list, or the list's size if none is assigned
+	std::size_t get_assigned_can_driver_index() const;
+
 	enum class CommandIDs : int
 	{
 		NoCommand = 0, /// 0 Is an invalid command ID
@@ -320,7 +327,8 @@ private:
 
 	/// @brief Stops the CAN interface and tells the user why, using the last error of the channel 0 driver
 	/// @param[in] title The title of the alert
-	void stop_can_interface_with_alert(const String &title);
+	/// @param[in] givenReason The message, or empty to use the driver's last error
+	void stop_can_interface_with_alert(const String &title, const std::string &givenReason = "");
 
 	/// @brief Starts the CAN interface, and stops it again with an alert if a channel could not be opened
 	void start_can_interface();

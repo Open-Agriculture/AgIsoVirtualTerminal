@@ -2021,12 +2021,12 @@ void ServerMainComponent::stop_can_interface()
 	hasStartBeenCalled = false;
 }
 
-void ServerMainComponent::stop_can_interface_with_alert(const String &title)
+void ServerMainComponent::stop_can_interface_with_alert(const String &title, const std::string &givenReason)
 {
-	std::string reason;
+	std::string reason = givenReason;
 	auto canDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
 
-	if (nullptr != canDriver)
+	if (reason.empty() && (nullptr != canDriver))
 	{
 		reason = canDriver->get_last_error();
 	}
@@ -2043,6 +2043,14 @@ void ServerMainComponent::stop_can_interface_with_alert(const String &title)
 
 void ServerMainComponent::start_can_interface()
 {
+	if (!update_can_device())
+	{
+		const auto serial = get_selected_can_device(get_assigned_can_driver_index()).serial;
+		stop_can_interface_with_alert("The selected CAN adapter is not connected",
+		                              "Plug in the adapter with serial " + serial + ", or pick another one in the Configure menu, then press Start.");
+		return;
+	}
+
 	isobus::CANStackLogger::info("Starting CAN interface");
 	bool started = isobus::CANHardwareInterface::start();
 	dataMaskRenderer.set_has_started(true);
@@ -2420,6 +2428,38 @@ void ServerMainComponent::select_can_device(std::size_t driverIndex, const CANDe
 	}
 }
 
+bool ServerMainComponent::update_can_device()
+{
+	const auto driverIndex = get_assigned_can_driver_index();
+	const auto selected = selectedCANDevices.find(driverIndex);
+
+	if (selectedCANDevices.end() == selected)
+	{
+		return true;
+	}
+
+	const auto found = CANDeviceList::find_device(CANDeviceList::list_devices(driverIndex), selected->second);
+	if (!found.has_value())
+	{
+		return false;
+	}
+
+	if (found->id != selected->second.id)
+	{
+		select_can_device(driverIndex, *found);
+		isobus::CANHardwareInterface::unassign_can_channel_frame_handler(0);
+		isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, parentCANDrivers.at(driverIndex));
+	}
+	return true;
+}
+
+std::size_t ServerMainComponent::get_assigned_can_driver_index() const
+{
+	const auto assigned = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+	const auto match = std::find(parentCANDrivers.begin(), parentCANDrivers.end(), assigned);
+	return ((nullptr != assigned) && (parentCANDrivers.end() != match)) ? static_cast<std::size_t>(match - parentCANDrivers.begin()) : parentCANDrivers.size();
+}
+
 CANDeviceList::Device ServerMainComponent::get_selected_can_device(std::size_t driverIndex) const
 {
 	auto selected = selectedCANDevices.find(driverIndex);
@@ -2443,7 +2483,7 @@ void ServerMainComponent::load_can_device(const ValueTree &hardwareSettings, std
 		saved.id = static_cast<std::uint32_t>(static_cast<int>(savedID));
 		saved.serial = hardwareSettings.getProperty(Identifier(String(prefix + "DeviceSerial"))).toString().toStdString();
 		saved.description = "the saved adapter, " + (saved.serial.empty() ? std::to_string(saved.id) : saved.serial) + ", which is not connected";
-		select_can_device(driverIndex, CANDeviceList::find_device(CANDeviceList::list_devices(driverIndex), saved));
+		select_can_device(driverIndex, CANDeviceList::find_device(CANDeviceList::list_devices(driverIndex), saved).value_or(saved));
 	}
 }
 
@@ -2473,16 +2513,7 @@ void ServerMainComponent::save_settings()
 		ValueTree loggingSettings("Logging");
 		ValueTree controlSettings("Control");
 
-		std::uint32_t hardwareDriverIndex = 0xFFFFFFFF;
-
-		for (std::uint32_t i = 0; i < parentCANDrivers.size(); i++)
-		{
-			if (parentCANDrivers.at(i) == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
-			{
-				hardwareDriverIndex = i;
-				break;
-			}
-		}
+		const auto hardwareDriverIndex = get_assigned_can_driver_index();
 
 		languageCommandSettings.setProperty("AreaUnits", static_cast<int>(languageCommandInterface.get_commanded_area_units()), nullptr);
 		languageCommandSettings.setProperty("DateFormat", static_cast<int>(languageCommandInterface.get_commanded_date_format()), nullptr);
@@ -2518,7 +2549,7 @@ void ServerMainComponent::save_settings()
 		hardwareSettings.setProperty("SocketCANInterface", String(std::static_pointer_cast<isobus::SocketCANInterface>(parentCANDrivers.at(0))->get_device_name()), nullptr);
 #endif
 
-		if (0xFFFFFFFF != hardwareDriverIndex)
+		if (hardwareDriverIndex < parentCANDrivers.size())
 		{
 			hardwareSettings.setProperty("CANDriver", static_cast<int>(hardwareDriverIndex), nullptr);
 		}

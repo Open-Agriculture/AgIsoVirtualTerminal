@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -43,13 +44,16 @@ public:
 	/// @brief Returns the adapter the driver uses when nothing else was selected
 	static Device get_default_device(std::size_t driverIndex);
 
-	/// @brief Returns the listed adapter with this serial, or the one with this ID if no serial matches
-	static Device find_device(const std::vector<Device> &devices, const Device &wanted);
+	/// @brief Returns the listed adapter with this serial, or with this ID if it has no serial
+	static std::optional<Device> find_device(const std::vector<Device> &devices, const Device &wanted);
 
 	/// @brief Creates the driver at this position for the given adapter
 	static std::shared_ptr<isobus::CANHardwarePlugin> create_driver(std::size_t driverIndex, const Device &device);
 
 private:
+	/// @brief Returns whether a listed adapter is the wanted one
+	static bool is_same_device(const Device &device, const Device &wanted);
+
 	/// @brief Returns the attached PCAN channels
 	static std::vector<Device> list_pcan_devices();
 
