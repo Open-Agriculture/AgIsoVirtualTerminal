@@ -2474,7 +2474,8 @@ void ServerMainComponent::save_settings()
 			hardwareSettings.setProperty("CANDriver", static_cast<int>(hardwareDriverIndex), nullptr);
 		}
 		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
-		loggingSettings.setProperty("Shown", static_cast<int>(logger.isVisible()), nullptr);
+		// The viewport, because setViewedComponent() makes the logger itself visible
+		loggingSettings.setProperty("Shown", static_cast<int>(loggerViewport.isVisible()), nullptr);
 		loggingSettings.setProperty("SaveIopBeforeParse", static_cast<int>(saveIopBeforeParse), nullptr);
 		loggingSettings.setProperty("LogCANTraffic", static_cast<int>(ASCIILogFile::is_logging_enabled()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
