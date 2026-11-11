@@ -5,6 +5,7 @@
 *******************************************************************************/
 #include "isobus/hardware_integration/available_can_drivers.hpp"
 
+#include "CANDeviceDrivers.hpp"
 #include "Main.hpp"
 #include "Settings.hpp"
 
@@ -84,7 +85,7 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 	// JUCE 9 turned this off by default, which makes Windows treat a held touch as a right click
 	setUsingWindowsMultiTouch(true);
 	setUsingNativeTitleBar(true);
-	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, settings.settingsValueTree(), canLogPath, vtNumber, screenCaptureDir), true);
+	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, &CANDeviceDrivers::list_devices, &CANDeviceDrivers::create_driver, settings.settingsValueTree(), canLogPath, vtNumber, screenCaptureDir), true);
 
 #if JUCE_IOS || JUCE_ANDROID
 	setFullScreen(true);

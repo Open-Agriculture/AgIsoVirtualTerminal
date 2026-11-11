@@ -149,7 +149,7 @@ void ConfigureHardwareComponent::update_driver_options()
 
 void ConfigureHardwareComponent::fill_device_list(std::size_t driverIndex)
 {
-	listedDevices = CANDeviceList::list_devices(driverIndex);
+	listedDevices = parentWindow.parentServer.list_can_devices(driverIndex);
 	const auto current = CANDeviceList::find_device(listedDevices, parentWindow.parentServer.get_selected_can_device(driverIndex));
 
 	deviceSelector.clear(dontSendNotification);

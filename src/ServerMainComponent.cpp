@@ -38,11 +38,13 @@ extern "C" __declspec(dllimport) int __stdcall DestroyCaret(void);
 ServerMainComponent::ServerMainComponent(
   std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
   std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
+  CANDeviceList::ListFunction listCANDevices,
+  CANDeviceList::CreateDriverFunction createCANDriver,
   std::shared_ptr<ValueTree> settings,
   const std::string &canLogPath_,
   std::uint8_t vtNumberArg,
   std::string screenCaptureDir) :
-  VirtualTerminalServer(serverControlFunction), screenCaptureDirArgument(screenCaptureDir), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers), canLogPath(canLogPath_)
+  VirtualTerminalServer(serverControlFunction), screenCaptureDirArgument(screenCaptureDir), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers), listCANDevicesFunction(listCANDevices), createCANDriverFunction(createCANDriver), canLogPath(canLogPath_)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
@@ -2418,7 +2420,7 @@ void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &
 
 void ServerMainComponent::select_can_device(std::size_t driverIndex, const CANDeviceList::Device &device)
 {
-	auto driver = CANDeviceList::create_driver(driverIndex, device);
+	auto driver = createCANDriverFunction(driverIndex, device);
 
 	if ((nullptr != driver) && (driverIndex < parentCANDrivers.size()))
 	{
@@ -2438,7 +2440,7 @@ bool ServerMainComponent::update_can_device()
 		return true;
 	}
 
-	const auto found = CANDeviceList::find_device(CANDeviceList::list_devices(driverIndex), selected->second);
+	const auto found = CANDeviceList::find_device(list_can_devices(driverIndex), selected->second);
 	if (!found.has_value())
 	{
 		return false;
@@ -2466,6 +2468,11 @@ CANDeviceList::Device ServerMainComponent::get_selected_can_device(std::size_t d
 	return (selectedCANDevices.end() != selected) ? selected->second : CANDeviceList::get_default_device(driverIndex);
 }
 
+std::vector<CANDeviceList::Device> ServerMainComponent::list_can_devices(std::size_t driverIndex) const
+{
+	return listCANDevicesFunction(driverIndex);
+}
+
 std::string ServerMainComponent::get_can_device_setting_prefix(std::size_t driverIndex)
 {
 	return (CANDeviceList::PCAN_DRIVER_INDEX == driverIndex) ? "PCAN" : "CandleLight";
@@ -2483,7 +2490,7 @@ void ServerMainComponent::load_can_device(const ValueTree &hardwareSettings, std
 		saved.id = static_cast<std::uint32_t>(static_cast<int>(savedID));
 		saved.serial = hardwareSettings.getProperty(Identifier(String(prefix + "DeviceSerial"))).toString().toStdString();
 		saved.description = "the saved adapter, " + (saved.serial.empty() ? std::to_string(saved.id) : saved.serial) + ", which is not connected";
-		select_can_device(driverIndex, CANDeviceList::find_device(CANDeviceList::list_devices(driverIndex), saved).value_or(saved));
+		select_can_device(driverIndex, CANDeviceList::find_device(list_can_devices(driverIndex), saved).value_or(saved));
 	}
 }
 

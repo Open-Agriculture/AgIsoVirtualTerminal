@@ -39,6 +39,8 @@ class ServerMainComponent : public juce::Component
 public:
 	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
 	                    std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
+	                    CANDeviceList::ListFunction listCANDevices,
+	                    CANDeviceList::CreateDriverFunction createCANDriver,
 	                    std::shared_ptr<ValueTree> settings,
 	                    const std::string &canLogPath_,
 	                    std::uint8_t vtNumberArg = 0,
@@ -161,6 +163,9 @@ public:
 
 	/// @brief Returns the adapter selected for the PCAN or candleLight driver
 	CANDeviceList::Device get_selected_can_device(std::size_t driverIndex) const;
+
+	/// @brief Returns the attached adapters for the PCAN or candleLight driver
+	std::vector<CANDeviceList::Device> list_can_devices(std::size_t driverIndex) const;
 
 	void show_diagnostics_window();
 
@@ -367,6 +372,8 @@ private:
 	std::unique_ptr<DiagnosticsWindow> diagnosticsWindow;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
+	CANDeviceList::ListFunction listCANDevicesFunction; ///< From Main.cpp, so vt-render doesn't link the drivers
+	CANDeviceList::CreateDriverFunction createCANDriverFunction; ///< From Main.cpp, so vt-render doesn't link the drivers
 	std::map<std::size_t, CANDeviceList::Device> selectedCANDevices; ///< The adapter chosen for each driver that picks one of several
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;

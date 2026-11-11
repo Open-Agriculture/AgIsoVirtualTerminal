@@ -130,7 +130,9 @@ set(AGISOVT_SOURCES
     "src/StringDrawingComponent.cpp"
     "src/VersionStorage.cpp"
     "src/CANDeviceList.cpp")
-target_sources(AgISOVirtualTerminal PRIVATE src/Main.cpp ${AGISOVT_SOURCES})
+# CANDeviceDrivers.cpp calls the CAN drivers, which vt-render does not need
+target_sources(AgISOVirtualTerminal
+               PRIVATE src/Main.cpp src/CANDeviceDrivers.cpp ${AGISOVT_SOURCES})
 
 target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -141,6 +143,11 @@ target_link_libraries(
           isobus::Isobus isobus::HardwareIntegration isobus::Utility
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
          cmake_git_version_tracking)
+
+if("WindowsCandleLight" IN_LIST CAN_DRIVER)
+  # Listing the attached candleLight adapters
+  target_link_libraries(AgISOVirtualTerminal PRIVATE setupapi cfgmgr32)
+endif()
 
 option(AGISOVT_BUILD_POOL_RENDERER
        "Build vt-render, which renders object pools to PNG files and a manifest"
@@ -167,14 +174,6 @@ if(AGISOVT_BUILD_POOL_RENDERER)
             isobus::Utility
             cmake_git_version_tracking
     PUBLIC juce::juce_recommended_config_flags)
-endif()
-
-if("WindowsCandleLight" IN_LIST CAN_DRIVER)
-  # Listing the attached candleLight adapters
-  target_link_libraries(AgISOVirtualTerminal PRIVATE setupapi cfgmgr32)
-  if(AGISOVT_BUILD_POOL_RENDERER)
-    target_link_libraries(VtRender PRIVATE setupapi cfgmgr32)
-  endif()
 endif()
 
 if(WIN32)
