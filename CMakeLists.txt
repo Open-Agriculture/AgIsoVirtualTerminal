@@ -77,6 +77,18 @@ target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
 
 juce_generate_juce_header(AgISOVirtualTerminal)
 
+# The UI translations, kept on Weblate
+file(GLOB AGISOVT_TRANSLATION_FILES CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_LIST_DIR}/translations/*.json")
+juce_add_binary_data(
+  AgISOVTTranslations
+  HEADER_NAME
+  TranslationFiles.h
+  NAMESPACE
+  TranslationFiles
+  SOURCES
+  ${AGISOVT_TRANSLATION_FILES})
+
 set(AGISOVT_SOURCES
     "src/ApplicationBuildInfo.cpp"
     "src/ServerMainComponent.cpp"
@@ -128,7 +140,8 @@ set(AGISOVT_SOURCES
     "src/VT_NumberComponent.cpp"
     "src/TextDrawingComponent.cpp"
     "src/StringDrawingComponent.cpp"
-    "src/VersionStorage.cpp")
+    "src/VersionStorage.cpp"
+    "src/UILanguage.cpp")
 target_sources(AgISOVirtualTerminal PRIVATE src/Main.cpp ${AGISOVT_SOURCES})
 
 target_include_directories(AgISOVirtualTerminal
@@ -136,8 +149,13 @@ target_include_directories(AgISOVirtualTerminal
 
 target_link_libraries(
   AgISOVirtualTerminal
-  PRIVATE juce::juce_gui_extra juce::juce_audio_basics juce::juce_audio_utils
-          isobus::Isobus isobus::HardwareIntegration isobus::Utility
+  PRIVATE juce::juce_gui_extra
+          juce::juce_audio_basics
+          juce::juce_audio_utils
+          AgISOVTTranslations
+          isobus::Isobus
+          isobus::HardwareIntegration
+          isobus::Utility
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
          cmake_git_version_tracking)
 
@@ -161,6 +179,7 @@ if(AGISOVT_BUILD_POOL_RENDERER)
             juce::juce_audio_utils
             juce::juce_gui_extra
             juce::juce_cryptography
+            AgISOVTTranslations
             isobus::Isobus
             isobus::HardwareIntegration
             isobus::Utility

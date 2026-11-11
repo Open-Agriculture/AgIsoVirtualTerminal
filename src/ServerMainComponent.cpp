@@ -19,6 +19,7 @@ extern "C" __declspec(dllimport) int __stdcall DestroyCaret(void);
 #include "isobus/utility/system_timing.hpp"
 
 #include "SoftKeyMaskRenderAreaComponent.hpp"
+#include "UILanguage.hpp"
 
 #ifdef JUCE_WINDOWS
 #include "isobus/hardware_integration/toucan_vscp_canal.hpp"
@@ -63,6 +64,7 @@ ServerMainComponent::ServerMainComponent(
 	{
 		languageCommandInterface.set_language_code("en");
 	}
+	UILanguage::apply(languageCommandInterface.get_language_code());
 
 	languageCommandInterface.initialize();
 
@@ -390,7 +392,7 @@ void ServerMainComponent::timerCallback()
 
 	if (hasStartBeenCalled && isInterfaceRunning && !isAdapterConnected)
 	{
-		stop_can_interface_with_alert("The CAN interface stopped");
+		stop_can_interface_with_alert(NEEDS_TRANS("The CAN interface stopped"));
 		mCommandManager.commandStatusChanged();
 	}
 
@@ -480,12 +482,12 @@ void ServerMainComponent::paint(juce::Graphics &g)
 	}
 
 	auto statusColour = juce::Colours::grey;
-	juce::String statusText = "CAN Stopped";
+	juce::String statusText = TRANS("CAN Stopped");
 
 	if (canInterfaceRunning)
 	{
 		statusColour = canAdapterConnected ? juce::Colours::limegreen : juce::Colours::red;
-		statusText = canAdapterConnected ? "CAN Connected" : "CAN Disconnected";
+		statusText = canAdapterConnected ? TRANS("CAN Connected") : TRANS("CAN Disconnected");
 	}
 	g.setColour(statusColour);
 	g.fillEllipse(statusArea.removeFromLeft(statusArea.getHeight()).reduced(7).toFloat());
@@ -605,109 +607,109 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 	{
 		case CommandIDs::About:
 		{
-			result.setInfo("About", "Displays information about this application", "About", 0);
+			result.setInfo(TRANS("About"), TRANS("Displays information about this application"), "About", 0);
 		}
 		break;
 
 		case CommandIDs::ConfigureLanguageCommand:
 		{
-			result.setInfo("Language Command", "Change the commanded language, units or country code", "Configure", 0);
+			result.setInfo(TRANS("Language Command"), TRANS("Change the commanded language, units or country code"), "Configure", 0);
 		}
 		break;
 
 		case CommandIDs::ConfigureReportedVersion:
 		{
-			result.setInfo("Version", "Change the VT server's reported version", "Configure", 0);
+			result.setInfo(TRANS("Version"), TRANS("Change the VT server's reported version"), "Configure", 0);
 		}
 		break;
 
 		case CommandIDs::ConfigureReportedHardware:
 		{
-			result.setInfo("Reported Hardware Capabilities", "Change info reported to clients in the get hardware message", "Configure", 0);
+			result.setInfo(TRANS("Reported Hardware Capabilities"), TRANS("Change info reported to clients in the get hardware message"), "Configure", 0);
 		}
 		break;
 
 		case CommandIDs::ConfigureLogging:
 		{
-			result.setInfo("Logging", "Change the logging level", "Configure", 0);
+			result.setInfo(TRANS("Logging"), TRANS("Change the logging level"), "Configure", 0);
 		}
 		break;
 
 		case CommandIDs::GenerateLogPackage:
 		{
-			result.setInfo("Generate Diagnostic Package", "Creates a zip file of diagnostic information", "Troubleshooting", 0);
+			result.setInfo(TRANS("Generate Diagnostic Package"), TRANS("Creates a zip file of diagnostic information"), "Troubleshooting", 0);
 		}
 		break;
 
 		case CommandIDs::GenerateLogPackageFromCurrentSession:
 		{
-			result.setInfo("Generate Diagnostic Package from the current session", "Creates a zip file of diagnostic information from the current session", "Troubleshooting", 0);
+			result.setInfo(TRANS("Generate Diagnostic Package from the current session"), TRANS("Creates a zip file of diagnostic information from the current session"), "Troubleshooting", 0);
 		}
 		break;
 
 		case CommandIDs::ClearISOData:
 		{
-			result.setInfo("Clear ISO Data", "Clears all saved ISO data", "Troubleshooting", 0);
+			result.setInfo(TRANS("Clear ISO Data"), TRANS("Clears all saved ISO data"), "Troubleshooting", 0);
 		}
 		break;
 
 		case CommandIDs::ShowDiagnostics:
 		{
-			result.setInfo("Diagnostics", "Show active diagnostic trouble codes from devices on the bus", "Troubleshooting", 0);
+			result.setInfo(TRANS("Diagnostics"), TRANS("Show active diagnostic trouble codes from devices on the bus"), "Troubleshooting", 0);
 		}
 		break;
 
 		case CommandIDs::ConfigureShortcuts:
 		{
-			result.setInfo("ACK button", "Configure ACK keyboard shortcut and button", "Configure", 0);
+			result.setInfo(TRANS("ACK button"), TRANS("Configure ACK keyboard shortcut and button"), "Configure", 0);
 		}
 		break;
 
 		case CommandIDs::ConfigureCANHardware:
 		{
-			result.setInfo("Configure CAN Hardware", "Selects which CAN hardware to connect to", "Configure", hasStartBeenCalled ? ApplicationCommandInfo::CommandFlags::isDisabled : 0);
+			result.setInfo(TRANS("Configure CAN Hardware"), TRANS("Selects which CAN hardware to connect to"), "Configure", hasStartBeenCalled ? ApplicationCommandInfo::CommandFlags::isDisabled : 0);
 		}
 		break;
 
 		case CommandIDs::StartStop:
 		{
-			result.setInfo("Start/Stop", "Starts or stops the CAN interface", "Control", hasStartBeenCalled ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+			result.setInfo(TRANS("Start/Stop"), TRANS("Starts or stops the CAN interface"), "Control", hasStartBeenCalled ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
 		case CommandIDs::AutoStart:
 		{
-			result.setInfo("Auto-Start VT on launch", "Controls whether or not the VT automatically starts when the program is launched", "Control", autostart ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+			result.setInfo(TRANS("Auto-Start VT on launch"), TRANS("Controls whether or not the VT automatically starts when the program is launched"), "Control", autostart ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
 		case CommandIDs::CheckForUpdates:
 		{
-			result.setInfo("Check for Updates", "Checks GitHub for a newer version of this application", "About", updateChecker.is_check_in_progress() ? ApplicationCommandInfo::CommandFlags::isDisabled : 0);
+			result.setInfo(TRANS("Check for Updates"), TRANS("Checks GitHub for a newer version of this application"), "About", updateChecker.is_check_in_progress() ? ApplicationCommandInfo::CommandFlags::isDisabled : 0);
 		}
 		break;
 
 		case CommandIDs::AutoCheckForUpdates:
 		{
-			result.setInfo("Check for Updates on launch", "Controls whether or not GitHub is checked for a newer version when the program is launched", "About", checkForUpdatesOnStartup ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+			result.setInfo(TRANS("Check for Updates on launch"), TRANS("Controls whether or not GitHub is checked for a newer version when the program is launched"), "About", checkForUpdatesOnStartup ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
 		case CommandIDs::AlwaysOnTop:
 		{
-			result.setInfo("Always on top", "Keeps the VT window in front of other windows", "Control", alwaysOnTop ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+			result.setInfo(TRANS("Always on top"), TRANS("Keeps the VT window in front of other windows"), "Control", alwaysOnTop ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
 		case CommandIDs::FitMasksToWindow:
 		{
-			result.setInfo("Fit masks to window", "Scales the data and soft key masks to fill the window", "Control", fitMasksToWindow ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+			result.setInfo(TRANS("Fit masks to window"), TRANS("Scales the data and soft key masks to fill the window"), "Control", fitMasksToWindow ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
 		case CommandIDs::ScalePoolsToDataMask:
 		{
-			result.setInfo("Scale pools to data mask size", "Scales object pools drawn for another data mask size to the configured one, which can also enlarge a pool that leaves space on purpose", "Control", scalePoolsToDataMask ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+			result.setInfo(TRANS("Scale pools to data mask size"), TRANS("Scales object pools drawn for another data mask size to the configured one, which can also enlarge a pool that leaves space on purpose"), "Control", scalePoolsToDataMask ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -725,12 +727,12 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 	{
 		case static_cast<int>(CommandIDs::About):
 		{
-			popupMenu = std::make_unique<AlertWindow>("About", "", MessageBoxIconType::InfoIcon);
-			popupMenu->addTextBlock("Version: " + String(ProjectInfo::versionString));
+			popupMenu = std::make_unique<AlertWindow>(TRANS("About"), "", MessageBoxIconType::InfoIcon);
+			popupMenu->addTextBlock(TRANS("Version:") + " " + String(ProjectInfo::versionString));
 			popupMenu->addTextBlock("Copyright 2023 Adrian Del Grosso and the Open-Agriculture Developers.");
-			popupMenu->addTextBlock("This software is licensed under the GPL-3.0. You may use or change this software, even commercially, but you may not include it as part of closed-source software. Refer to this project's GitHub page for more details on your license obligations. Please retain the original copyright statements found in this software.");
-			popupMenu->addTextBlock("This is an ISO11783-6 virtual terminal server application based on AgIsoStack++ and the JUCE framework. This software is intended to be used for testing ISO11783 applications that consume AgIsoStack libraries, and serves as a reference implementation of our VT server files in AgIsoStack++.");
-			popupMenu->addButton("OK", 0, KeyPress(KeyPress::returnKey, 0, 0));
+			popupMenu->addTextBlock(TRANS("This software is licensed under the GPL-3.0. You may use or change this software, even commercially, but you may not include it as part of closed-source software. Refer to this project's GitHub page for more details on your license obligations. Please retain the original copyright statements found in this software."));
+			popupMenu->addTextBlock(TRANS("This is an ISO11783-6 virtual terminal server application based on AgIsoStack++ and the JUCE framework. This software is intended to be used for testing ISO11783 applications that consume AgIsoStack libraries, and serves as a reference implementation of our VT server files in AgIsoStack++."));
+			popupMenu->addButton(TRANS("OK"), 0, KeyPress(KeyPress::returnKey, 0, 0));
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 			retVal = true;
 		}
@@ -739,20 +741,20 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		case static_cast<int>(CommandIDs::ConfigureLanguageCommand):
 		{
 			retVal = true;
-			popupMenu = std::make_unique<AlertWindow>("Configure Language Command", "Use the following options to configure the units, language, and country that the VT will command from its clients.", MessageBoxIconType::NoIcon);
-			popupMenu->addTextEditor("Language Code", languageCommandInterface.get_language_code(), "Language Code");
-			popupMenu->addTextEditor("Country Code", languageCommandInterface.get_country_code(), "Country Code");
-			popupMenu->addComboBox("Area Units", { "Metric", "Imperial/US" }, "Area Units");
-			popupMenu->addComboBox("Date Format", { "ddmmyyyy", "ddyyyymm", "mmyyyydd", "mmddyyyy", "yyyymmdd", "yyyyddmm" }, "Date Format");
-			popupMenu->addComboBox("Decimal Symbol", { "Comma", "Point" }, "Decimal Symbol");
-			popupMenu->addComboBox("Distance Units", { "Metric", "Imperial/US" }, "Distance Units");
-			popupMenu->addComboBox("Force Units", { "Metric", "Imperial/US" }, "Force Units");
-			popupMenu->addComboBox("Generic Units", { "Metric", "Imperial", "US" }, "Generic Units");
-			popupMenu->addComboBox("Mass Units", { "Metric", "Imperial", "US" }, "Mass Units");
-			popupMenu->addComboBox("Pressure Units", { "Metric", "Imperial/US" }, "Pressure Units");
-			popupMenu->addComboBox("Temperature Units", { "Metric", "Imperial/US" }, "Temperature Units");
-			popupMenu->addComboBox("Time Format", { "24 hour", "12 hour" }, "Time Format");
-			popupMenu->addComboBox("Volume Units", { "Metric", "Imperial", "US" }, "Volume Units ");
+			popupMenu = std::make_unique<AlertWindow>(TRANS("Configure Language Command"), TRANS("Use the following options to configure the units, language, and country that the VT will command from its clients."), MessageBoxIconType::NoIcon);
+			popupMenu->addTextEditor("Language Code", languageCommandInterface.get_language_code(), TRANS("Language Code"));
+			popupMenu->addTextEditor("Country Code", languageCommandInterface.get_country_code(), TRANS("Country Code"));
+			popupMenu->addComboBox("Area Units", { TRANS("Metric"), TRANS("Imperial/US") }, TRANS("Area Units"));
+			popupMenu->addComboBox("Date Format", { "ddmmyyyy", "ddyyyymm", "mmyyyydd", "mmddyyyy", "yyyymmdd", "yyyyddmm" }, TRANS("Date Format"));
+			popupMenu->addComboBox("Decimal Symbol", { TRANS("Comma"), TRANS("Point") }, TRANS("Decimal Symbol"));
+			popupMenu->addComboBox("Distance Units", { TRANS("Metric"), TRANS("Imperial/US") }, TRANS("Distance Units"));
+			popupMenu->addComboBox("Force Units", { TRANS("Metric"), TRANS("Imperial/US") }, TRANS("Force Units"));
+			popupMenu->addComboBox("Generic Units", { TRANS("Metric"), TRANS("Imperial"), TRANS("US") }, TRANS("Generic Units"));
+			popupMenu->addComboBox("Mass Units", { TRANS("Metric"), TRANS("Imperial"), TRANS("US") }, TRANS("Mass Units"));
+			popupMenu->addComboBox("Pressure Units", { TRANS("Metric"), TRANS("Imperial/US") }, TRANS("Pressure Units"));
+			popupMenu->addComboBox("Temperature Units", { TRANS("Metric"), TRANS("Imperial/US") }, TRANS("Temperature Units"));
+			popupMenu->addComboBox("Time Format", { TRANS("24 hour"), TRANS("12 hour") }, TRANS("Time Format"));
+			popupMenu->addComboBox("Volume Units", { TRANS("Metric"), TRANS("Imperial"), TRANS("US") }, TRANS("Volume Units"));
 			popupMenu->getComboBoxComponent("Area Units")->setSelectedItemIndex(static_cast<int>(languageCommandInterface.get_commanded_area_units()));
 			popupMenu->getComboBoxComponent("Date Format")->setSelectedItemIndex(static_cast<int>(languageCommandInterface.get_commanded_date_format()));
 			popupMenu->getComboBoxComponent("Decimal Symbol")->setSelectedItemIndex(static_cast<int>(languageCommandInterface.get_commanded_decimal_symbol()));
@@ -764,18 +766,18 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu->getComboBoxComponent("Temperature Units")->setSelectedItemIndex(static_cast<int>(languageCommandInterface.get_commanded_temperature_units()));
 			popupMenu->getComboBoxComponent("Time Format")->setSelectedItemIndex(static_cast<int>(languageCommandInterface.get_commanded_time_format()));
 			popupMenu->getComboBoxComponent("Volume Units")->setSelectedItemIndex(static_cast<int>(languageCommandInterface.get_commanded_volume_units()));
-			popupMenu->addButton("OK", 1, KeyPress(KeyPress::returnKey, 0, 0));
-			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
+			popupMenu->addButton(TRANS("OK"), 1, KeyPress(KeyPress::returnKey, 0, 0));
+			popupMenu->addButton(TRANS("Cancel"), 0, KeyPress(KeyPress::escapeKey, 0, 0));
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 		}
 		break;
 
 		case static_cast<int>(CommandIDs::ConfigureReportedVersion):
 		{
-			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Server Version", "You can use this setting to change the version of the ISO11783-6 standard that this server will claim to support in its status messages.", MessageBoxIconType::NoIcon);
-			popupMenu->addComboBox("Version", { "Version 2 or Older", "Version 3", "Version 4", "Version 5", "Version 6" });
-			popupMenu->addButton("OK", 2, KeyPress(KeyPress::returnKey, 0, 0));
-			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
+			popupMenu = std::make_unique<AlertWindow>(TRANS("Configure Reported VT Server Version"), TRANS("You can use this setting to change the version of the ISO11783-6 standard that this server will claim to support in its status messages."), MessageBoxIconType::NoIcon);
+			popupMenu->addComboBox("Version", { TRANS("Version 2 or Older"), TRANS("Version 3"), TRANS("Version 4"), TRANS("Version 5"), TRANS("Version 6") });
+			popupMenu->addButton(TRANS("OK"), 2, KeyPress(KeyPress::returnKey, 0, 0));
+			popupMenu->addButton(TRANS("Cancel"), 0, KeyPress(KeyPress::escapeKey, 0, 0));
 			popupMenu->getComboBoxComponent("Version")->setSelectedItemIndex(static_cast<int>(versionToReport));
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 			retVal = true;
@@ -784,13 +786,13 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 		case static_cast<int>(CommandIDs::ConfigureReportedHardware):
 		{
-			popupMenu = std::make_unique<AlertWindow>("Configure Reported VT Capabilities", "You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients.", MessageBoxIconType::NoIcon);
-			popupMenu->addTextEditor("VT number", String(vtNumber), "VT number (1-32, only applied on restart)");
-			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), "Data Mask Size (height and width)");
-			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_height()), "Soft Key Designator Height (min 60)");
-			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), "Soft Key Designator Width (min 60)");
-			popupMenu->addTextEditor("Number of Physical Soft Key columns", String(get_physical_soft_key_columns()), "Number of Physical Soft Key columns (min 1)");
-			popupMenu->addTextEditor("Number of Physical Soft Key rows", String(get_physical_soft_key_rows()), "Number of Physical Soft Key rows (min 1)");
+			popupMenu = std::make_unique<AlertWindow>(TRANS("Configure Reported VT Capabilities"), TRANS("You can use this menu to configure what the server will report to clients in the \"get hardware\" message response, as well as what will be displayed in the data/soft key mask render components of this application. Some of these settings may require you to close and reopen the application to avoid weird discrepancies with connected clients."), MessageBoxIconType::NoIcon);
+			popupMenu->addTextEditor("VT number", String(vtNumber), TRANS("VT number (1-32, only applied on restart)"));
+			popupMenu->addTextEditor("Data Mask Size (height and width)", String(dataMaskRenderer.getWidth()), TRANS("Data Mask Size (height and width)"));
+			popupMenu->addTextEditor("Soft Key Designator Height", String(get_soft_key_descriptor_y_pixel_height()), TRANS("Soft Key Designator Height (min 60)"));
+			popupMenu->addTextEditor("Soft Key Designator Width", String(get_soft_key_descriptor_x_pixel_width()), TRANS("Soft Key Designator Width (min 60)"));
+			popupMenu->addTextEditor("Number of Physical Soft Key columns", String(get_physical_soft_key_columns()), TRANS("Number of Physical Soft Key columns (min 1)"));
+			popupMenu->addTextEditor("Number of Physical Soft Key rows", String(get_physical_soft_key_rows()), TRANS("Number of Physical Soft Key rows (min 1)"));
 
 			popupMenu->getTextEditor("VT number")->setInputRestrictions(2, "1234567890");
 			popupMenu->getTextEditor("Data Mask Size (height and width)")->setInputRestrictions(4, "1234567890");
@@ -799,8 +801,8 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			popupMenu->getTextEditor("Number of Physical Soft Key columns")->setInputRestrictions(1, "1234567890");
 			popupMenu->getTextEditor("Number of Physical Soft Key rows")->setInputRestrictions(2, "1234567890");
 
-			popupMenu->addButton("OK", 3, KeyPress(KeyPress::returnKey, 0, 0));
-			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
+			popupMenu->addButton(TRANS("OK"), 3, KeyPress(KeyPress::returnKey, 0, 0));
+			popupMenu->addButton(TRANS("Cancel"), 0, KeyPress(KeyPress::escapeKey, 0, 0));
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 			retVal = true;
 		}
@@ -808,21 +810,21 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 		case static_cast<int>(CommandIDs::ConfigureLogging):
 		{
-			popupMenu = std::make_unique<AlertWindow>("Configure Logging", "", MessageBoxIconType::NoIcon);
-			popupMenu->addTextBlock("Select a logging level. The logging level affects what's shown in the logging area, and what is written to the log file. Setting logging to \"debug\" may impact performance.");
-			popupMenu->addComboBox("Logging Level", { "Debug", "Info", "Warning", "Error", "Critical" });
+			popupMenu = std::make_unique<AlertWindow>(TRANS("Configure Logging"), "", MessageBoxIconType::NoIcon);
+			popupMenu->addTextBlock(TRANS("Select a logging level. The logging level affects what's shown in the logging area, and what is written to the log file. Setting logging to \"debug\" may impact performance."));
+			popupMenu->addComboBox("Logging Level", { TRANS("Debug"), TRANS("Info"), TRANS("Warning"), TRANS("Error"), TRANS("Critical") });
 			popupMenu->getComboBoxComponent("Logging Level")->setSelectedItemIndex(static_cast<int>(isobus::CANStackLogger::get_log_level()));
-			popupMenu->addTextBlock("Select if the log window should be shown or hidden. Showing the log window may affect performance.");
-			popupMenu->addComboBox("Logging Window", { "Hidden", "Enabled" });
+			popupMenu->addTextBlock(TRANS("Select if the log window should be shown or hidden. Showing the log window may affect performance."));
+			popupMenu->addComboBox("Logging Window", { TRANS("Hidden"), TRANS("Enabled") });
 			popupMenu->getComboBoxComponent("Logging Window")->setSelectedItemIndex(loggerViewport.isVisible() ? 1 : 0);
-			popupMenu->addTextBlock("Log all CAN traffic to a .asc file. This costs performance on every frame, and can be slow enough to break object pool transfers, so leave it off unless you are diagnosing bus traffic.");
-			popupMenu->addComboBox("CAN Traffic Log", { "Disabled", "Enabled" });
+			popupMenu->addTextBlock(TRANS("Log all CAN traffic to a .asc file. This costs performance on every frame, and can be slow enough to break object pool transfers, so leave it off unless you are diagnosing bus traffic."));
+			popupMenu->addComboBox("CAN Traffic Log", { TRANS("Disabled"), TRANS("Enabled") });
 			popupMenu->getComboBoxComponent("CAN Traffic Log")->setSelectedItemIndex(ASCIILogFile::is_logging_enabled() ? 1 : 0);
-			popupMenu->addTextBlock("Save IOP data before parsing. This allows providing IOP data for debugging parser crashes.");
-			popupMenu->addComboBox("Save IOP data before parsing", { "No", "Yes" });
+			popupMenu->addTextBlock(TRANS("Save IOP data before parsing. This allows providing IOP data for debugging parser crashes."));
+			popupMenu->addComboBox("Save IOP data before parsing", { TRANS("No"), TRANS("Yes") });
 			popupMenu->getComboBoxComponent("Save IOP data before parsing")->setSelectedItemIndex(saveIopBeforeParse ? 1 : 0);
-			popupMenu->addButton("OK", 4, KeyPress(KeyPress::returnKey, 0, 0));
-			popupMenu->addButton("Cancel", 0, KeyPress(KeyPress::escapeKey, 0, 0));
+			popupMenu->addButton(TRANS("OK"), 4, KeyPress(KeyPress::returnKey, 0, 0));
+			popupMenu->addButton(TRANS("Cancel"), 0, KeyPress(KeyPress::escapeKey, 0, 0));
 			popupMenu->enterModalState(true, ModalCallbackFunction::create(LanguageCommandConfigClosed{ *this }));
 			retVal = true;
 		}
@@ -883,8 +885,8 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			{
 				AlertWindow::showAsync(MessageBoxOptions()
 				                         .withIconType(MessageBoxIconType::WarningIcon)
-				                         .withTitle("Export Failed")
-				                         .withButton("OK", 1),
+				                         .withTitle(TRANS("Export Failed"))
+				                         .withButton(TRANS("OK"), 1),
 				                       nullptr);
 			}
 			retVal = true;
@@ -974,8 +976,8 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			{
 				AlertWindow::showAsync(MessageBoxOptions()
 				                         .withIconType(MessageBoxIconType::InfoIcon)
-				                         .withTitle("No CAN hardware has been configured yet! Before you start the VT for the first time, select which CAN driver to use in the \"configure\" menu.")
-				                         .withButton("OK", 1),
+				                         .withTitle(TRANS("No CAN hardware has been configured yet! Before you start the VT for the first time, select which CAN driver to use in the \"configure\" menu."))
+				                         .withButton(TRANS("OK"), 1),
 				                       nullptr);
 			}
 			else
@@ -1051,7 +1053,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 
 StringArray ServerMainComponent::getMenuBarNames()
 {
-	return juce::StringArray("Control", "Configure", "Troubleshooting", "About");
+	return juce::StringArray(TRANS("Control"), TRANS("Configure"), TRANS("Troubleshooting"), TRANS("About"));
 }
 
 PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
@@ -1387,6 +1389,9 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			mParent.languageCommandInterface.set_commanded_time_format(timeFormat);
 			mParent.languageCommandInterface.set_commanded_volume_units(volumeUnits);
 			mParent.languageCommandInterface.send_language_command();
+			UILanguage::apply(languageCode.toStdString());
+			mParent.menuItemsChanged();
+			mParent.repaint();
 
 			mParent.save_settings();
 		}
@@ -2035,9 +2040,9 @@ void ServerMainComponent::stop_can_interface_with_alert(const String &title)
 	isobus::CANStackLogger::error(reason.empty() ? title.toStdString() : title.toStdString() + ": " + reason);
 	AlertWindow::showAsync(MessageBoxOptions()
 	                         .withIconType(MessageBoxIconType::WarningIcon)
-	                         .withTitle(title)
-	                         .withMessage(reason.empty() ? String("Check the CAN hardware in the Configure menu, then press Start.") : String(reason))
-	                         .withButton("OK", 1),
+	                         .withTitle(TRANS(title))
+	                         .withMessage(reason.empty() ? TRANS("Check the CAN hardware in the Configure menu, then press Start.") : String(reason))
+	                         .withButton(TRANS("OK"), 1),
 	                       nullptr);
 }
 
@@ -2050,7 +2055,7 @@ void ServerMainComponent::start_can_interface()
 
 	if (!started)
 	{
-		stop_can_interface_with_alert("Could not start the CAN interface");
+		stop_can_interface_with_alert(NEEDS_TRANS("Could not start the CAN interface"));
 	}
 }
 
@@ -2306,9 +2311,9 @@ void ServerMainComponent::check_for_update(bool reportWhenUpToDate)
 		{
 			AlertWindow::showAsync(MessageBoxOptions()
 			                         .withIconType(MessageBoxIconType::WarningIcon)
-			                         .withTitle("Update Check Failed")
-			                         .withMessage("Could not start the update check.")
-			                         .withButton("OK", 1),
+			                         .withTitle(TRANS("Update Check Failed"))
+			                         .withMessage(TRANS("Could not start the update check."))
+			                         .withButton(TRANS("OK"), 1),
 			                       nullptr);
 		}
 	}
@@ -2337,16 +2342,16 @@ void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &
 		}
 
 		auto skipToggle = std::make_shared<IndentedToggleButton>();
-		skipToggle->toggle.setButtonText("Don't notify me about version " + result.latestVersion + " again");
+		skipToggle->toggle.setButtonText(TRANS("Don't notify me about version {version} again").replace("{version}", result.latestVersion));
 		skipToggle->setSize(360, 24);
 		skipToggle->toggle.setToggleState(updateIsSkipped, NotificationType::dontSendNotification);
 
-		auto *updateBox = new AlertWindow("Update Available",
-		                                  "Version " + result.latestVersion + " is available. You are running " + String(ProjectInfo::versionString) + ".",
+		auto *updateBox = new AlertWindow(TRANS("Update Available"),
+		                                  TRANS("Version {latest} is available. You are running {current}.").replace("{latest}", result.latestVersion).replace("{current}", ProjectInfo::versionString),
 		                                  MessageBoxIconType::InfoIcon);
 		updateBox->addCustomComponent(skipToggle.get());
-		updateBox->addButton("Download", 1, KeyPress(KeyPress::returnKey));
-		updateBox->addButton("Not Now", 0, KeyPress(KeyPress::escapeKey));
+		updateBox->addButton(TRANS("Download"), 1, KeyPress(KeyPress::returnKey));
+		updateBox->addButton(TRANS("Not Now"), 0, KeyPress(KeyPress::escapeKey));
 		updateBox->enterModalState(true,
 		                           ModalCallbackFunction::create([safeThis = Component::SafePointer<ServerMainComponent>(this), latestVersion = result.latestVersion, releaseUrl = result.releaseUrl, skipToggle](int choice) {
 			                           if (nullptr != safeThis.getComponent())
@@ -2376,9 +2381,9 @@ void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &
 		{
 			AlertWindow::showAsync(MessageBoxOptions()
 			                         .withIconType(MessageBoxIconType::InfoIcon)
-			                         .withTitle("No Updates Available")
-			                         .withMessage("You are running the latest version, " + String(ProjectInfo::versionString) + ".")
-			                         .withButton("OK", 1),
+			                         .withTitle(TRANS("No Updates Available"))
+			                         .withMessage(TRANS("You are running the latest version, {current}.").replace("{current}", ProjectInfo::versionString))
+			                         .withButton(TRANS("OK"), 1),
 			                       nullptr);
 		}
 	}
@@ -2397,9 +2402,9 @@ void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &
 		{
 			AlertWindow::showAsync(MessageBoxOptions()
 			                         .withIconType(MessageBoxIconType::WarningIcon)
-			                         .withTitle("Update Check Failed")
-			                         .withMessage("Could not reach GitHub to check for a newer version.")
-			                         .withButton("OK", 1),
+			                         .withTitle(TRANS("Update Check Failed"))
+			                         .withMessage(TRANS("Could not reach GitHub to check for a newer version."))
+			                         .withButton(TRANS("OK"), 1),
 			                       nullptr);
 		}
 	}
