@@ -37,3 +37,9 @@ void WorkingSetComponent::paint(Graphics &g)
 	g.setColour(background);
 	g.fillAll();
 }
+
+void WorkingSetComponent::paint_active_highlight(Graphics &g, juce::Rectangle<int> button)
+{
+	g.setColour(juce::Colours::yellow.withAlpha(0.4f));
+	g.drawRoundedRectangle(button.toFloat().expanded(2.0f), 4.0f, 4.0f);
+}

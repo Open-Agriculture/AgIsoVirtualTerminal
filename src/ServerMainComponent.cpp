@@ -884,7 +884,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 				AlertWindow::showAsync(MessageBoxOptions()
 				                         .withIconType(MessageBoxIconType::WarningIcon)
 				                         .withTitle("Export Failed")
-				                         .withButton("OK"),
+				                         .withButton("OK", 1),
 				                       nullptr);
 			}
 			retVal = true;
@@ -975,7 +975,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 				AlertWindow::showAsync(MessageBoxOptions()
 				                         .withIconType(MessageBoxIconType::InfoIcon)
 				                         .withTitle("No CAN hardware has been configured yet! Before you start the VT for the first time, select which CAN driver to use in the \"configure\" menu.")
-				                         .withButton("OK"),
+				                         .withButton("OK", 1),
 				                       nullptr);
 			}
 			else
@@ -2037,7 +2037,7 @@ void ServerMainComponent::stop_can_interface_with_alert(const String &title, con
 	                         .withIconType(MessageBoxIconType::WarningIcon)
 	                         .withTitle(title)
 	                         .withMessage(reason.empty() ? String("Check the CAN hardware in the Configure menu, then press Start.") : String(reason))
-	                         .withButton("OK"),
+	                         .withButton("OK", 1),
 	                       nullptr);
 }
 
@@ -2319,7 +2319,7 @@ void ServerMainComponent::check_for_update(bool reportWhenUpToDate)
 			                         .withIconType(MessageBoxIconType::WarningIcon)
 			                         .withTitle("Update Check Failed")
 			                         .withMessage("Could not start the update check.")
-			                         .withButton("OK"),
+			                         .withButton("OK", 1),
 			                       nullptr);
 		}
 	}
@@ -2389,7 +2389,7 @@ void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &
 			                         .withIconType(MessageBoxIconType::InfoIcon)
 			                         .withTitle("No Updates Available")
 			                         .withMessage("You are running the latest version, " + String(ProjectInfo::versionString) + ".")
-			                         .withButton("OK"),
+			                         .withButton("OK", 1),
 			                       nullptr);
 		}
 	}
@@ -2410,7 +2410,7 @@ void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &
 			                         .withIconType(MessageBoxIconType::WarningIcon)
 			                         .withTitle("Update Check Failed")
 			                         .withMessage("Could not reach GitHub to check for a newer version.")
-			                         .withButton("OK"),
+			                         .withButton("OK", 1),
 			                       nullptr);
 		}
 	}

@@ -113,7 +113,7 @@ You can follow the instructions [here](https://git-scm.com/book/en/v2/Getting-St
 Ubuntu / Debian:
 ```
 sudo apt update
-sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev build-essential cmake pkg-config
+sudo apt install libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libxi-dev libglu1-mesa-dev mesa-common-dev build-essential cmake pkg-config
 ```
 
 Fedora:
@@ -152,6 +152,10 @@ cmake --build build
 ```
 
 The program ends up under `build/AgISOVirtualTerminal_artefacts/`.
+
+### Building vt-render
+
+`vt-render` is a developer tool that renders object pools to PNG files with the VT's own drawing code, for example to compare how `main` and a pull request draw a pool. See [tools/vt-render](tools/vt-render/README.md).
 
 ### Creating a Windows Installer
 

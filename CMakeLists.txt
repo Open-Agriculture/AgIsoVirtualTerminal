@@ -26,11 +26,10 @@ if(WIN32)
 
   if(NOT (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND MINGW))
     list(APPEND CAN_DRIVER "WindowsInnoMakerUSB2CAN")
-    list(APPEND CAN_DRIVER "WindowsCandleLight")
   else()
     message(
       STATUS
-        "InnoMaker and candleLight hardware will not be supported in this build because you are using mingw"
+        "InnoMaker hardware will not be supported in this build because you are using mingw"
     )
   endif()
   list(APPEND CAN_DRIVER "SYS_TEC")
@@ -67,65 +66,71 @@ juce_add_gui_app(
 
 set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 17)
 
+# MSVC's permissive mode misreads JUCE 9's "std::unique_lock lock (mutex);" as a
+# function declaration
+if(MSVC)
+  target_compile_options(AgISOVirtualTerminal PRIVATE /permissive-)
+endif()
+
 target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
                                                         JUCE_WEB_BROWSER=0)
 
 juce_generate_juce_header(AgISOVirtualTerminal)
 
-target_sources(
-  AgISOVirtualTerminal
-  PRIVATE src/Main.cpp
-          "src/ServerMainComponent.cpp"
-          "src/DataMaskComponent.cpp"
-          "src/WorkingSetSelectorComponent.cpp"
-          "src/WorkingSetLoadingIndicatorComponent.cpp"
-          "src/PictureGraphicComponent.cpp"
-          "src/WorkingSetComponent.cpp"
-          "src/AlarmMaskComponent.cpp"
-          "src/DataMaskRenderAreaComponent.cpp"
-          "src/JuceManagedWorkingSetCache.cpp"
-          "src/OutputRectangleComponent.cpp"
-          "src/OutputStringComponent.cpp"
-          "src/ButtonComponent.cpp"
-          "src/ContainerComponent.cpp"
-          "src/ObjectPointerComponent.cpp"
-          "src/OutputNumberComponent.cpp"
-          "src/SoftkeyMaskRenderArea.cpp"
-          "src/SoftKeyPageBar.cpp"
-          "src/KeyComponent.cpp"
-          "src/DesignatorFit.cpp"
-          "src/SoftKeyMaskComponent.cpp"
-          "src/OutputMeterComponent.cpp"
-          "src/InputBooleanComponent.cpp"
-          "src/LoggerComponent.cpp"
-          "src/DiagnosticsComponent.cpp"
-          "src/DiagnosticsWindow.cpp"
-          "src/InputNumberComponent.cpp"
-          "src/OutputEllipseComponent.cpp"
-          "src/OutputLineComponent.cpp"
-          "src/OutputLinearBarGraphComponent.cpp"
-          "src/OutputArchedBarGraphComponent.cpp"
-          "src/OutputPolygonComponent.cpp"
-          "src/InputStringComponent.cpp"
-          "src/NumberComponent.cpp"
-          "src/AlarmMaskAudio.cpp"
-          "src/NumericKeypadComponent.cpp"
-          "src/AppImages.cpp"
-          "src/ASCIILogFile.cpp"
-          "src/ConfigureHardwareWindow.cpp"
-          "src/ConfigureHardwareComponent.cpp"
-          "src/StringEncodingConversions.cpp"
-          "src/InputListComponent.cpp"
-          "src/OutputListComponent.cpp"
-          "src/AckSettingsWindow.cpp"
-          "src/Settings.cpp"
-          "src/UpdateChecker.cpp"
-          "src/IndentedToggleButton.cpp"
-          "src/VT_NumberComponent.cpp"
-          "src/TextDrawingComponent.cpp"
-          "src/StringDrawingComponent.cpp"
-          "src/VersionStorage.cpp"
-          "src/CANDeviceList.cpp")
+set(AGISOVT_SOURCES
+    "src/ApplicationBuildInfo.cpp"
+    "src/ServerMainComponent.cpp"
+    "src/DataMaskComponent.cpp"
+    "src/WorkingSetSelectorComponent.cpp"
+    "src/WorkingSetLoadingIndicatorComponent.cpp"
+    "src/PictureGraphicComponent.cpp"
+    "src/WorkingSetComponent.cpp"
+    "src/AlarmMaskComponent.cpp"
+    "src/DataMaskRenderAreaComponent.cpp"
+    "src/JuceManagedWorkingSetCache.cpp"
+    "src/OutputRectangleComponent.cpp"
+    "src/OutputStringComponent.cpp"
+    "src/ButtonComponent.cpp"
+    "src/ContainerComponent.cpp"
+    "src/ObjectPointerComponent.cpp"
+    "src/OutputNumberComponent.cpp"
+    "src/SoftkeyMaskRenderArea.cpp"
+    "src/SoftKeyPageBar.cpp"
+    "src/KeyComponent.cpp"
+    "src/DesignatorFit.cpp"
+    "src/SoftKeyMaskComponent.cpp"
+    "src/OutputMeterComponent.cpp"
+    "src/InputBooleanComponent.cpp"
+    "src/LoggerComponent.cpp"
+    "src/DiagnosticsComponent.cpp"
+    "src/DiagnosticsWindow.cpp"
+    "src/InputNumberComponent.cpp"
+    "src/OutputEllipseComponent.cpp"
+    "src/OutputLineComponent.cpp"
+    "src/OutputLinearBarGraphComponent.cpp"
+    "src/OutputArchedBarGraphComponent.cpp"
+    "src/OutputPolygonComponent.cpp"
+    "src/InputStringComponent.cpp"
+    "src/NumberComponent.cpp"
+    "src/AlarmMaskAudio.cpp"
+    "src/NumericKeypadComponent.cpp"
+    "src/AppImages.cpp"
+    "src/ASCIILogFile.cpp"
+    "src/ConfigureHardwareWindow.cpp"
+    "src/ConfigureHardwareComponent.cpp"
+    "src/StringEncodingConversions.cpp"
+    "src/InputListComponent.cpp"
+    "src/OutputListComponent.cpp"
+    "src/AckSettingsWindow.cpp"
+    "src/Settings.cpp"
+    "src/UpdateChecker.cpp"
+    "src/IndentedToggleButton.cpp"
+    "src/VT_NumberComponent.cpp"
+    "src/TextDrawingComponent.cpp"
+    "src/StringDrawingComponent.cpp"
+    "src/VersionStorage.cpp"
+    "src/CANDeviceList.cpp")
+target_sources(AgISOVirtualTerminal PRIVATE src/Main.cpp ${AGISOVT_SOURCES})
 
 target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -137,9 +142,39 @@ target_link_libraries(
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
          cmake_git_version_tracking)
 
+option(AGISOVT_BUILD_POOL_RENDERER
+       "Build vt-render, which renders object pools to PNG files and a manifest"
+       OFF)
+if(AGISOVT_BUILD_POOL_RENDERER)
+  juce_add_console_app(VtRender PRODUCT_NAME "vt-render")
+  set_target_properties(VtRender PROPERTIES CXX_STANDARD 17)
+  set_target_properties(VtRender PROPERTIES OUTPUT_NAME vt-render)
+  target_compile_definitions(
+    VtRender PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_XRANDR=0
+                     JUCE_USE_XINERAMA=0)
+  juce_generate_juce_header(VtRender)
+  target_sources(VtRender PRIVATE tools/vt-render/vt_render.cpp
+                                  ${AGISOVT_SOURCES})
+  target_include_directories(VtRender PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
+  target_link_libraries(
+    VtRender
+    PRIVATE juce::juce_audio_basics
+            juce::juce_audio_utils
+            juce::juce_gui_extra
+            juce::juce_cryptography
+            isobus::Isobus
+            isobus::HardwareIntegration
+            isobus::Utility
+            cmake_git_version_tracking
+    PUBLIC juce::juce_recommended_config_flags)
+endif()
+
 if("WindowsCandleLight" IN_LIST CAN_DRIVER)
   # Listing the attached candleLight adapters
   target_link_libraries(AgISOVirtualTerminal PRIVATE setupapi cfgmgr32)
+  if(AGISOVT_BUILD_POOL_RENDERER)
+    target_link_libraries(VtRender PRIVATE setupapi cfgmgr32)
+  endif()
 endif()
 
 if(WIN32)
