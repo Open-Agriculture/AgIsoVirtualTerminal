@@ -45,6 +45,24 @@ void OutputRectangleComponent::paint(Graphics &g)
 		};
 		g.setColour(lineColour.value());
 
+		// A corner is only drawn when both of its sides are, see ISO 11783-6 Figure 21
+		if (isSuppressed(LineSuppressionOption::SuppressTopLine))
+		{
+			g.excludeClipRegion({ 0, 0, width, lineWidth });
+		}
+		if (isSuppressed(LineSuppressionOption::SuppressBottomLine))
+		{
+			g.excludeClipRegion({ 0, height - lineWidth, width, lineWidth });
+		}
+		if (isSuppressed(LineSuppressionOption::SuppressLeftSideLine))
+		{
+			g.excludeClipRegion({ 0, 0, lineWidth, height });
+		}
+		if (isSuppressed(LineSuppressionOption::SuppressRightSideLine))
+		{
+			g.excludeClipRegion({ width - lineWidth, 0, lineWidth, height });
+		}
+
 		// The square brush stays inside the box, so each side is a strip of the line width along its edge
 		const std::uint16_t lineArt = line->get_line_art_bit_pattern();
 		if (line_art::SOLID == lineArt)
