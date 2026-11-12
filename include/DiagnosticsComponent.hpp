@@ -52,6 +52,11 @@ private:
 
 	/// @brief Decodes a received DM1 message and updates the DTC list of its source control function
 	static void process_dm1_message(const isobus::CANMessage &message, void *parent);
+
+	/// @brief Stores the latest DM1 state of one source, or drops it when no DTC is active. Runs on the message thread.
+	/// @param[in] sourceNAME The full NAME of the source control function
+	/// @param[in] entry The decoded DM1 state
+	void update_source(std::uint64_t sourceNAME, SourceEntry entry);
 	static TextLayout source_summary_layout(const SourceEntry &entry, int width);
 	void timerCallback() override;
 

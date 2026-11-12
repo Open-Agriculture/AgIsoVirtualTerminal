@@ -83,8 +83,17 @@ jobs:
       - name: Compile
         run: |
           mkdir build
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 "-DCMAKE_OSX_ARCHITECTURES=${{ github.event_name == 'release' && 'arm64;x86_64' || 'arm64' }}" -Wno-dev
           cmake --build build --config Release --target package
+      - name: Check Binary
+        shell: bash
+        run: |
+          bin=$(find build/AgISOVirtualTerminal_artefacts -path '*.app/Contents/MacOS/AgISOVirtualTerminal' -type f)
+          test -f "$bin"
+          if [ "${{ github.event_name }}" = release ]; then
+            lipo "$bin" -verify_arch arm64 x86_64
+          fi
+          vtool -show-build "$bin" | tee /dev/stderr | awk '$1 == "minos" { n++; if ($2 != "11.0") bad = 1 } END { exit (n == 0 || bad) }'
       - name: 'Upload OSX Installer'
         uses: actions/upload-artifact@v7
         with:
