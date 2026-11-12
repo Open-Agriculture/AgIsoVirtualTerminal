@@ -299,11 +299,11 @@ void DataMaskRenderAreaComponent::paint(Graphics &g)
 		auto logoImage = ImageCache::getFromMemory(AppImages::logo2_png, AppImages::logo2_pngSize);
 		g.drawImage(logoImage, 0, 0, 400, 400, 0, 0, logoImage.getWidth(), logoImage.getHeight());
 		g.setColour(Colours::white);
-		g.drawText("No Working Sets Are Active", 0, 400, 400, 80, Justification::centredTop, true);
+		g.drawText(TRANS("No Working Sets Are Active"), 0, 400, 400, 80, Justification::centredTop, true);
 
 		if (!hasStarted)
 		{
-			g.drawFittedText("To start the VT server, select \"Start/Stop\" from the control menu in the top left.", 0, 440, 400, 40, Justification::centredTop, 2);
+			g.drawFittedText(TRANS("To start the VT server, select \"Start/Stop\" from the control menu in the top left."), 0, 440, 400, 40, Justification::centredTop, 2);
 		}
 	}
 }
@@ -447,7 +447,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						    (clickedList->get_number_children() > 0))
 						{
 							// Need to display a modal combo selection
-							inputListModal.reset(new AlertWindow("Input List Selection", "Select a List Item, then press OK.", MessageBoxIconType::QuestionIcon));
+							inputListModal.reset(new AlertWindow(TRANS("Input List Selection"), TRANS("Select a List Item, then press OK."), MessageBoxIconType::QuestionIcon));
 							inputListModal->addComboBox("Input List Combo", StringArray());
 							currentModalComponentCache.clear();
 							currentModalComponentCache.reserve(clickedList->get_number_children());
@@ -502,11 +502,11 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								combo->setSelectedId(static_cast<int>(selectedIndex) + 1, dontSendNotification);
 							}
 
-							inputListModal->addButton("OK", 1, KeyPress(KeyPress::returnKey, 0, 0));
-							inputListModal->addButton("Cancel", 0);
+							inputListModal->addButton(TRANS("OK"), 1, KeyPress(KeyPress::returnKey, 0, 0));
+							inputListModal->addButton(TRANS("Cancel"), 0);
 
 							// Only a chosen index (0-254) may be sent, so OK waits for a selection
-							auto okButton = inputListModal->getButton("OK");
+							auto okButton = inputListModal->getButton(TRANS("OK"));
 							okButton->setEnabled(0 != combo->getSelectedId());
 							combo->onChange = [okButton, combo]() { okButton->setEnabled(0 != combo->getSelectedId()); };
 							auto resultCallback = [this, clickedList, workingSet = parentWorkingSet](int result) {
@@ -586,7 +586,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 						if (!inputDialogPending && clickedNumber->get_option2(isobus::InputNumber::Options2::Enabled))
 						{
-							inputNumberModal.reset(new AlertWindow("Input Number", "", MessageBoxIconType::NoIcon));
+							inputNumberModal.reset(new AlertWindow(TRANS("Input Number"), "", MessageBoxIconType::NoIcon));
 
 							std::uint32_t currentRawValue = clickedNumber->get_value();
 
@@ -773,10 +773,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 							}
 
-							inputStringModal.reset(new AlertWindow("Input String", "Enter a value for this input string, then press OK.", MessageBoxIconType::QuestionIcon));
+							inputStringModal.reset(new AlertWindow(TRANS("Input String"), TRANS("Enter a value for this input string, then press OK."), MessageBoxIconType::QuestionIcon));
 							inputStringModal->addTextEditor("Input String", hasStringVariable ? stringVariable->get_value() : clickedString->get_value());
-							inputStringModal->addButton("OK", 1);
-							inputStringModal->addButton("Cancel", 0);
+							inputStringModal->addButton(TRANS("OK"), 1);
+							inputStringModal->addButton(TRANS("Cancel"), 0);
 							auto resultCallback = [this, clickedString, stringVariable, workingSet = parentWorkingSet](int result) {
 								const bool closedByVT = !end_open_input();
 

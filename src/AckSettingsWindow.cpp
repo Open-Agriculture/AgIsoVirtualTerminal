@@ -6,7 +6,7 @@
 #include "AckSettingsWindow.hpp"
 
 AckSettingsWindow::AckSettingsWindow(int alarmAckKeyCode, bool showAckButton, Component *associatedComponent) :
-  juce::AlertWindow("ACK button", "", MessageBoxIconType::NoIcon, associatedComponent),
+  juce::AlertWindow(TRANS("ACK button"), "", MessageBoxIconType::NoIcon, associatedComponent),
   alarmAckKey(alarmAckKeyCode)
 {
 	juce::KeyPress alarmAckKey(alarmAckKeyCode);
@@ -14,12 +14,12 @@ AckSettingsWindow::AckSettingsWindow(int alarmAckKeyCode, bool showAckButton, Co
 	selectAlarmAckKeyButton.onClick = [this]() { setAlarmAckKeySelection(true); };
 	updateAlarmAckButtonLabel(alarmAckKey);
 
-	showAckButtonCheckbox.setButtonText("Show dedicated ACK button when an alarm mask is active");
+	showAckButtonCheckbox.setButtonText(TRANS("Show dedicated ACK button when an alarm mask is active"));
 	showAckButtonCheckbox.setToggleState(showAckButton, juce::dontSendNotification);
 	addCustomComponent(&showAckButtonCheckbox);
 
-	addButton("OK", 5, KeyPress(KeyPress::returnKey, 0, 0));
-	addButton("Cancel", 0);
+	addButton(TRANS("OK"), 5, KeyPress(KeyPress::returnKey, 0, 0));
+	addButton(TRANS("Cancel"), 0);
 
 	setAlarmAckKeySelection(false);
 }
@@ -56,7 +56,7 @@ bool AckSettingsWindow::shouldShowAckButton() const
 
 void AckSettingsWindow::updateAlarmAckButtonLabel(const KeyPress &key)
 {
-	selectAlarmAckKeyButton.setButtonText("Alarm acknowledge key: " + key.getTextDescription());
+	selectAlarmAckKeyButton.setButtonText(TRANS("Alarm acknowledge key:") + " " + key.getTextDescription());
 }
 
 void AckSettingsWindow::setAlarmAckKeySelection(bool isEnabled)
@@ -65,7 +65,7 @@ void AckSettingsWindow::setAlarmAckKeySelection(bool isEnabled)
 	selectAlarmAckKeyButton.setEnabled(!isEnabled);
 	if (isEnabled)
 	{
-		selectAlarmAckKeyButton.setButtonText("Alarm acknowledge key: press one key...");
+		selectAlarmAckKeyButton.setButtonText(TRANS("Alarm acknowledge key: press one key..."));
 
 		setWantsKeyboardFocus(true);
 		addKeyListener(this);

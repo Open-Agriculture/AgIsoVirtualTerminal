@@ -10,7 +10,7 @@
 #include "DiagnosticsWindow.hpp"
 
 DiagnosticsWindow::DiagnosticsWindow(ServerMainComponent &parentComponent) :
-  DocumentWindow("Diagnostics", juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId), DocumentWindow::closeButton),
+  DocumentWindow(TRANS("Diagnostics"), juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId), DocumentWindow::closeButton),
   parentServer(parentComponent)
 {
 	setOpaque(true);

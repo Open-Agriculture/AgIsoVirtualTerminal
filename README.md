@@ -79,6 +79,11 @@ Each implement shows up in the column on the left once it has uploaded its objec
 - "Configure > Reported Hardware Capabilities" sets the data mask size, the soft key size, and the number of soft key columns and rows that the VT reports to implements.
 - "Control > Fit masks to window" scales the data and soft key masks to fill the window.
 - "Control > Scale pools to data mask size" scales object pools that were drawn for a different data mask size to the one the VT reports.
+- The VT's own menus and dialogs follow the language code in "Configure > Language Command". Languages without a translation are shown in English.
+
+### Translations
+
+Translations are made on [Weblate](https://hosted.weblate.org/projects/agisovirtualterminal/) and kept in `translations/`. `en.json` lists every string to translate. After adding or changing a string in `TRANS()`, run `python tools/translations/extract_strings.py` to update it.
 
 ### Command line options
 

@@ -17,7 +17,7 @@
 #endif
 
 ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &parent, std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers) :
-  okButton("OK"),
+  okButton(TRANS("OK")),
   parentCANDrivers(canDrivers)
 {
 	setSize(400, 280);
@@ -27,7 +27,7 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 
 #ifdef JUCE_WINDOWS
 	hardwareInterfaceSelector.setName("Hardware Interface");
-	hardwareInterfaceSelector.setTextWhenNothingSelected("Select Hardware Interface");
+	hardwareInterfaceSelector.setTextWhenNothingSelected(TRANS("Select Hardware Interface"));
 
 #ifdef ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE
 	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec" }, 1);
@@ -108,22 +108,22 @@ void ConfigureHardwareComponent::paint(Graphics &graphics)
 	graphics.setColour(getLookAndFeel().findColour(Label::textColourId));
 	graphics.setFont(16.0f);
 #ifdef JUCE_WINDOWS
-	graphics.drawFittedText("Select the CAN driver to use", 10, 10, bounds.getWidth() - 20, 54, Justification::centredTop, 3);
+	graphics.drawFittedText(TRANS("Select the CAN driver to use"), 10, 10, bounds.getWidth() - 20, 54, Justification::centredTop, 3);
 #elif JUCE_LINUX
-	graphics.drawFittedText("Enter the name of the CAN interface to use (like \"can0\")", 10, 10, bounds.getWidth() - 20, 54, Justification::centredTop, 3);
+	graphics.drawFittedText(TRANS("Enter the name of the CAN interface to use (like \"can0\")"), 10, 10, bounds.getWidth() - 20, 54, Justification::centredTop, 3);
 #endif
 
 	graphics.setFont(12.0f);
 
 #ifdef JUCE_WINDOWS
-	graphics.drawFittedText("Hardware Driver", hardwareInterfaceSelector.getBounds().getX(), hardwareInterfaceSelector.getBounds().getY() - 14, hardwareInterfaceSelector.getBounds().getWidth(), 12, Justification::centredLeft, 1);
+	graphics.drawFittedText(TRANS("Hardware Driver"), hardwareInterfaceSelector.getBounds().getX(), hardwareInterfaceSelector.getBounds().getY() - 14, hardwareInterfaceSelector.getBounds().getWidth(), 12, Justification::centredLeft, 1);
 
 	if (3 == hardwareInterfaceSelector.getSelectedId())
 	{
-		graphics.drawFittedText("TouCAN Serial Number", touCANSerialEditor.getBounds().getX(), touCANSerialEditor.getBounds().getY() - 14, touCANSerialEditor.getBounds().getWidth(), 12, Justification::centredLeft, 1);
+		graphics.drawFittedText(TRANS("TouCAN Serial Number"), touCANSerialEditor.getBounds().getX(), touCANSerialEditor.getBounds().getY() - 14, touCANSerialEditor.getBounds().getWidth(), 12, Justification::centredLeft, 1);
 	}
 #elif JUCE_LINUX
-	graphics.drawFittedText("Socket CAN Interface Name", socketCANNameEditor.getBounds().getX(), socketCANNameEditor.getBounds().getY() - 14, socketCANNameEditor.getBounds().getWidth(), 12, Justification::centredLeft, 1);
+	graphics.drawFittedText(TRANS("Socket CAN Interface Name"), socketCANNameEditor.getBounds().getX(), socketCANNameEditor.getBounds().getY() - 14, socketCANNameEditor.getBounds().getWidth(), 12, Justification::centredLeft, 1);
 #endif
 }
 
