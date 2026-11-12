@@ -132,7 +132,8 @@ set(AGISOVT_SOURCES
     "src/VT_NumberComponent.cpp"
     "src/TextDrawingComponent.cpp"
     "src/StringDrawingComponent.cpp"
-    "src/VersionStorage.cpp")
+    "src/VersionStorage.cpp"
+    "src/InputStringFilter.cpp")
 target_sources(AgISOVirtualTerminal PRIVATE src/Main.cpp ${AGISOVT_SOURCES})
 
 target_include_directories(AgISOVirtualTerminal

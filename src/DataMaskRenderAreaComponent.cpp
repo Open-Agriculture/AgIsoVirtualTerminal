@@ -10,6 +10,7 @@
 #include <limits>
 #include "AppImages.h"
 #include "ButtonComponent.hpp"
+#include "InputStringFilter.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "OutputListComponent.hpp"
 #include "ServerMainComponent.hpp"
@@ -773,8 +774,20 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 							}
 
-							inputStringModal.reset(new AlertWindow("Input String", "Enter a value for this input string, then press OK.", MessageBoxIconType::QuestionIcon));
-							inputStringModal->addTextEditor("Input String", hasStringVariable ? stringVariable->get_value() : clickedString->get_value());
+							std::shared_ptr<isobus::InputAttributes> inputAttributes;
+							auto attributes = clickedString->get_object_by_id(clickedString->get_input_attributes(), parentWorkingSet->get_object_tree());
+
+							if ((nullptr != attributes) && (isobus::VirtualTerminalObjectType::InputAttributes == attributes->get_object_type()))
+							{
+								inputAttributes = std::static_pointer_cast<isobus::InputAttributes>(attributes);
+							}
+
+							// Without the padding, so there is room to type. It is added back on OK.
+							const String currentValue = hasStringVariable ? stringVariable->get_value() : clickedString->get_value();
+							auto filter = new InputStringFilter(currentValue.length(), inputAttributes);
+							inputStringModal.reset(new AlertWindow("Input String", "Enter a value for this input string, then press OK.\n" + filter->get_description(), MessageBoxIconType::QuestionIcon));
+							inputStringModal->addTextEditor("Input String", currentValue.trimEnd());
+							inputStringModal->getTextEditor("Input String")->setInputFilter(filter, true);
 							inputStringModal->addButton("OK", 1);
 							inputStringModal->addButton("Cancel", 0);
 							auto resultCallback = [this, clickedString, stringVariable, workingSet = parentWorkingSet](int result) {
