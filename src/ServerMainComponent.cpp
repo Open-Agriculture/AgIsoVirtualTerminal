@@ -946,7 +946,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			Rectangle<int> area(0, 0, 400, 280);
 			RectanglePlacement placement(RectanglePlacement::centred |
 			                             RectanglePlacement::doNotResize);
-			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
+			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userBounds.toNearestInt().reduced(20));
 			configureHardwareWindow->setBounds(result);
 
 			// A modal dialog is still its own window, so it has to be raised too when the main
@@ -1123,7 +1123,7 @@ void ServerMainComponent::show_diagnostics_window()
 		Rectangle<int> area(0, 0, DiagnosticsComponent::WIDTH + 40, 400);
 		RectanglePlacement placement(RectanglePlacement::centred |
 		                             RectanglePlacement::doNotResize);
-		auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
+		auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userBounds.toNearestInt().reduced(20));
 		diagnosticsWindow->setBounds(result);
 	}
 	diagnosticsWindow->setAlwaysOnTop(alwaysOnTop);
