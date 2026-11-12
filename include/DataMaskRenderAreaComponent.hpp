@@ -35,6 +35,8 @@ public:
 
 	void close_aborted_input_dialogs();
 
+	void close_input_dialogs();
+
 	void paint(Graphics &g) override;
 
 	// Used to calculate button press events
@@ -69,9 +71,9 @@ private:
 
 	int to_pool_coordinate(float renderedCoordinate) const;
 
-	void close_input_dialogs();
 	void begin_open_input(std::uint16_t objectID);
 	bool end_open_input();
+	void process_deselection_macro(std::shared_ptr<isobus::VTObject> input, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path = {});
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
