@@ -10,6 +10,7 @@
 #ifndef SERVER_MAIN_COMPONENT_HPP
 #define SERVER_MAIN_COMPONENT_HPP
 
+#include "CollapsedButton.hpp"
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
 #include "DiagnosticsWindow.hpp"
@@ -26,6 +27,7 @@
 
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <set>
 
 class ServerMainComponent : public juce::Component
@@ -155,6 +157,15 @@ public:
 
 	void save_settings();
 
+	/// @brief Hides the VT window and shows a small button that brings it back
+	void collapse_window();
+
+	/// @brief Shows the VT window again, in front, if it was collapsed or minimised
+	void expand_window();
+
+	/// @brief Keeps the dragged collapsed button on screen and saves its position
+	void on_collapsed_button_moved();
+
 	void show_diagnostics_window();
 
 	void identify_vt() override;
@@ -220,7 +231,9 @@ private:
 		AlwaysOnTop,
 		FitMasksToWindow,
 		ScalePoolsToDataMask,
-		ShowDiagnostics
+		ShowDiagnostics,
+		CollapseWindow,
+		RestoreOnAlarm
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -282,6 +295,9 @@ private:
 	/// not inside its window yet at that point.
 	void apply_always_on_top();
 
+	/// @brief Returns where the collapsed button goes: its saved position, or the window's top right corner
+	juce::Point<int> get_collapsed_button_position() const;
+
 	bool can_show_alarm(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const;
 	void record_alarm_activation(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, std::uint16_t mask);
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> get_highest_priority_alarm_working_set() const;
@@ -334,6 +350,10 @@ private:
 	VT_NumberComponent vtNumberComponent;
 	static constexpr int RESIZE_GRIP_SIZE = 44; ///< Large enough to drag with a finger
 	std::unique_ptr<juce::ResizableCornerComponent> resizeGrip; ///< Replaces the window's 18 pixel corner resizer
+	static constexpr int COLLAPSE_BUTTON_WIDTH = 80;
+	juce::TextButton collapseButton{ "Collapse" };
+	std::unique_ptr<CollapsedButton> collapsedButton; ///< On the desktop while the window is collapsed
+	std::optional<juce::Point<int>> collapsedButtonPosition; ///< Where the operator dragged the collapsed button
 	AudioFormatManager alarmFormatManager;
 	std::unique_ptr<AudioFormatReaderSource> alarmSoundSource;
 	AudioTransportSource alarmTransport; ///< Detached with setSource(nullptr), because stop() sleeps until the audio thread has faded out
@@ -370,6 +390,7 @@ private:
 	bool saveIopBeforeParse = false;
 	bool checkForUpdatesOnStartup = true;
 	bool alwaysOnTop = false;
+	bool restoreOnAlarm = true; ///< Bring the window back when an alarm mask is shown
 	bool fitMasksToWindow = false; ///< Scale the masks to fill the window instead of drawing them at their reported size
 	bool scalePoolsToDataMask = false; ///< Scale pools drawn for another data mask size to the reported one
 	bool needToApplyAlwaysOnTop = true; ///< Set when the window still has to be told about the setting

@@ -95,6 +95,9 @@ ServerMainComponent::ServerMainComponent(
 	vtNumber = vtNumberArg;
 	menuBar.setModel(this);
 	addAndMakeVisible(menuBar);
+	collapseButton.setTooltip("Hides the VT behind a small button, which brings it back when tapped");
+	collapseButton.onClick = [this]() { collapse_window(); };
+	addAndMakeVisible(collapseButton);
 
 	// Make sure you set the size of the component after
 	// you add any child components.
@@ -533,7 +536,9 @@ void ServerMainComponent::resized()
 	// explicit size, otherwise it stays 0 x 0 and nothing is drawn even when it is made visible.
 	const int loggerTop = lMenuBarHeight + minimum_height();
 	loggerViewport.setBounds(0, loggerTop, getWidth(), juce::jmax(0, getHeight() - loggerTop));
-	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight).withTrimmedRight(CAN_STATUS_INDICATOR_WIDTH));
+	auto menuBarArea = lBounds.removeFromTop(lMenuBarHeight).withTrimmedRight(CAN_STATUS_INDICATOR_WIDTH);
+	collapseButton.setBounds(menuBarArea.removeFromRight(COLLAPSE_BUTTON_WIDTH).reduced(2));
+	menuBar.setBounds(menuBarArea);
 
 	if (nullptr != resizeGrip)
 	{
@@ -590,6 +595,8 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::CheckForUpdates));
 	allCommands.add(static_cast<int>(CommandIDs::AutoCheckForUpdates));
 	allCommands.add(static_cast<int>(CommandIDs::AlwaysOnTop));
+	allCommands.add(static_cast<int>(CommandIDs::CollapseWindow));
+	allCommands.add(static_cast<int>(CommandIDs::RestoreOnAlarm));
 	allCommands.add(static_cast<int>(CommandIDs::FitMasksToWindow));
 	allCommands.add(static_cast<int>(CommandIDs::ScalePoolsToDataMask));
 #ifdef JUCE_WINDOWS
@@ -696,6 +703,18 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		case CommandIDs::AlwaysOnTop:
 		{
 			result.setInfo("Always on top", "Keeps the VT window in front of other windows", "Control", alwaysOnTop ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::CollapseWindow:
+		{
+			result.setInfo("Collapse", "Hides the VT behind a small button, which brings it back when tapped", "Control", 0);
+		}
+		break;
+
+		case CommandIDs::RestoreOnAlarm:
+		{
+			result.setInfo("Restore on alarm", "Brings the VT window back to the front when an alarm mask is shown", "Control", restoreOnAlarm ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -1022,6 +1041,22 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::CollapseWindow):
+		{
+			collapse_window();
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::RestoreOnAlarm):
+		{
+			restoreOnAlarm = !restoreOnAlarm;
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
 		case static_cast<int>(CommandIDs::FitMasksToWindow):
 		{
 			fitMasksToWindow = !fitMasksToWindow;
@@ -1065,6 +1100,8 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::StartStop));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoStart));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AlwaysOnTop));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::CollapseWindow));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::RestoreOnAlarm));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::FitMasksToWindow));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ScalePoolsToDataMask));
 		}
@@ -1193,6 +1230,79 @@ void ServerMainComponent::apply_always_on_top()
 		topLevelComponent->setAlwaysOnTop(alwaysOnTop);
 		needToApplyAlwaysOnTop = false;
 	}
+}
+
+void ServerMainComponent::collapse_window()
+{
+	auto *topLevelComponent = getTopLevelComponent();
+
+	if ((nullptr != topLevelComponent) && (topLevelComponent != this))
+	{
+		if (nullptr == collapsedButton)
+		{
+			collapsedButton = std::make_unique<CollapsedButton>(*this);
+			collapsedButton->setAlwaysOnTop(true); // Even without Always on top, so it is never lost behind other programs
+		}
+		collapsedButton->setTopLeftPosition(get_collapsed_button_position());
+
+		if (!collapsedButton->isOnDesktop())
+		{
+			collapsedButton->addToDesktop(juce::ComponentPeer::windowIsTemporary); // No task bar entry
+		}
+		collapsedButton->setVisible(true);
+		topLevelComponent->setVisible(false);
+	}
+}
+
+void ServerMainComponent::expand_window()
+{
+	if (nullptr != collapsedButton)
+	{
+		collapsedButton->setVisible(false);
+	}
+
+	auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+
+	if (nullptr != window)
+	{
+		window->setVisible(true);
+		if (window->isMinimised())
+		{
+			window->setMinimised(false);
+		}
+		window->toFront(true);
+	}
+}
+
+void ServerMainComponent::on_collapsed_button_moved()
+{
+	collapsedButtonPosition = collapsedButton->getPosition();
+	collapsedButtonPosition = get_collapsed_button_position(); // Back on screen if dragged off it
+	collapsedButton->setTopLeftPosition(*collapsedButtonPosition);
+	save_settings();
+}
+
+juce::Point<int> ServerMainComponent::get_collapsed_button_position() const
+{
+	auto bounds = juce::Rectangle<int>(CollapsedButton::SIZE, CollapsedButton::SIZE);
+
+	if (collapsedButtonPosition.has_value())
+	{
+		bounds.setPosition(*collapsedButtonPosition);
+	}
+	else
+	{
+		bounds.setPosition(getTopLevelComponent()->getScreenBounds().getTopRight() - juce::Point<int>(CollapsedButton::SIZE, 0));
+	}
+
+	// Kept on a screen that exists, for when the saved one is no longer connected
+	const auto *display = juce::Desktop::getInstance().getDisplays().getDisplayForPoint(bounds.getCentre());
+
+	if (nullptr != display)
+	{
+		bounds = bounds.constrainedWithin(display->userArea);
+	}
+	return bounds.getPosition();
 }
 
 static bool is_alarm_mask(const std::shared_ptr<isobus::VTObject> &mask)
@@ -1684,6 +1794,11 @@ void ServerMainComponent::update_alarm_sound()
 	if (displayedAlarmMask != soundedAlarmMask)
 	{
 		soundedAlarmMask = displayedAlarmMask;
+
+		if (restoreOnAlarm && (nullptr != soundedAlarmMask))
+		{
+			expand_window();
+		}
 		alarmTransport.setSource(nullptr);
 		alarmSoundSource.reset();
 
@@ -2268,6 +2383,16 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			{
 				scalePoolsToDataMask = static_cast<bool>(static_cast<int>(child.getProperty("ScalePoolsToDataMask")));
 			}
+
+			if (!child.getProperty("RestoreOnAlarm").isVoid())
+			{
+				restoreOnAlarm = static_cast<bool>(static_cast<int>(child.getProperty("RestoreOnAlarm")));
+			}
+
+			if ((!child.getProperty("CollapsedButtonX").isVoid()) && (!child.getProperty("CollapsedButtonY").isVoid()))
+			{
+				collapsedButtonPosition = juce::Point<int>(static_cast<int>(child.getProperty("CollapsedButtonX")), static_cast<int>(child.getProperty("CollapsedButtonY")));
+			}
 		}
 		index++;
 		child = settings->getChild(index);
@@ -2480,6 +2605,13 @@ void ServerMainComponent::save_settings()
 		loggingSettings.setProperty("LogCANTraffic", static_cast<int>(ASCIILogFile::is_logging_enabled()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlwaysOnTop", alwaysOnTop, nullptr);
+		controlSettings.setProperty("RestoreOnAlarm", restoreOnAlarm, nullptr);
+
+		if (collapsedButtonPosition.has_value())
+		{
+			controlSettings.setProperty("CollapsedButtonX", collapsedButtonPosition->x, nullptr);
+			controlSettings.setProperty("CollapsedButtonY", collapsedButtonPosition->y, nullptr);
+		}
 		controlSettings.setProperty("FitMasksToWindow", fitMasksToWindow, nullptr);
 		controlSettings.setProperty("ScalePoolsToDataMask", scalePoolsToDataMask, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
