@@ -12,7 +12,11 @@
 #include "isobus/isobus/isobus_virtual_terminal_objects.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server_managed_working_set.hpp"
 
+#include "SoftKeyPageBar.hpp"
+
 #include "JuceHeader.h"
+
+#include <vector>
 
 class ServerMainComponent;
 
@@ -27,20 +31,40 @@ public:
 
 	void paint(Graphics &g) override;
 
+	/// @brief Paints the area behind the soft key mask
+	/// @param g The graphics context
+	/// @param bounds The area to paint
+	/// @param background The background colour
+	/// @param hasWorkingSet Whether a working set is shown
+	static void paint_area(Graphics &g, juce::Rectangle<int> bounds, Colour background, bool hasWorkingSet);
+
+	void paintOverChildren(Graphics &g) override;
+
 	// Used to calculate button press events
 	void mouseDown(const MouseEvent &event) override;
+
+	void mouseDrag(const MouseEvent &event) override;
 
 	// Used to calculate button release events
 	void mouseUp(const MouseEvent &event) override;
 
 private:
-	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
+	static constexpr int PRESSED_RING_WIDTH = 3;
+
+	void change_page(int delta);
+	void update_page_bar(int pageCount);
+	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path = {});
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
 
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
 	ServerMainComponent &ownerServer;
+	SoftKeyPageBar pageBar;
+	juce::Rectangle<int> pressedKeyBounds;
+	std::uint16_t currentPage = 0;
+	std::uint16_t previousActiveMaskID = isobus::NULL_OBJECT_ID;
+	std::uint16_t previousSoftKeyMaskID = isobus::NULL_OBJECT_ID;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoftKeyMaskRenderAreaComponent)
 };

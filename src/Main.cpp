@@ -7,7 +7,6 @@
 
 #include "Main.hpp"
 #include "Settings.hpp"
-#include "git.h"
 
 AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
                                                         const std::string &canLogPath,
@@ -77,13 +76,16 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 	serverNAME.set_industry_group(2);
 	serverNAME.set_manufacturer_code(1407);
 	serverInternalControlFunction = isobus::CANNetworkManager::CANNetwork.create_internal_control_function(serverNAME, 0, 0x26);
+	// JUCE 9 turned this off by default, which makes Windows treat a held touch as a right click
+	setUsingWindowsMultiTouch(true);
 	setUsingNativeTitleBar(true);
 	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, settings.settingsValueTree(), canLogPath, vtNumber, screenCaptureDir), true);
 
 #if JUCE_IOS || JUCE_ANDROID
 	setFullScreen(true);
 #else
-	setResizable(true, true);
+	// ServerMainComponent adds a larger corner grip for touch screens
+	setResizable(true, false);
 	centreWithSize(getWidth(), getHeight());
 #endif
 
@@ -101,32 +103,7 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 
 void AgISOVirtualTerminalApplication::MainWindow::closeButtonPressed()
 {
-	// This is called when the user tries to close this window. Here, we'll just
-	// ask the app to quit when this happens, but you can change this to do
-	// whatever you need.
-	isobus::CANHardwareInterface::stop();
 	JUCEApplication::getInstance()->systemRequestedQuit();
-}
-
-std::string AgISOVirtualTerminalApplication::getApplicationBuildInfo()
-{
-	std::string gitDescribe = std::string(git::Describe());
-	if (gitDescribe.length() > 0)
-	{
-		return gitDescribe + (git::AnyUncommittedChanges() ? "-dirty" : "");
-	}
-	return ProjectInfo::versionString;
-}
-
-std::string AgISOVirtualTerminalApplication::getApplicationNameWithBuildInfo()
-{
-	std::string name = ProjectInfo::projectName;
-	auto buildInfo = getApplicationBuildInfo();
-	if (buildInfo.length() > 0)
-	{
-		name.append(" - " + buildInfo);
-	}
-	return name;
 }
 
 START_JUCE_APPLICATION(AgISOVirtualTerminalApplication)

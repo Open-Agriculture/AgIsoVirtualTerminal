@@ -8,7 +8,6 @@
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 #include "WorkingSetLoadingIndicatorComponent.hpp"
-#include "isobus/utility/system_timing.hpp"
 
 WorkingSetSelectorComponent::AckButton::AckButton() :
   juce::TextButton("ACK")
@@ -42,7 +41,9 @@ WorkingSetSelectorComponent::WorkingSetSelectorComponent(ServerMainComponent &se
   parentServer(server)
 {
 	setOpaque(false);
-	setBounds(0, 0, WIDTH, server.minimum_height());
+
+	// The server is not fully constructed yet, so it sets the real bounds when it lays itself out
+	setSize(WIDTH, 0);
 	ackButton.onStateChange = [this]() {
 		const auto isPressed = ackButton.isDown();
 		if (ackButtonPressed != isPressed)
@@ -63,11 +64,8 @@ void WorkingSetSelectorComponent::update_drawn_working_sets(std::vector<std::sha
 	{
 		children.push_back({ managedWorkingSetList.at(i) });
 
-		if ((
-		      (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) ||
-		      managedWorkingSetList.at(i)->is_object_pool_transfer_in_progress()) &&
-		    (!isobus::SystemTiming::time_expired_ms(managedWorkingSetList.at(i)->get_working_set_maintenance_message_timestamp_ms(), 3000)) &&
-		    (!managedWorkingSetList.at(i)->is_deletion_requested()))
+		if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == managedWorkingSetList.at(i)->get_object_pool_processing_state()) ||
+		    managedWorkingSetList.at(i)->is_object_pool_transfer_in_progress())
 		{
 			children.back().childComponents.push_back(getWorkingSetChildComponent(managedWorkingSetList.at(i), i));
 		}
@@ -86,15 +84,19 @@ void WorkingSetSelectorComponent::paint(Graphics &g)
 	// background colour instead of leaving the app's default panel colour showing through
 	for (std::size_t i = 0; i < children.size(); i++)
 	{
-		const auto &workingSet = children.at(i).workingSet;
-		auto workingSetObject = workingSet->get_working_set_object();
+		paint_button_background(g, button_bounds(static_cast<int>(i)), children.at(i).workingSet);
+	}
+}
 
-		if (nullptr != workingSetObject)
-		{
-			auto vtColour = workingSet->get_colour(workingSetObject->get_background_color());
-			g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
-			g.fillRect(button_bounds(static_cast<int>(i)));
-		}
+void WorkingSetSelectorComponent::paint_button_background(Graphics &g, juce::Rectangle<int> bounds, const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet)
+{
+	auto workingSetObject = workingSet->get_working_set_object();
+
+	if (nullptr != workingSetObject)
+	{
+		auto vtColour = workingSet->get_colour(workingSetObject->get_background_color());
+		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
+		g.fillRect(bounds);
 	}
 }
 
@@ -110,22 +112,20 @@ void WorkingSetSelectorComponent::paintOverChildren(Graphics &g)
 	}
 	const auto activeName = activeWorkingSet->get_control_function()->get_NAME().get_full_name();
 
-	g.setColour(juce::Colours::yellow.withAlpha(0.4f));
-
 	for (std::size_t i = 0; i < children.size(); i++)
 	{
 		auto controlFunction = children.at(i).workingSet->get_control_function();
 
 		if ((nullptr != controlFunction) && (activeName == controlFunction->get_NAME().get_full_name()))
 		{
-			g.drawRoundedRectangle(button_bounds(static_cast<int>(i)).toFloat().expanded(2.0f), 4.0f, 4.0f);
+			WorkingSetComponent::paint_active_highlight(g, button_bounds(static_cast<int>(i)));
 		}
 	}
 }
 
 void WorkingSetSelectorComponent::resized()
 {
-	setBounds(0, 0, WIDTH, parentServer.minimum_height());
+	// The owner positions this column; setting bounds here used to move it over the menu bar
 	update_ack_button_bounds();
 }
 
@@ -134,8 +134,12 @@ void WorkingSetSelectorComponent::redraw()
 	int workingSetIndex = 0;
 	for (auto &workingSet : children)
 	{
-		workingSet.childComponents.clear();
-		workingSet.childComponents.push_back(getWorkingSetChildComponent(workingSet.workingSet, workingSetIndex));
+		// A working set without a pool, such as after Delete Object Pool, keeps an empty slot
+		if (!workingSet.childComponents.empty())
+		{
+			workingSet.childComponents.clear();
+			workingSet.childComponents.push_back(getWorkingSetChildComponent(workingSet.workingSet, workingSetIndex));
+		}
 		workingSetIndex++;
 	}
 	repaint();
@@ -192,14 +196,17 @@ std::shared_ptr<Component> WorkingSetSelectorComponent::getWorkingSetChildCompon
 	{
 		workingSetComponent = std::make_shared<WorkingSetLoadingIndicatorComponent>(workingSet, BUTTON_HEIGHT, BUTTON_WIDTH);
 	}
-	const auto bounds = button_bounds(workingSetIndex);
-
-	workingSetComponent->setTopLeftPosition(bounds.getPosition());
-	// Unlike a soft key, a working set designator is the only thing in its button, so artwork
-	// smaller than the button is enlarged to fill it.
-	fit_designator_to_button(*workingSetComponent, bounds, juce::RectanglePlacement::centred);
+	place_designator(*workingSetComponent, button_bounds(workingSetIndex));
 	addAndMakeVisible(*workingSetComponent);
 	return workingSetComponent;
+}
+
+void WorkingSetSelectorComponent::place_designator(Component &designator, juce::Rectangle<int> bounds)
+{
+	designator.setTopLeftPosition(bounds.getPosition());
+	// Unlike a soft key, a working set designator is the only thing in its button, so artwork
+	// smaller than the button is enlarged to fill it.
+	fit_designator_to_button(designator, bounds, juce::RectanglePlacement::centred);
 }
 
 void WorkingSetSelectorComponent::update_ack_button_bounds()

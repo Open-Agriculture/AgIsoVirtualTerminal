@@ -73,9 +73,12 @@ public:
 
 	void shutdown() override
 	{
-		// Add your application's shutdown code here..
-
-		mainWindow = nullptr; // (deletes our window)
+		// The CAN thread calls into the window, and not every quit goes through closeButtonPressed
+		if (isobus::CANHardwareInterface::is_running())
+		{
+			isobus::CANHardwareInterface::stop();
+		}
+		mainWindow = nullptr;
 	}
 
 	//==============================================================================

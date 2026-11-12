@@ -6,6 +6,8 @@
 
 #include "ConfigureHardwareWindow.hpp"
 
+#include "ServerMainComponent.hpp"
+
 ConfigureHardwareWindow::ConfigureHardwareWindow(ServerMainComponent &parentComponent, std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers) :
   DocumentWindow("Configure Hardware", juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId), DocumentWindow::closeButton),
   parentServer(parentComponent),
@@ -21,4 +23,6 @@ void ConfigureHardwareWindow::closeButtonPressed()
 {
 	exitModalState(0);
 	setVisible(false);
+	// This window is hidden rather than destroyed, so its text caret would otherwise outlive it
+	parentServer.release_text_input_focus();
 }

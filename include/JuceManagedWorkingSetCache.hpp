@@ -13,6 +13,8 @@
 #include "JuceHeader.h"
 #include "SoftKeyMaskComponent.hpp"
 
+#include <vector>
+
 class JuceManagedWorkingSetCache
 {
 public:
@@ -23,18 +25,8 @@ public:
 	static const SoftKeyMaskDimensions &get_softkey_mask_dimension_info();
 
 private:
-	class ComponentCacheClass
-	{
-	public:
-		ComponentCacheClass(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> associatedWorkingSet) :
-		  workingSet(associatedWorkingSet){};
-
-		std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet;
-		//std::map<std::uint16_t, std::shared_ptr<Component>> componentLookup;
-	};
-	static std::vector<ComponentCacheClass> workingSetComponentCache;
-
 	static SoftKeyMaskDimensions softKeyDimensionInfo;
+	static std::vector<std::uint16_t> objectsBeingCreated; ///< The objects create_component() is partway through building, outermost first
 	static int dataAndAlarmMaskSize;
 };
 

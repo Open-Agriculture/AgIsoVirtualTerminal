@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   "AgISOVirtualTerminal"
   LANGUAGES CXX C
-  VERSION 1.6.0)
+  VERSION 1.7.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
@@ -15,6 +15,10 @@ if(MSVC)
   # program fails to start with no useful message. This has to be set before any
   # target is created for it to take effect on all of them.
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+  # Visual Studio builds compile one file at a time in each project without
+  # this. Set before the dependencies are added, so they get it too.
+  add_compile_options(/MP)
 endif()
 
 set(JUCE_WEB_BROWSER OFF)
@@ -66,57 +70,70 @@ juce_add_gui_app(
 
 set_target_properties(AgISOVirtualTerminal PROPERTIES CXX_STANDARD 17)
 
+# MSVC's permissive mode misreads JUCE 9's "std::unique_lock lock (mutex);" as a
+# function declaration
+if(MSVC)
+  target_compile_options(AgISOVirtualTerminal PRIVATE /permissive-)
+endif()
+
 target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
                                                         JUCE_WEB_BROWSER=0)
 
 juce_generate_juce_header(AgISOVirtualTerminal)
 
-target_sources(
-  AgISOVirtualTerminal
-  PRIVATE src/Main.cpp
-          "src/ServerMainComponent.cpp"
-          "src/DataMaskComponent.cpp"
-          "src/WorkingSetSelectorComponent.cpp"
-          "src/WorkingSetLoadingIndicatorComponent.cpp"
-          "src/PictureGraphicComponent.cpp"
-          "src/WorkingSetComponent.cpp"
-          "src/AlarmMaskComponent.cpp"
-          "src/DataMaskRenderAreaComponent.cpp"
-          "src/JuceManagedWorkingSetCache.cpp"
-          "src/OutputRectangleComponent.cpp"
-          "src/OutputStringComponent.cpp"
-          "src/ButtonComponent.cpp"
-          "src/ContainerComponent.cpp"
-          "src/ObjectPointerComponent.cpp"
-          "src/OutputNumberComponent.cpp"
-          "src/SoftkeyMaskRenderArea.cpp"
-          "src/KeyComponent.cpp"
-          "src/DesignatorFit.cpp"
-          "src/SoftKeyMaskComponent.cpp"
-          "src/OutputMeterComponent.cpp"
-          "src/InputBooleanComponent.cpp"
-          "src/LoggerComponent.cpp"
-          "src/InputNumberComponent.cpp"
-          "src/OutputEllipseComponent.cpp"
-          "src/OutputLineComponent.cpp"
-          "src/OutputLinearBarGraphComponent.cpp"
-          "src/OutputPolygonComponent.cpp"
-          "src/InputStringComponent.cpp"
-          "src/NumberComponent.cpp"
-          "src/AlarmMaskAudio.cpp"
-          "src/AppImages.cpp"
-          "src/ASCIILogFile.cpp"
-          "src/ConfigureHardwareWindow.cpp"
-          "src/ConfigureHardwareComponent.cpp"
-          "src/StringEncodingConversions.cpp"
-          "src/InputListComponent.cpp"
-          "src/AckSettingsWindow.cpp"
-          "src/Settings.cpp"
-          "src/UpdateChecker.cpp"
-          "src/IndentedToggleButton.cpp"
-          "src/VT_NumberComponent.cpp"
-          "src/TextDrawingComponent.cpp"
-          "src/StringDrawingComponent.cpp")
+set(AGISOVT_SOURCES
+    "src/ApplicationBuildInfo.cpp"
+    "src/ServerMainComponent.cpp"
+    "src/DataMaskComponent.cpp"
+    "src/WorkingSetSelectorComponent.cpp"
+    "src/WorkingSetLoadingIndicatorComponent.cpp"
+    "src/PictureGraphicComponent.cpp"
+    "src/WorkingSetComponent.cpp"
+    "src/AlarmMaskComponent.cpp"
+    "src/DataMaskRenderAreaComponent.cpp"
+    "src/JuceManagedWorkingSetCache.cpp"
+    "src/OutputRectangleComponent.cpp"
+    "src/OutputStringComponent.cpp"
+    "src/ButtonComponent.cpp"
+    "src/ContainerComponent.cpp"
+    "src/ObjectPointerComponent.cpp"
+    "src/OutputNumberComponent.cpp"
+    "src/SoftkeyMaskRenderArea.cpp"
+    "src/SoftKeyPageBar.cpp"
+    "src/KeyComponent.cpp"
+    "src/DesignatorFit.cpp"
+    "src/SoftKeyMaskComponent.cpp"
+    "src/OutputMeterComponent.cpp"
+    "src/InputBooleanComponent.cpp"
+    "src/LoggerComponent.cpp"
+    "src/DiagnosticsComponent.cpp"
+    "src/DiagnosticsWindow.cpp"
+    "src/InputNumberComponent.cpp"
+    "src/OutputEllipseComponent.cpp"
+    "src/OutputLineComponent.cpp"
+    "src/OutputLinearBarGraphComponent.cpp"
+    "src/OutputArchedBarGraphComponent.cpp"
+    "src/OutputPolygonComponent.cpp"
+    "src/InputStringComponent.cpp"
+    "src/NumberComponent.cpp"
+    "src/AlarmMaskAudio.cpp"
+    "src/NumericKeypadComponent.cpp"
+    "src/AppImages.cpp"
+    "src/ASCIILogFile.cpp"
+    "src/ConfigureHardwareWindow.cpp"
+    "src/ConfigureHardwareComponent.cpp"
+    "src/StringEncodingConversions.cpp"
+    "src/InputListComponent.cpp"
+    "src/OutputListComponent.cpp"
+    "src/AckSettingsWindow.cpp"
+    "src/Settings.cpp"
+    "src/UpdateChecker.cpp"
+    "src/IndentedToggleButton.cpp"
+    "src/VT_NumberComponent.cpp"
+    "src/TextDrawingComponent.cpp"
+    "src/StringDrawingComponent.cpp"
+    "src/VersionStorage.cpp")
+target_sources(AgISOVirtualTerminal PRIVATE src/Main.cpp ${AGISOVT_SOURCES})
 
 target_include_directories(AgISOVirtualTerminal
                            PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -127,6 +144,33 @@ target_link_libraries(
           isobus::Isobus isobus::HardwareIntegration isobus::Utility
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags
          cmake_git_version_tracking)
+
+option(AGISOVT_BUILD_POOL_RENDERER
+       "Build vt-render, which renders object pools to PNG files and a manifest"
+       OFF)
+if(AGISOVT_BUILD_POOL_RENDERER)
+  juce_add_console_app(VtRender PRODUCT_NAME "vt-render")
+  set_target_properties(VtRender PROPERTIES CXX_STANDARD 17)
+  set_target_properties(VtRender PROPERTIES OUTPUT_NAME vt-render)
+  target_compile_definitions(
+    VtRender PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_USE_XRANDR=0
+                     JUCE_USE_XINERAMA=0)
+  juce_generate_juce_header(VtRender)
+  target_sources(VtRender PRIVATE tools/vt-render/vt_render.cpp
+                                  ${AGISOVT_SOURCES})
+  target_include_directories(VtRender PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
+  target_link_libraries(
+    VtRender
+    PRIVATE juce::juce_audio_basics
+            juce::juce_audio_utils
+            juce::juce_gui_extra
+            juce::juce_cryptography
+            isobus::Isobus
+            isobus::HardwareIntegration
+            isobus::Utility
+            cmake_git_version_tracking
+    PUBLIC juce::juce_recommended_config_flags)
+endif()
 
 if(WIN32)
   add_custom_command(
@@ -226,10 +270,10 @@ set(CPACK_PACKAGE_EXECUTABLES "AgISOVirtualTerminal" "AgISOVirtualTerminal")
 set(CPACK_ALL_INSTALL_TYPES Full)
 set(CPACK_COMPONENT_LIBRARIES_INSTALL_TYPES Full)
 set(CPACK_COMPONENT_APPLICATIONS_INSTALL_TYPES Full)
-set(CPACK_NSIS_INSTALLED_ICON_NAME ${CMAKE_CURRENT_LIST_DIR}/doc/smallLogo.ico)
+set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\AgISOVirtualTerminal.exe")
 set(CPACK_NSIS_CONTACT ${CPACK_PACKAGE_CONTACT})
-set(CPACK_NSIS_MUI_ICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
-set(CPACK_NSIS_MUI_UNICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
+set(CPACK_NSIS_MUI_ICON ${CMAKE_CURRENT_LIST_DIR}/doc/smallLogo.ico)
+set(CPACK_NSIS_MUI_UNICON ${CPACK_NSIS_MUI_ICON})
 set(CPACK_NSIS_DISPLAY_NAME "AgISOVirtualTerminal")
 set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT applications)
@@ -242,7 +286,7 @@ if(APPLE)
   set(CPACK_DMG_VOLUME_NAME "${PROJECT_NAME}")
   set(CPACK_SYSTEM_NAME "OSX")
   set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}")
-  set(CPACK_PACKAGE_ICON ${CPACK_NSIS_INSTALLED_ICON_NAME})
+  set(CPACK_PACKAGE_ICON ${CPACK_NSIS_MUI_ICON})
 endif()
 
 # Must be after the last CPACK macros
