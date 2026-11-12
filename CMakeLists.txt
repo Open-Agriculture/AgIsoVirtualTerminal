@@ -15,6 +15,10 @@ if(MSVC)
   # program fails to start with no useful message. This has to be set before any
   # target is created for it to take effect on all of them.
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+  # Visual Studio builds compile one file at a time in each project without
+  # this. Set before the dependencies are added, so they get it too.
+  add_compile_options(/MP)
 endif()
 
 set(JUCE_WEB_BROWSER OFF)

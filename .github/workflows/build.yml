@@ -30,15 +30,31 @@ jobs:
       - name: Compile
         run: |
           mkdir build
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DAGISOVT_BUILD_POOL_RENDERER=ON -Wno-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
           cmake --build build --config Release --target package
-          cmake --build build --config Release --target VtRender
       - name: 'Upload Windows Installer'
         uses: actions/upload-artifact@v7
         with:
           name: 'Windows Installer'
           path: build/_CPack_Packages/win64/NSIS/*.exe
           if-no-files-found: error
+  # A job of its own, as vt-render compiles the VT's sources and JUCE again
+  windows_vt_render:
+    name: Windows vt-render Build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-tags: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Compile
+        run: |
+          mkdir build
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DAGISOVT_BUILD_POOL_RENDERER=ON -Wno-dev
+          cmake --build build --config Release --target VtRender
       - name: Render the seeder example pool
         shell: bash
         run: build/VtRender_artefacts/Release/vt-render.exe --pool build/_deps/can_stack-src/examples/seeder_example/BasePool.iop --out seeder-render
@@ -67,8 +83,17 @@ jobs:
       - name: Compile
         run: |
           mkdir build
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 "-DCMAKE_OSX_ARCHITECTURES=${{ github.event_name == 'release' && 'arm64;x86_64' || 'arm64' }}" -Wno-dev
           cmake --build build --config Release --target package
+      - name: Check Binary
+        shell: bash
+        run: |
+          bin=$(find build/AgISOVirtualTerminal_artefacts -path '*.app/Contents/MacOS/AgISOVirtualTerminal' -type f)
+          test -f "$bin"
+          if [ "${{ github.event_name }}" = release ]; then
+            lipo "$bin" -verify_arch arm64 x86_64
+          fi
+          vtool -show-build "$bin" | tee /dev/stderr | awk '$1 == "minos" { n++; if ($2 != "11.0") bad = 1 } END { exit (n == 0 || bad) }'
       - name: 'Upload OSX Installer'
         uses: actions/upload-artifact@v7
         with:

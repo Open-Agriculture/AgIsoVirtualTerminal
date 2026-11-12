@@ -948,7 +948,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			Rectangle<int> area(0, 0, 400, 280);
 			RectanglePlacement placement(RectanglePlacement::centred |
 			                             RectanglePlacement::doNotResize);
-			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
+			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userBounds.toNearestInt().reduced(20));
 			configureHardwareWindow->setBounds(result);
 
 			// A modal dialog is still its own window, so it has to be raised too when the main
@@ -1125,7 +1125,7 @@ void ServerMainComponent::show_diagnostics_window()
 		Rectangle<int> area(0, 0, DiagnosticsComponent::WIDTH + 40, 400);
 		RectanglePlacement placement(RectanglePlacement::centred |
 		                             RectanglePlacement::doNotResize);
-		auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
+		auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userBounds.toNearestInt().reduced(20));
 		diagnosticsWindow->setBounds(result);
 	}
 	diagnosticsWindow->setAlwaysOnTop(alwaysOnTop);
@@ -1743,12 +1743,33 @@ void ServerMainComponent::update_alarm_sound()
 
 void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t, std::uint16_t newMask)
 {
-	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined != affectedWorkingSet->get_object_pool_processing_state())
+	if (juce::MessageManager::existsAndIsCurrentThread())
+	{
+		// A macro's mask change must be finished before the rest of the macro runs
+		change_active_mask(affectedWorkingSet, newMask);
+	}
+	else
+	{
+		// The CAN thread holds stack locks here, and the message thread may be waiting on them or joining this thread
+		juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this), affectedWorkingSet, newMask]() {
+			if (nullptr != safeThis)
+			{
+				safeThis->change_active_mask(affectedWorkingSet, newMask);
+			}
+		});
+	}
+}
+
+void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t newMask)
+{
+	// A deferred call can arrive after the working set shut down or deleted its pool
+	if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined != affectedWorkingSet->get_object_pool_processing_state()) ||
+	    (nullptr == affectedWorkingSet->get_working_set_object()) ||
+	    (managedWorkingSetList.end() == std::find(managedWorkingSetList.begin(), managedWorkingSetList.end(), affectedWorkingSet)))
 	{
 		return;
 	}
 
-	const MessageManagerLock mmLock;
 	auto newActiveMask = affectedWorkingSet->get_object_by_id(newMask);
 	record_alarm_activation(affectedWorkingSet, newMask);
 
@@ -2479,7 +2500,8 @@ void ServerMainComponent::save_settings()
 			hardwareSettings.setProperty("CANDriver", static_cast<int>(hardwareDriverIndex), nullptr);
 		}
 		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
-		loggingSettings.setProperty("Shown", static_cast<int>(logger.isVisible()), nullptr);
+		// The viewport, because setViewedComponent() makes the logger itself visible
+		loggingSettings.setProperty("Shown", static_cast<int>(loggerViewport.isVisible()), nullptr);
 		loggingSettings.setProperty("SaveIopBeforeParse", static_cast<int>(saveIopBeforeParse), nullptr);
 		loggingSettings.setProperty("LogCANTraffic", static_cast<int>(ASCIILogFile::is_logging_enabled()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);

@@ -56,7 +56,7 @@ We are always adding new features.
 
 ## Download
 
-If you don't want to compile the software yourself or contribute code to this project, the [releases page](https://github.com/Open-Agriculture/AgIsoVirtualTerminal/releases) has Windows installers, macOS .dmg files, and Ubuntu .deb packages which you can use to easily run this software. Pick the .deb built for your Ubuntu version.
+If you don't want to compile the software yourself or contribute code to this project, the [releases page](https://github.com/Open-Agriculture/AgIsoVirtualTerminal/releases) has Windows installers, macOS .dmg files, and Ubuntu .deb packages which you can use to easily run this software. Pick the .deb built for your Ubuntu version. The macOS .dmg needs macOS 11 (Big Sur) or newer, on Apple Silicon or Intel.
 
 The application checks GitHub for newer releases on launch, so you'll know when there is a new one.
 
