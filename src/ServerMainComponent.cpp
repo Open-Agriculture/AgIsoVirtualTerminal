@@ -1738,12 +1738,33 @@ void ServerMainComponent::update_alarm_sound()
 
 void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t, std::uint16_t newMask)
 {
-	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined != affectedWorkingSet->get_object_pool_processing_state())
+	if (juce::MessageManager::existsAndIsCurrentThread())
+	{
+		// A macro's mask change must be finished before the rest of the macro runs
+		change_active_mask(affectedWorkingSet, newMask);
+	}
+	else
+	{
+		// The CAN thread holds stack locks here, and the message thread may be waiting on them or joining this thread
+		juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this), affectedWorkingSet, newMask]() {
+			if (nullptr != safeThis)
+			{
+				safeThis->change_active_mask(affectedWorkingSet, newMask);
+			}
+		});
+	}
+}
+
+void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t newMask)
+{
+	// A deferred call can arrive after the working set shut down or deleted its pool
+	if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined != affectedWorkingSet->get_object_pool_processing_state()) ||
+	    (nullptr == affectedWorkingSet->get_working_set_object()) ||
+	    (managedWorkingSetList.end() == std::find(managedWorkingSetList.begin(), managedWorkingSetList.end(), affectedWorkingSet)))
 	{
 		return;
 	}
 
-	const MessageManagerLock mmLock;
 	auto newActiveMask = affectedWorkingSet->get_object_by_id(newMask);
 	record_alarm_activation(affectedWorkingSet, newMask);
 
