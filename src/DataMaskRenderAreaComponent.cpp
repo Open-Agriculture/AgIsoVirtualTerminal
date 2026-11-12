@@ -11,6 +11,7 @@
 #include "AppImages.h"
 #include "ButtonComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "NumberComponent.hpp"
 #include "OutputListComponent.hpp"
 #include "ServerMainComponent.hpp"
 #include "isobus/isobus/can_stack_logger.hpp"
@@ -605,9 +606,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 							// A keypad rather than a slider, because an exact value cannot be hit by
 							// dragging a finger, especially over the ranges an input number can have
-							inputNumberKeypad.reset(new NumericKeypadComponent((static_cast<double>(currentRawValue) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
-							                                                   (static_cast<double>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
-							                                                   (static_cast<double>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
+							const double scale = NumberComponent::get_decimal_scale(clickedNumber->get_scale());
+							inputNumberKeypad.reset(new NumericKeypadComponent((static_cast<double>(currentRawValue) + clickedNumber->get_offset()) * scale,
+							                                                   (static_cast<double>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * scale,
+							                                                   (static_cast<double>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * scale,
 							                                                   clickedNumber->get_number_of_decimals(),
 							                                                   (isobus::LanguageCommandInterface::DecimalSymbols::Comma == ownerServer.get_language_command_interface().get_commanded_decimal_symbol()) ? ',' : '.'));
 
