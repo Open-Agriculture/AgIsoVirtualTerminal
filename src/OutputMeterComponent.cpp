@@ -26,6 +26,7 @@ void OutputMeterComponent::paint(Graphics &g)
 {
 	const float centre = static_cast<float>(get_width()) / 2.0f;
 	const float radius = centre - 0.5f;
+	const float tickLength = std::max(1.0f, get_width() / 10.0f);
 	const bool clockwise = get_option(Options::DeflectionDirection);
 	const float startAngle = get_start_angle() * 2.0f;
 
@@ -59,8 +60,6 @@ void OutputMeterComponent::paint(Graphics &g)
 
 	if ((get_option(Options::DrawTicks)) && (get_number_of_ticks() > 0))
 	{
-		const float tickLength = std::max(1.0f, get_width() / 10.0f);
-
 		for (std::uint8_t i = 0; i < get_number_of_ticks(); i++)
 		{
 			const float position = (1 == get_number_of_ticks()) ? 0.5f : static_cast<float>(i) / static_cast<float>(get_number_of_ticks() - 1);
@@ -88,5 +87,6 @@ void OutputMeterComponent::paint(Graphics &g)
 
 	auto vtColour = parentWorkingSet->get_colour(get_needle_colour());
 	g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
-	g.drawLine(Line<float>({ centre, centre }, point_on_circle(centre, radius, minAngle + signedSweep * position)), 3.0f);
+	// Stops where the ticks start, so it never covers the arc
+	g.drawLine(Line<float>({ centre, centre }, point_on_circle(centre, radius - tickLength, minAngle + signedSweep * position)), 3.0f);
 }
