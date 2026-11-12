@@ -30,15 +30,31 @@ jobs:
       - name: Compile
         run: |
           mkdir build
-          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DAGISOVT_BUILD_POOL_RENDERER=ON -Wno-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
           cmake --build build --config Release --target package
-          cmake --build build --config Release --target VtRender
       - name: 'Upload Windows Installer'
         uses: actions/upload-artifact@v7
         with:
           name: 'Windows Installer'
           path: build/_CPack_Packages/win64/NSIS/*.exe
           if-no-files-found: error
+  # A job of its own, as vt-render compiles the VT's sources and JUCE again
+  windows_vt_render:
+    name: Windows vt-render Build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-tags: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Compile
+        run: |
+          mkdir build
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DAGISOVT_BUILD_POOL_RENDERER=ON -Wno-dev
+          cmake --build build --config Release --target VtRender
       - name: Render the seeder example pool
         shell: bash
         run: build/VtRender_artefacts/Release/vt-render.exe --pool build/_deps/can_stack-src/examples/seeder_example/BasePool.iop --out seeder-render
