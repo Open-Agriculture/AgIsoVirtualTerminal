@@ -34,6 +34,10 @@ public:
 	/// @returns True if the Input Attributes allow it
 	bool is_allowed(juce::juce_wchar character) const;
 
+	/// @brief Returns the limits as text for the user
+	/// @returns The maximum length and the allowed or refused characters
+	juce::String get_description() const;
+
 private:
 	const int maximumLength;
 	const bool hasValidation;

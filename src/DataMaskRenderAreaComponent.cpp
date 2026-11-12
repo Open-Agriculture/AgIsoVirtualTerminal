@@ -774,7 +774,6 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 							}
 
-							inputStringModal.reset(new AlertWindow("Input String", "Enter a value for this input string, then press OK.", MessageBoxIconType::QuestionIcon));
 							std::shared_ptr<isobus::InputAttributes> inputAttributes;
 							auto attributes = clickedString->get_object_by_id(clickedString->get_input_attributes(), parentWorkingSet->get_object_tree());
 
@@ -785,8 +784,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 							// Without the padding, so there is room to type. It is added back on OK.
 							const String currentValue = hasStringVariable ? stringVariable->get_value() : clickedString->get_value();
+							auto filter = new InputStringFilter(currentValue.length(), inputAttributes);
+							inputStringModal.reset(new AlertWindow("Input String", "Enter a value for this input string, then press OK.\n" + filter->get_description(), MessageBoxIconType::QuestionIcon));
 							inputStringModal->addTextEditor("Input String", currentValue.trimEnd());
-							inputStringModal->getTextEditor("Input String")->setInputFilter(new InputStringFilter(currentValue.length(), inputAttributes), true);
+							inputStringModal->getTextEditor("Input String")->setInputFilter(filter, true);
 							inputStringModal->addButton("OK", 1);
 							inputStringModal->addButton("Cancel", 0);
 							auto resultCallback = [this, clickedString, stringVariable, workingSet = parentWorkingSet](int result) {

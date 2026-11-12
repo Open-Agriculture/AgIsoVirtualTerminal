@@ -42,3 +42,14 @@ bool InputStringFilter::is_allowed(juce::juce_wchar character) const
 {
 	return !hasValidation || (validationCharacters.containsChar(character) == charactersAreValid);
 }
+
+juce::String InputStringFilter::get_description() const
+{
+	juce::String description = "Up to " + juce::String(maximumLength) + " characters.";
+
+	if (hasValidation)
+	{
+		description << "\n" << (charactersAreValid ? "Allowed characters: " : "Characters not allowed: ") << validationCharacters;
+	}
+	return description;
+}
