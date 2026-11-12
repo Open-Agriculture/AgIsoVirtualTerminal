@@ -181,17 +181,26 @@ void DiagnosticsComponent::process_dm1_message(const isobus::CANMessage &message
 		entry.activeDTCs.push_back(dtc);
 	}
 
-	const auto mmLock = MessageManagerLock();
+	// The stack holds its callback mutex here, which the destructor needs to unregister, so waiting on the message thread could deadlock
+	MessageManager::callAsync([safeComponent = SafePointer<DiagnosticsComponent>(component), sourceNAME = source->get_NAME().get_full_name(), entry = std::move(entry)]() mutable {
+		if (nullptr != safeComponent)
+		{
+			safeComponent->update_source(sourceNAME, std::move(entry));
+		}
+	});
+}
 
+void DiagnosticsComponent::update_source(std::uint64_t sourceNAME, SourceEntry entry)
+{
 	if (entry.activeDTCs.empty())
 	{
-		component->sources.erase(source->get_NAME().get_full_name());
+		sources.erase(sourceNAME);
 	}
 	else
 	{
-		component->sources[source->get_NAME().get_full_name()] = std::move(entry);
+		sources[sourceNAME] = std::move(entry);
 	}
-	component->update_content_height();
+	update_content_height();
 }
 
 void DiagnosticsComponent::timerCallback()
