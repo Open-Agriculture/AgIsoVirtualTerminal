@@ -70,10 +70,14 @@ ServerMainComponent::ServerMainComponent(
 	timeServingInterface = std::make_unique<isobus::TimeDateInterface>(serverControlFunction, timerCallback);
 	timeServingInterface->initialize();
 
+	const bool isNewSerialNumber = ecuSerialNumber.isEmpty();
+	if (isNewSerialNumber)
+	{
+		ecuSerialNumber = Uuid().toString().toUpperCase();
+	}
+
 	diagnosticProtocol = std::make_unique<isobus::DiagnosticProtocol>(serverControlFunction);
-	diagnosticProtocol->set_product_identification_brand("Open-Agriculture");
-	diagnosticProtocol->set_product_identification_model("AgIsoVirtualTerminal");
-	diagnosticProtocol->set_software_id_field(0, AgISOVirtualTerminalApplication::getApplicationBuildInfo());
+	configure_diagnostic_protocol();
 	diagnosticProtocol->initialize();
 
 	isobus::CANHardwareInterface::get_periodic_update_event_dispatcher().add_listener([this]() {
@@ -120,6 +124,11 @@ ServerMainComponent::ServerMainComponent(
 	if (checkForUpdatesOnStartup && !hasRecentUpdateCheck)
 	{
 		check_for_update(false);
+	}
+
+	if (isNewSerialNumber)
+	{
+		save_settings();
 	}
 }
 
@@ -2075,6 +2084,41 @@ void ServerMainComponent::start_can_interface()
 	}
 }
 
+void ServerMainComponent::configure_diagnostic_protocol()
+{
+	using ECUIdentificationFields = isobus::DiagnosticProtocol::ECUIdentificationFields;
+	using Functionalities = isobus::ControlFunctionFunctionalities::Functionalities;
+
+	diagnosticProtocol->set_product_identification_code(ecuSerialNumber.toStdString()); // Unique together with the brand, see ISO 11783-12 A.14
+	diagnosticProtocol->set_product_identification_brand("Open-Agriculture");
+	diagnosticProtocol->set_product_identification_model("AgIsoVirtualTerminal");
+	diagnosticProtocol->set_software_id_field(0, AgISOVirtualTerminalApplication::getApplicationBuildInfo());
+#ifdef AGISOSTACK_VERSION
+	diagnosticProtocol->set_software_id_field(1, "AgIsoStack++ " AGISOSTACK_VERSION);
+#endif
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::PartNumber, ecuPartNumber.toStdString());
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::SerialNumber, ecuSerialNumber.toStdString());
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::Location, "Cab");
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::Type, "Virtual Terminal");
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::ManufacturerName, "Open-Agriculture");
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::HardwareID, ecuHardwareId.toStdString());
+
+	// UT 1 is VT version 2, UT 2 is VT version 3 to 5, UT 3 is VT version 6
+	std::uint8_t generation = 2;
+	if (VTVersion::Version2OrOlder == versionToReport)
+	{
+		generation = 1;
+	}
+	else if (VTVersion::Version6 == versionToReport)
+	{
+		generation = 3;
+	}
+
+	auto &functionalities = diagnosticProtocol->ControlFunctionFunctionalitiesMessageInterface;
+	functionalities.set_functionality_is_supported(Functionalities::UniversalTerminalServer, generation, true);
+	functionalities.set_minimum_control_function_option_state(isobus::ControlFunctionFunctionalities::MinimumControlFunctionOptions::SupportOfHeartbeatProducer, true);
+}
+
 void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> settings)
 {
 	int index = 0;
@@ -2135,6 +2179,22 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			if (!child.getProperty("LanguageCode").isVoid())
 			{
 				languageCommandInterface.set_language_code(String(child.getProperty("LanguageCode").toString()).toStdString());
+			}
+		}
+		else if (Identifier("Identification") == child.getType())
+		{
+			// "*" and "#" are delimiters in the ISO 11783-12 messages
+			if (!child.getProperty("PartNumber").isVoid())
+			{
+				ecuPartNumber = child.getProperty("PartNumber").toString().removeCharacters("*#");
+			}
+			if (!child.getProperty("SerialNumber").isVoid())
+			{
+				ecuSerialNumber = child.getProperty("SerialNumber").toString().removeCharacters("*#");
+			}
+			if (!child.getProperty("HardwareID").isVoid())
+			{
+				ecuHardwareId = child.getProperty("HardwareID").toString().removeCharacters("*#");
 			}
 		}
 		else if (Identifier("Compatibility") == child.getType())
@@ -2451,6 +2511,7 @@ void ServerMainComponent::save_settings()
 		ValueTree hardwareSettings("Hardware");
 		ValueTree loggingSettings("Logging");
 		ValueTree controlSettings("Control");
+		ValueTree identificationSettings("Identification");
 
 		std::uint32_t hardwareDriverIndex = 0xFFFFFFFF;
 
@@ -2508,11 +2569,15 @@ void ServerMainComponent::save_settings()
 		controlSettings.setProperty("CheckForUpdates", checkForUpdatesOnStartup, nullptr);
 		controlSettings.setProperty("LastUpdateCheck", lastUpdateCheck, nullptr);
 		controlSettings.setProperty("SkippedUpdateVersion", skippedUpdateVersion, nullptr);
+		identificationSettings.setProperty("PartNumber", ecuPartNumber, nullptr);
+		identificationSettings.setProperty("SerialNumber", ecuSerialNumber, nullptr);
+		identificationSettings.setProperty("HardwareID", ecuHardwareId, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
 		settings.appendChild(loggingSettings, nullptr);
 		settings.appendChild(controlSettings, nullptr);
+		settings.appendChild(identificationSettings, nullptr);
 
 		// An empty state means there is no window yet, and overwriting a good saved geometry
 		// with nothing would lose it.
