@@ -49,7 +49,8 @@ juce::String InputStringFilter::get_description() const
 
 	if (hasValidation)
 	{
-		description << "\n" << (charactersAreValid ? "Allowed characters: " : "Characters not allowed: ") << validationCharacters;
+		description << "\n"
+		            << (charactersAreValid ? "Allowed characters: " : "Characters not allowed: ") << validationCharacters;
 	}
 	return description;
 }
