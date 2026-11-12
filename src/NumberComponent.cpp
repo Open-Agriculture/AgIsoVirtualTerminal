@@ -5,6 +5,9 @@
 *******************************************************************************/
 #include "NumberComponent.hpp"
 
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <iomanip>
 #include <sstream>
 
@@ -46,7 +49,7 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 		}
 	}
 
-	double scaledValue = (static_cast<double>(sourceNumber->get_value()) + sourceNumber->get_offset()) * sourceNumber->get_scale();
+	double scaledValue = (static_cast<double>(sourceNumber->get_value()) + sourceNumber->get_offset()) * get_decimal_scale(sourceNumber->get_scale());
 	if (isobus::NULL_OBJECT_ID != sourceNumber->get_variable_reference())
 	{
 		auto child = sourceNumber->get_object_by_id(sourceNumber->get_variable_reference(), parentWorkingSet->get_object_tree());
@@ -54,7 +57,7 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 		if ((nullptr != child) &&
 		    (isobus::VirtualTerminalObjectType::NumberVariable == child->get_object_type()))
 		{
-			scaledValue = (static_cast<double>(std::static_pointer_cast<isobus::NumberVariable>(child)->get_value()) + sourceNumber->get_offset()) * sourceNumber->get_scale();
+			scaledValue = (static_cast<double>(std::static_pointer_cast<isobus::NumberVariable>(child)->get_value()) + sourceNumber->get_offset()) * get_decimal_scale(sourceNumber->get_scale());
 		}
 	}
 
@@ -64,14 +67,16 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 	}
 	g.setColour(drawColour);
 
-	if ((0.0 != scaledValue) || !sourceNumber->get_option(isobus::NumberVTObject::Options::DisplayZeroAsBlank))
+	const double displayedValue = round_to_decimals(scaledValue, sourceNumber->get_number_of_decimals(), sourceNumber->get_option(isobus::NumberVTObject::Options::Truncate));
+
+	if ((0.0 != displayedValue) || !sourceNumber->get_option(isobus::NumberVTObject::Options::DisplayZeroAsBlank))
 	{
 		std::ostringstream valueText;
 		if (sourceNumber->get_option(isobus::NumberVTObject::Options::DisplayLeadingZeros) && (0 != fontWidth))
 		{
 			valueText << std::internal << std::setfill('0') << std::setw(sourceNumber->get_width() / fontWidth);
 		}
-		valueText << std::fixed << std::setprecision(sourceNumber->get_number_of_decimals()) << scaledValue;
+		valueText << std::fixed << std::setprecision(sourceNumber->get_number_of_decimals()) << displayedValue;
 		// Not drawText, which drops glyphs that don't fit; ISO 11783-6 4.6.19.2 clips overflow by pixel
 		GlyphArrangement glyphs;
 		glyphs.addLineOfText(g.getCurrentFont(), valueText.str(), 0.0f, 0.0f);
@@ -88,4 +93,30 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 	{
 		g.fillAll(Colour::fromFloatRGBA(0.5f, 0.5f, 0.5f, 0.5f));
 	}
+}
+
+double NumberComponent::get_decimal_scale(float scale)
+{
+	char text[32];
+
+	for (int digits = 1; digits <= 9; digits++)
+	{
+		std::snprintf(text, sizeof(text), "%.*g", digits, scale);
+		const double decimal = std::strtod(text, nullptr);
+
+		if (static_cast<float>(decimal) == scale)
+		{
+			return decimal;
+		}
+	}
+	return scale;
+}
+
+double NumberComponent::round_to_decimals(double value, std::uint8_t decimals, bool truncate)
+{
+	const double factor = std::pow(10.0, decimals);
+	// Nudged away from zero, so double error can't drop the last digit
+	const double steps = value * factor * (1.0 + 1e-12);
+	const double result = (truncate ? std::trunc(steps) : std::round(steps)) / factor;
+	return (0.0 == result) ? 0.0 : result; // No "-0"
 }
