@@ -55,6 +55,7 @@ public:
 	std::uint8_t get_physical_soft_key_columns() const;
 	std::uint16_t get_data_mask_area_size_x_pixels() const override;
 	std::uint16_t get_data_mask_area_size_y_pixels() const override;
+	std::uint8_t get_supported_font_styles_bitfield() const override;
 	void suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetWithError) override;
 	SupportedWideCharsErrorCode get_supported_wide_chars(std::uint8_t codePlane,
 	                                                     std::uint16_t firstWideCharInInquiryRange,

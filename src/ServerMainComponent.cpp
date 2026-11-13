@@ -229,6 +229,12 @@ std::uint16_t ServerMainComponent::get_data_mask_area_size_y_pixels() const
 	return dataMaskRenderer.getHeight() != 0 ? dataMaskRenderer.getHeight() : 480;
 }
 
+uint8_t ServerMainComponent::get_supported_font_styles_bitfield() const
+{
+	// Report supporting all font styles
+	return 0xFF;
+}
+
 void ServerMainComponent::suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> /*workingSetWithError*/)
 {
 }
