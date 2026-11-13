@@ -362,6 +362,13 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 					}
 				}
 			}
+			else if ((nullptr != activeMask) && (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type()))
+			{
+				// Data Mask area pixels, whatever size the pool was designed for
+				const int x = jlimit(0, ownerServer.get_data_mask_area_size_x_pixels() - 1, static_cast<int>(std::floor(relativeEvent.mouseDownPosition.x)));
+				const int y = jlimit(0, ownerServer.get_data_mask_area_size_y_pixels() - 1, static_cast<int>(std::floor(relativeEvent.mouseDownPosition.y)));
+				ownerServer.press_pointing_event(parentWorkingSet, activeMask, static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y));
+			}
 		}
 	}
 }
@@ -395,6 +402,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 	const auto releasedButtonID = pressedButtonID;
 	show_button_pressed(*this, pressedButtonID, false);
 	pressedButtonID = isobus::NULL_OBJECT_ID;
+	ownerServer.release_pointing_event();
 
 	if (nullptr != parentWorkingSet)
 	{

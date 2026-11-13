@@ -151,6 +151,16 @@ public:
 	void set_button_released(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey);
 	void release_held_buttons(bool aborted = false);
 
+	/// @brief Reports a touch on a Data Mask outside its Buttons and input fields, and runs its macro
+	/// @param[in] workingSet The working set that owns the mask
+	/// @param[in] mask The touched Data Mask
+	/// @param[in] x X position in Data Mask area pixels
+	/// @param[in] y Y position in Data Mask area pixels
+	void press_pointing_event(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::shared_ptr<isobus::VTObject> mask, std::uint16_t x, std::uint16_t y);
+
+	/// @brief Ends a touch started with press_pointing_event(), if there is one
+	void release_pointing_event();
+
 	void repaint_on_next_update();
 
 	void save_settings();
@@ -324,6 +334,18 @@ private:
 	/// @brief Removes a working set from the renderers and the selector, and selects another one if none is active
 	void stop_presenting_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 	void send_held_button_activation(const HeldButtonData &button, KeyActivationCode activationCode);
+
+	/// @brief Touch states of the Pointing Event message, VT version 4 and later
+	enum class TouchState : std::uint8_t
+	{
+		Released = 0,
+		Pressed = 1,
+		Held = 2
+	};
+
+	/// @brief Sends the Pointing Event message for the current touch, see ISO 11783-6 H.6
+	/// @param[in] state The touch state to report
+	void send_pointing_event_message(TouchState state);
 	void clear_iso_data();
 
 	static constexpr int CAN_STATUS_INDICATOR_WIDTH = 150;
@@ -356,6 +378,12 @@ private:
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
+	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> pointingWorkingSet; ///< Set while a Data Mask is touched
+	std::shared_ptr<isobus::VTObject> pointingMask;
+	std::uint32_t pointingTimestamp_ms = 0;
+	std::uint16_t pointingX = 0;
+	std::uint16_t pointingY = 0;
+	std::uint8_t pointingTransactionNumber = 0;
 	std::set<std::string> loadedNames;
 	std::set<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> rejectedWorkingSets; ///< Their last object pool was rejected, so they are never selected automatically
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
