@@ -401,6 +401,12 @@ void ServerMainComponent::timerCallback()
 		repaint(getWidth() - CAN_STATUS_INDICATOR_WIDTH, 0, CAN_STATUS_INDICATOR_WIDTH, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
 	}
 
+	// VT version 4 and later repeat a held touch every 200 ms
+	if ((nullptr != pointingWorkingSet) && (versionToReport >= VTVersion::Version4) && isobus::SystemTiming::time_expired_ms(pointingTimestamp_ms, 200))
+	{
+		send_pointing_event_message(TouchState::Held);
+	}
+
 	bool hasIopLoadInProgress = false;
 	for (auto &ws : managedWorkingSetList)
 	{
@@ -1348,6 +1354,69 @@ void ServerMainComponent::send_held_button_activation(const HeldButtonData &butt
 	}
 }
 
+void ServerMainComponent::press_pointing_event(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::shared_ptr<isobus::VTObject> mask, std::uint16_t x, std::uint16_t y)
+{
+	release_pointing_event();
+	pointingWorkingSet = workingSet;
+	pointingMask = mask;
+	pointingX = x;
+	pointingY = y;
+	send_pointing_event_message(TouchState::Pressed);
+	process_macro(mask, isobus::EventID::OnPointingEventPress, isobus::VirtualTerminalObjectType::DataMask, workingSet);
+}
+
+void ServerMainComponent::release_pointing_event()
+{
+	if (nullptr != pointingWorkingSet)
+	{
+		const auto workingSet = pointingWorkingSet;
+		const auto mask = pointingMask;
+
+		// VT version 3 and prior only report the press
+		if (versionToReport >= VTVersion::Version4)
+		{
+			send_pointing_event_message(TouchState::Released);
+		}
+		pointingWorkingSet.reset();
+		pointingMask.reset();
+		process_macro(mask, isobus::EventID::OnPointingEventRelease, isobus::VirtualTerminalObjectType::DataMask, workingSet);
+	}
+}
+
+void ServerMainComponent::send_pointing_event_message(TouchState state)
+{
+	std::array<std::uint8_t, isobus::CAN_DATA_LENGTH> buffer;
+	buffer[0] = static_cast<std::uint8_t>(Function::PointingEventMessage);
+	buffer[1] = static_cast<std::uint8_t>(pointingX & 0xFF);
+	buffer[2] = static_cast<std::uint8_t>(pointingX >> 8);
+	buffer[3] = static_cast<std::uint8_t>(pointingY & 0xFF);
+	buffer[4] = static_cast<std::uint8_t>(pointingY >> 8);
+	buffer[5] = 0xFF; // Pressed is implied for VT version 3 and prior
+	buffer[6] = 0xFF;
+	buffer[7] = 0xFF;
+
+	if (versionToReport >= VTVersion::Version4)
+	{
+		buffer[5] = static_cast<std::uint8_t>(state);
+	}
+	if (versionToReport >= VTVersion::Version6)
+	{
+		// Each new message gets a new transaction number
+		buffer[5] |= static_cast<std::uint8_t>(pointingTransactionNumber << 4);
+		pointingTransactionNumber = (pointingTransactionNumber + 1) & 0x0F;
+		buffer[6] = static_cast<std::uint8_t>(pointingMask->get_id() & 0xFF);
+		buffer[7] = static_cast<std::uint8_t>(pointingMask->get_id() >> 8);
+	}
+
+	isobus::CANNetworkManager::CANNetwork.send_can_message(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::VirtualTerminalToECU),
+	                                                       buffer.data(),
+	                                                       isobus::CAN_DATA_LENGTH,
+	                                                       get_internal_control_function(),
+	                                                       pointingWorkingSet->get_control_function(),
+	                                                       get_priority());
+	pointingTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+}
+
 void ServerMainComponent::repaint_on_next_update()
 {
 	needToRepaint = true;
@@ -1965,6 +2034,11 @@ void ServerMainComponent::stop_presenting_working_set(std::shared_ptr<isobus::Vi
 	auto removedButtons = std::stable_partition(heldButtons.begin(), heldButtons.end(), [&workingSet](const HeldButtonData &button) { return workingSet != button.associatedWorkingSet; });
 	std::for_each(removedButtons, heldButtons.end(), [this](const HeldButtonData &button) { send_held_button_activation(button, KeyActivationCode::ButtonUnlatchedOrReleased); });
 	heldButtons.erase(removedButtons, heldButtons.end());
+	if (pointingWorkingSet == workingSet)
+	{
+		pointingWorkingSet.reset();
+		pointingMask.reset();
+	}
 	dataMaskRenderer.on_working_set_disconnect(workingSet);
 	softKeyMaskRenderer.on_working_set_disconnect(workingSet);
 
