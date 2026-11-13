@@ -286,6 +286,15 @@ bool DataMaskRenderAreaComponent::end_open_input()
 	return wasOpen;
 }
 
+void DataMaskRenderAreaComponent::process_deselection_macro(std::shared_ptr<isobus::VTObject> input, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	// After a pool replacement the input is the old pool's object, and its macro IDs may name other macros in the new pool
+	if (input == workingSet->get_object_by_id(input->get_id()))
+	{
+		ownerServer.process_macro(input, isobus::EventID::OnInputFieldDeselection, input->get_object_type(), workingSet);
+	}
+}
+
 void DataMaskRenderAreaComponent::paint(Graphics &g)
 {
 	g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
@@ -564,7 +573,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
 								ownerServer.repaint_on_next_update();
-								ownerServer.process_macro(clickedList, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputList, workingSet);
+								process_deselection_macro(clickedList, workingSet);
 								inputListModal.reset();
 								repaint();
 							};
@@ -697,7 +706,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									ownerServer.send_esc_message(clickedNumber->get_id(), 0, ownerServer.get_client_control_function_for_working_set(workingSet));
 								}
 								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
-								ownerServer.process_macro(clickedNumber, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputNumber, workingSet);
+								process_deselection_macro(clickedNumber, workingSet);
 							};
 							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
 							begin_open_input(clickedNumber->get_id());
@@ -829,7 +838,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								// keeps re-invoking the touch keyboard on every later tap
 								ServerMainComponent::release_text_input_focus();
 								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
-								ownerServer.process_macro(clickedString, isobus::EventID::OnInputFieldDeselection, isobus::VirtualTerminalObjectType::InputString, workingSet);
+								process_deselection_macro(clickedString, workingSet);
 							};
 							inputStringModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
 							begin_open_input(clickedString->get_id());
@@ -915,17 +924,23 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 	}
 	else
 	{
-		// none of the childs of the hidden containers should send clicked events
-		if (isobus::VirtualTerminalObjectType::Container == object->get_object_type() &&
-		    std::static_pointer_cast<const isobus::Container>(object)->get_hidden())
+		const auto type = object->get_object_type();
+
+		// A hidden container's children can't be pressed, and containers and output lists clip the parts outside them
+		if (((isobus::VirtualTerminalObjectType::Container == type) && std::static_pointer_cast<const isobus::Container>(object)->get_hidden()) ||
+		    (((isobus::VirtualTerminalObjectType::Container == type) || (isobus::VirtualTerminalObjectType::OutputList == type)) &&
+		     !isClickWithinBounds(x, y, 0, 0, object->get_width(), object->get_height())))
 		{
 			return nullptr;
 		}
 
-		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
+		// Last child first, because it is drawn on top
+		for (std::uint16_t n = object->get_number_children(); n > 0; n--)
 		{
+			const auto i = static_cast<std::uint16_t>(n - 1);
+
 			// The other items of an Output List aren't on screen, so they can't be pressed
-			if ((isobus::VirtualTerminalObjectType::OutputList == object->get_object_type()) &&
+			if ((isobus::VirtualTerminalObjectType::OutputList == type) &&
 			    (i != OutputListComponent::get_selected_index(*std::static_pointer_cast<isobus::OutputList>(object), parentWorkingSet)))
 			{
 				continue;
