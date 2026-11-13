@@ -269,6 +269,18 @@ private:
 	/// @param[in] newSoftKeyMask The new soft key mask
 	void on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask);
 
+	/// @brief Called from the CAN thread when a working set selects an object, hands it to the message thread
+	/// @param[in] affectedWorkingSet The working set that sent Select Input Object
+	/// @param[in] objectID The selected object, or NULL_OBJECT_ID to remove the focus
+	/// @param[in] openForInput True when the object has to be opened for input
+	void on_focus_object_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, bool openForInput);
+
+	/// @brief Shows the new focus, and opens the object when asked. Runs on the message thread.
+	/// @param[in] affectedWorkingSet The working set that sent Select Input Object
+	/// @param[in] objectID The selected object, or NULL_OBJECT_ID to remove the focus
+	/// @param[in] openForInput True when the object has to be opened for input
+	void focus_object(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, bool openForInput);
+
 	/// @brief Redraws the soft keys when the changed mask is the one on screen. Runs on the message thread.
 	/// @param[in] affectedWorkingSet The working set whose mask was changed
 	/// @param[in] mask The data or alarm mask that was given a new soft key mask

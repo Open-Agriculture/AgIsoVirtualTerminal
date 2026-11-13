@@ -82,6 +82,7 @@ ServerMainComponent::ServerMainComponent(
 	get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); });
 	get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); });
 	get_on_change_active_softkey_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask) { this->on_change_active_softkey_mask_callback(affectedWorkingSet, mask, newSoftKeyMask); });
+	get_on_focus_object_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, bool openForInput) { this->on_focus_object_callback(affectedWorkingSet, objectID, openForInput); });
 
 	alarmFormatManager.registerBasicFormats();
 	mAudioDeviceManager.initialise(0, 1, nullptr, true);
@@ -1868,6 +1869,36 @@ void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr
 			safeThis->change_active_softkey_mask(affectedWorkingSet, mask, newSoftKeyMask);
 		}
 	});
+}
+
+void ServerMainComponent::on_focus_object_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, bool openForInput)
+{
+	// Called from the CAN thread, so the work is handed to the message thread
+	juce::Component::SafePointer<ServerMainComponent> safeThis(this);
+
+	juce::MessageManager::callAsync([safeThis, affectedWorkingSet, objectID, openForInput]() {
+		if (nullptr != safeThis)
+		{
+			safeThis->focus_object(affectedWorkingSet, objectID, openForInput);
+		}
+	});
+}
+
+void ServerMainComponent::focus_object(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t objectID, bool openForInput)
+{
+	// Another working set's focus shows when it becomes active
+	if ((nullptr == affectedWorkingSet) || (affectedWorkingSet != activeWorkingSet))
+	{
+		return;
+	}
+
+	dataMaskRenderer.repaint();
+	softKeyMaskRenderer.repaint();
+
+	if (openForInput && (isobus::NULL_OBJECT_ID != objectID))
+	{
+		dataMaskRenderer.open_input_for_working_set(objectID);
+	}
 }
 
 void ServerMainComponent::change_active_softkey_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask)

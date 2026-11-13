@@ -52,6 +52,10 @@ public:
 
 	void set_has_started(bool started);
 
+	/// @brief Opens an input object for the operator, when the working set asks for it with Select Input Object
+	/// @param[in] objectID The input object, which has to be on the shown mask
+	void open_input_for_working_set(std::uint16_t objectID);
+
 private:
 	/// @brief Holds the object being edited and the value the keypad produced for it
 	class InputNumberListener
@@ -75,6 +79,13 @@ private:
 	void close_input_dialogs();
 	void begin_open_input(std::uint16_t objectID);
 	bool end_open_input();
+
+	/// @brief Opens the dialog of an Input List, Number or String
+	/// @param[in] clickedObject The input object
+	/// @param[in] selectedByWorkingSet True when the working set selected it, so the selection was already reported
+	void open_input(std::shared_ptr<isobus::VTObject> clickedObject, bool selectedByWorkingSet);
+
+	static bool shows_object(Component &parent, std::uint16_t objectID);
 
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path = {});
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
