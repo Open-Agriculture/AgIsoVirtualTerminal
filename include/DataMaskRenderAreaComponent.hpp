@@ -37,6 +37,9 @@ public:
 
 	void paint(Graphics &g) override;
 
+	// Shows which object has focus
+	void paintOverChildren(Graphics &g) override;
+
 	// Used to calculate button press events
 	void mouseDown(const MouseEvent &event) override;
 
