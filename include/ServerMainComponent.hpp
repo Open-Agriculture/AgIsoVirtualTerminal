@@ -10,6 +10,7 @@
 #ifndef SERVER_MAIN_COMPONENT_HPP
 #define SERVER_MAIN_COMPONENT_HPP
 
+#include "CANDeviceList.hpp"
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
 #include "DiagnosticsWindow.hpp"
@@ -38,6 +39,8 @@ class ServerMainComponent : public juce::Component
 public:
 	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
 	                    std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
+	                    CANDeviceList::ListFunction listCANDevices,
+	                    CANDeviceList::CreateDriverFunction createCANDriver,
 	                    std::shared_ptr<ValueTree> settings,
 	                    const std::string &canLogPath_,
 	                    std::uint8_t vtNumberArg = 0,
@@ -155,6 +158,15 @@ public:
 
 	void save_settings();
 
+	/// @brief Switches the PCAN or candleLight driver to the given adapter and remembers it for the settings
+	void select_can_device(std::size_t driverIndex, const CANDeviceList::Device &device);
+
+	/// @brief Returns the adapter selected for the PCAN or candleLight driver
+	CANDeviceList::Device get_selected_can_device(std::size_t driverIndex) const;
+
+	/// @brief Returns the attached adapters for the PCAN or candleLight driver
+	std::vector<CANDeviceList::Device> list_can_devices(std::size_t driverIndex) const;
+
 	void show_diagnostics_window();
 
 	void identify_vt() override;
@@ -200,6 +212,19 @@ public:
 	void apply_window_size_limits();
 
 private:
+	/// @brief Returns the start of the setting names for the adapter of this driver
+	static std::string get_can_device_setting_prefix(std::size_t driverIndex);
+
+	/// @brief Selects the adapter saved for this driver, if there is one
+	void load_can_device(const ValueTree &hardwareSettings, std::size_t driverIndex);
+
+	/// @brief Finds the selected adapter again, since its index changes when adapters are plugged in or out
+	/// @returns false if the selected adapter is not connected
+	bool update_can_device();
+
+	/// @brief Returns the position of the channel 0 driver in the driver list, or the list's size if none is assigned
+	std::size_t get_assigned_can_driver_index() const;
+
 	enum class CommandIDs : int
 	{
 		NoCommand = 0, /// 0 Is an invalid command ID
@@ -316,7 +341,8 @@ private:
 
 	/// @brief Stops the CAN interface and tells the user why, using the last error of the channel 0 driver
 	/// @param[in] title The title of the alert
-	void stop_can_interface_with_alert(const String &title);
+	/// @param[in] givenReason The message, or empty to use the driver's last error
+	void stop_can_interface_with_alert(const String &title, const std::string &givenReason = "");
 
 	/// @brief Starts the CAN interface, and stops it again with an alert if a channel could not be opened
 	void start_can_interface();
@@ -355,6 +381,9 @@ private:
 	std::unique_ptr<DiagnosticsWindow> diagnosticsWindow;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
+	CANDeviceList::ListFunction listCANDevicesFunction; ///< From Main.cpp, so vt-render doesn't link the drivers
+	CANDeviceList::CreateDriverFunction createCANDriverFunction; ///< From Main.cpp, so vt-render doesn't link the drivers
+	std::map<std::size_t, CANDeviceList::Device> selectedCANDevices; ///< The adapter chosen for each driver that picks one of several
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;
 	std::set<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> rejectedWorkingSets; ///< Their last object pool was rejected, so they are never selected automatically
