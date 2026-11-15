@@ -213,9 +213,9 @@ std::uint16_t DataMaskRenderAreaComponent::abort_input(std::shared_ptr<isobus::V
 		const std::lock_guard<std::mutex> lock(openInputMutex);
 		if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
 		{
-			abortedObjectID = openInputObjectID;
+			abortedObjectID = openInputObject->get_id();
 			openInputWorkingSet.reset();
-			openInputObjectID = isobus::NULL_OBJECT_ID;
+			openInputObject.reset();
 		}
 	}
 
@@ -248,8 +248,8 @@ void DataMaskRenderAreaComponent::close_input_dialogs()
 	{
 		const std::lock_guard<std::mutex> lock(openInputMutex);
 		workingSet = std::move(openInputWorkingSet);
-		objectID = openInputObjectID;
-		openInputObjectID = isobus::NULL_OBJECT_ID;
+		objectID = (nullptr != openInputObject) ? openInputObject->get_id() : isobus::NULL_OBJECT_ID;
+		openInputObject.reset();
 	}
 
 	// The callbacks will see the input as ended, so the close messages go out here
@@ -270,11 +270,29 @@ void DataMaskRenderAreaComponent::close_input_dialogs()
 	}
 }
 
-void DataMaskRenderAreaComponent::begin_open_input(std::uint16_t objectID)
+void DataMaskRenderAreaComponent::close_replaced_input_dialog(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	std::shared_ptr<isobus::VTObject> openInput;
+	{
+		const std::lock_guard<std::mutex> lock(openInputMutex);
+		if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
+		{
+			openInput = openInputObject;
+		}
+	}
+
+	// A pool update ends data input only when it replaced the focused object (ISO 11783-6 Table 5)
+	if ((nullptr != openInput) && (openInput != workingSet->get_object_by_id(openInput->get_id())))
+	{
+		close_input_dialogs();
+	}
+}
+
+void DataMaskRenderAreaComponent::begin_open_input(std::shared_ptr<isobus::VTObject> object)
 {
 	const std::lock_guard<std::mutex> lock(openInputMutex);
 	openInputWorkingSet = parentWorkingSet;
-	openInputObjectID = objectID;
+	openInputObject = std::move(object);
 }
 
 bool DataMaskRenderAreaComponent::end_open_input()
@@ -282,7 +300,7 @@ bool DataMaskRenderAreaComponent::end_open_input()
 	const std::lock_guard<std::mutex> lock(openInputMutex);
 	const bool wasOpen = (nullptr != openInputWorkingSet);
 	openInputWorkingSet.reset();
-	openInputObjectID = isobus::NULL_OBJECT_ID;
+	openInputObject.reset();
 	return wasOpen;
 }
 
@@ -578,7 +596,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								repaint();
 							};
 							inputListModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
-							begin_open_input(clickedList->get_id());
+							begin_open_input(clickedList);
 							ownerServer.send_select_input_object_message(clickedList->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (nullptr != parentWorkingSet)
 							{
@@ -709,7 +727,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								process_deselection_macro(clickedNumber, workingSet);
 							};
 							inputNumberModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
-							begin_open_input(clickedNumber->get_id());
+							begin_open_input(clickedNumber);
 							inputNumberKeypad->grabKeyboardFocus();
 							ownerServer.send_select_input_object_message(clickedNumber->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (parentWorkingSet)
@@ -841,7 +859,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								process_deselection_macro(clickedString, workingSet);
 							};
 							inputStringModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
-							begin_open_input(clickedString->get_id());
+							begin_open_input(clickedString);
 							ownerServer.send_select_input_object_message(clickedString->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (parentWorkingSet)
 							{

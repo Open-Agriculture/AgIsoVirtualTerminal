@@ -1921,14 +1921,20 @@ void ServerMainComponent::object_pool_parse_finished(std::shared_ptr<isobus::Vir
 		const auto activeMaskID = std::static_pointer_cast<isobus::WorkingSet>(workingSet->get_working_set_object())->get_active_mask();
 		record_alarm_activation(workingSet, activeMaskID);
 
-		// The drawn masks and any open input still hold the old pool's objects, and the new pool can set a different active mask
+		// The drawn masks still hold the old pool's objects, and the new pool can set a different active mask
 		if (workingSet == activeWorkingSet)
 		{
-			dataMaskRenderer.close_input_dialogs();
-			activeWorkingSetDataMaskObjectID = activeMaskID;
-			activeWorkingSetSoftkeyMaskObjectID = get_soft_key_mask(workingSet->get_object_by_id(activeMaskID));
-			repaint_data_and_soft_key_mask();
-			update_ack_button_visibility();
+			if (activeMaskID != activeWorkingSetDataMaskObjectID)
+			{
+				change_active_mask(workingSet, activeMaskID);
+			}
+			else
+			{
+				dataMaskRenderer.close_replaced_input_dialog(workingSet);
+				activeWorkingSetSoftkeyMaskObjectID = get_soft_key_mask(workingSet->get_object_by_id(activeMaskID));
+				repaint_data_and_soft_key_mask();
+				update_ack_button_visibility();
+			}
 		}
 	}
 	else

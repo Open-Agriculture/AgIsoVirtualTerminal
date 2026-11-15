@@ -37,6 +37,8 @@ public:
 
 	void close_input_dialogs();
 
+	void close_replaced_input_dialog(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
+
 	void paint(Graphics &g) override;
 
 	// Used to calculate button press events
@@ -71,7 +73,7 @@ private:
 
 	int to_pool_coordinate(float renderedCoordinate) const;
 
-	void begin_open_input(std::uint16_t objectID);
+	void begin_open_input(std::shared_ptr<isobus::VTObject> object);
 	bool end_open_input();
 	void process_deselection_macro(std::shared_ptr<isobus::VTObject> input, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
@@ -81,7 +83,7 @@ private:
 
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> openInputWorkingSet; ///< Cleared when the VT closes the dialog, so its callback sends nothing
-	std::uint16_t openInputObjectID = isobus::NULL_OBJECT_ID;
+	std::shared_ptr<isobus::VTObject> openInputObject;
 	std::mutex openInputMutex; ///< abort_input() runs on the CAN thread
 	std::unique_ptr<AlertWindow> inputListModal;
 	std::unique_ptr<AlertWindow> inputNumberModal;
