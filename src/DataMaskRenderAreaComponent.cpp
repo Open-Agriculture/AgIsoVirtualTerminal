@@ -256,8 +256,8 @@ void DataMaskRenderAreaComponent::close_input_dialogs()
 	if (isobus::NULL_OBJECT_ID != objectID)
 	{
 		const auto destination = ownerServer.get_client_control_function_for_working_set(workingSet);
-		ownerServer.send_select_input_object_message(objectID, false, false, destination);
 		ownerServer.send_esc_message(objectID, 0, destination);
+		ownerServer.send_select_input_object_message(objectID, false, false, destination);
 	}
 
 	// 0 = Cancel, the same result JUCE gives a window close or Escape
@@ -583,11 +583,11 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								}
 								if (!closedByVT)
 								{
-									ownerServer.send_select_input_object_message(clickedList->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
 									if (0 == result)
 									{
 										ownerServer.send_esc_message(clickedList->get_id(), 0, ownerServer.get_client_control_function_for_working_set(workingSet));
 									}
+									ownerServer.send_select_input_object_message(clickedList->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
 								}
 								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
 								ownerServer.repaint_on_next_update();
@@ -701,11 +701,6 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								inputNumberKeypad.reset();
 								// On Linux a dialog closed by abort_input() stays drawn until something repaints
 								repaint();
-								if (!closedByVT)
-								{
-									ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
-								}
-
 								if ((1 == result) && !closedByVT)
 								{
 									if (0xFFFF != varNumID)
@@ -722,6 +717,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								else if (!closedByVT)
 								{
 									ownerServer.send_esc_message(clickedNumber->get_id(), 0, ownerServer.get_client_control_function_for_working_set(workingSet));
+								}
+								if (!closedByVT)
+								{
+									ownerServer.send_select_input_object_message(clickedNumber->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
 								}
 								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
 								process_deselection_macro(clickedNumber, workingSet);
@@ -807,13 +806,9 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 							auto resultCallback = [this, clickedString, stringVariable, workingSet = parentWorkingSet](int result) {
 								const bool closedByVT = !end_open_input();
 
-								if (!closedByVT)
+								if ((0 == result) && !closedByVT)
 								{
-									ownerServer.send_select_input_object_message(clickedString->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
-									if (0 == result)
-									{
-										ownerServer.send_esc_message(clickedString->get_id(), 0, ownerServer.get_client_control_function_for_working_set(workingSet));
-									}
+									ownerServer.send_esc_message(clickedString->get_id(), 0, ownerServer.get_client_control_function_for_working_set(workingSet));
 								}
 
 								if ((1 == result) && !closedByVT)
@@ -848,6 +843,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 										ownerServer.process_macro(clickedString, isobus::EventID::OnChangeValue, isobus::VirtualTerminalObjectType::InputString, workingSet);
 									}
 									needToRepaintActiveArea = true;
+								}
+								if (!closedByVT)
+								{
+									ownerServer.send_select_input_object_message(clickedString->get_id(), false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
 								}
 								inputStringModal.reset();
 								repaint();
