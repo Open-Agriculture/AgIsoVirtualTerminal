@@ -205,7 +205,9 @@ bool NumericKeypadComponent::is_within_range() const
 {
 	const double typed = entry.isEmpty() ? 0.0 : entry.getDoubleValue();
 
-	return (typed >= minimum) && (typed <= maximum);
+	// The limits are scaled values, so allow for double rounding, but less than one step
+	const double tolerance = std::min(1e-9 * std::max(std::abs(minimum), std::abs(maximum)), 0.1 * std::pow(10.0, -static_cast<int>(decimals)));
+	return (typed >= minimum - tolerance) && (typed <= maximum + tolerance);
 }
 
 void NumericKeypadComponent::paint(Graphics &graphics)
