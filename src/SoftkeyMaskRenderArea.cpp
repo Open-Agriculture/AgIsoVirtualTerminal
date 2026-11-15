@@ -3,6 +3,7 @@
 ** @author     Adrian Del Grosso
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
+#include "FocusFrame.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "ServerMainComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
@@ -134,6 +135,11 @@ void SoftKeyMaskRenderAreaComponent::paintOverChildren(Graphics &g)
 
 		g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f).contrasting());
 		g.drawRect(pressedKeyBounds.expanded(PRESSED_RING_WIDTH), PRESSED_RING_WIDTH);
+	}
+
+	if (nullptr != parentWorkingSet)
+	{
+		FocusFrame::paint(g, *this, parentWorkingSet->get_object_focus());
 	}
 }
 
