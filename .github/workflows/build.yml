@@ -187,3 +187,31 @@ jobs:
           name: 'Ubuntu 26.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
           if-no-files-found: error
+  fedora_44_build:
+    name: Fedora 44 Build
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Install dependencies
+        run: dnf install -y gcc-c++ make cmake git rpm-build alsa-lib-devel pipewire-jack-audio-connection-kit-devel ladspa-devel libcurl-devel freetype-devel fontconfig-devel libX11-devel libXcomposite-devel libXcursor-devel libXext-devel libXinerama-devel libXrandr-devel libXrender-devel libXi-devel mesa-libGLU-devel mesa-libGL-devel
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-tags: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Compile
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir build
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -Wno-dev
+          cmake --build build --config Release
+          cd build
+          cpack -G RPM
+      - name: 'Upload Fedora 44 rpm package'
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'Fedora 44 rpm package'
+          path: build/*.rpm
+          if-no-files-found: error
