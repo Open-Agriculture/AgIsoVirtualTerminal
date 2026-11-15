@@ -633,7 +633,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									// was typed, or the keypad's rounding to the object's decimals is written back.
 									if ((nullptr != inputNumberKeypad) && inputNumberKeypad->is_edited() && (0 != clickedNumber->get_scale()))
 									{
-										const double rawValue = (inputNumberKeypad->get_value() / clickedNumber->get_scale()) - clickedNumber->get_offset();
+										const double rawValue = (inputNumberKeypad->get_value() / NumberComponent::get_decimal_scale(clickedNumber->get_scale())) - clickedNumber->get_offset();
 										const double clamped = std::min(std::max(rawValue, static_cast<double>(clickedNumber->get_minimum_value())),
 										                                static_cast<double>(clickedNumber->get_maximum_value()));
 										inputNumberListener.set_last_value(static_cast<std::uint32_t>(std::llround(clamped)));

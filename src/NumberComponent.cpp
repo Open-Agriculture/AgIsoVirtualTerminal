@@ -116,7 +116,7 @@ double NumberComponent::round_to_decimals(double value, std::uint8_t decimals, b
 {
 	const double factor = std::pow(10.0, decimals);
 	// Nudged away from zero, so double error can't drop the last digit
-	const double steps = value * factor * (1.0 + 1e-12);
+	const double steps = value * factor * (1.0 + 1e-15);
 	const double result = (truncate ? std::trunc(steps) : std::round(steps)) / factor;
 	return (0.0 == result) ? 0.0 : result; // No "-0"
 }
