@@ -18,6 +18,7 @@
 #include "JuceHeader.h"
 
 #include <mutex>
+#include <vector>
 
 class ServerMainComponent;
 
@@ -72,7 +73,7 @@ private:
 	void begin_open_input(std::uint16_t objectID);
 	bool end_open_input();
 
-	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
+	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path = {});
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
 

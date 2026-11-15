@@ -16,6 +16,8 @@
 
 #include "JuceHeader.h"
 
+#include <vector>
+
 class ServerMainComponent;
 
 class SoftKeyMaskRenderAreaComponent : public Component
@@ -28,6 +30,13 @@ public:
 	void on_working_set_disconnect(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
 	void paint(Graphics &g) override;
+
+	/// @brief Paints the area behind the soft key mask
+	/// @param g The graphics context
+	/// @param bounds The area to paint
+	/// @param background The background colour
+	/// @param hasWorkingSet Whether a working set is shown
+	static void paint_area(Graphics &g, juce::Rectangle<int> bounds, Colour background, bool hasWorkingSet);
 
 	void paintOverChildren(Graphics &g) override;
 
@@ -44,7 +53,7 @@ private:
 
 	void change_page(int delta);
 	void update_page_bar(int pageCount);
-	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y);
+	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path = {});
 	static bool objectCanBeClicked(std::shared_ptr<isobus::VTObject> object);
 	static bool isClickWithinBounds(int clickXRelative, int clickYRelative, int objectX, int objectY, int objectWidth, int objectHeight);
 

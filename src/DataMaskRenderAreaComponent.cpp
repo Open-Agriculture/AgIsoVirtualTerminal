@@ -11,6 +11,8 @@
 #include "AppImages.h"
 #include "ButtonComponent.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
+#include "NumberComponent.hpp"
+#include "OutputListComponent.hpp"
 #include "ServerMainComponent.hpp"
 #include "isobus/isobus/can_stack_logger.hpp"
 
@@ -604,9 +606,10 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 							// A keypad rather than a slider, because an exact value cannot be hit by
 							// dragging a finger, especially over the ranges an input number can have
-							inputNumberKeypad.reset(new NumericKeypadComponent((static_cast<double>(currentRawValue) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
-							                                                   (static_cast<double>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
-							                                                   (static_cast<double>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * clickedNumber->get_scale(),
+							const double scale = NumberComponent::get_decimal_scale(clickedNumber->get_scale());
+							inputNumberKeypad.reset(new NumericKeypadComponent((static_cast<double>(currentRawValue) + clickedNumber->get_offset()) * scale,
+							                                                   (static_cast<double>(clickedNumber->get_minimum_value()) + clickedNumber->get_offset()) * scale,
+							                                                   (static_cast<double>(clickedNumber->get_maximum_value()) + clickedNumber->get_offset()) * scale,
 							                                                   clickedNumber->get_number_of_decimals(),
 							                                                   (isobus::LanguageCommandInterface::DecimalSymbols::Comma == ownerServer.get_language_command_interface().get_commanded_decimal_symbol()) ? ',' : '.'));
 
@@ -630,7 +633,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 									// was typed, or the keypad's rounding to the object's decimals is written back.
 									if ((nullptr != inputNumberKeypad) && inputNumberKeypad->is_edited() && (0 != clickedNumber->get_scale()))
 									{
-										const double rawValue = (inputNumberKeypad->get_value() / clickedNumber->get_scale()) - clickedNumber->get_offset();
+										const double rawValue = (inputNumberKeypad->get_value() / NumberComponent::get_decimal_scale(clickedNumber->get_scale())) - clickedNumber->get_offset();
 										const double clamped = std::min(std::max(rawValue, static_cast<double>(clickedNumber->get_minimum_value())),
 										                                static_cast<double>(clickedNumber->get_maximum_value()));
 										inputNumberListener.set_last_value(static_cast<std::uint32_t>(std::llround(clamped)));
@@ -882,17 +885,20 @@ void DataMaskRenderAreaComponent::InputNumberListener::set_target(std::shared_pt
 	targetObject = objectBeingModified;
 }
 
-std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y)
+std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path)
 {
 	std::shared_ptr<isobus::VTObject> retVal;
 
 	if ((nullptr == object) ||
 	    (nullptr == parentWorkingSet) ||
 	    ((isobus::VirtualTerminalObjectType::ObjectPointer != object->get_object_type()) &&
-	     (0 == object->get_number_children())))
+	     (0 == object->get_number_children())) ||
+	    (path.end() != std::find(path.begin(), path.end(), object->get_id())))
 	{
 		return nullptr;
 	}
+	// Each branch gets its own copy of the path, so a reference cycle stops but an object used twice is still searched
+	path.push_back(object->get_id());
 
 	if (isobus::VirtualTerminalObjectType::ObjectPointer == object->get_object_type())
 	{
@@ -906,7 +912,7 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 		}
 		else if (!objectCanBeClicked(child))
 		{
-			retVal = getClickedChildRecursive(child, x, y);
+			retVal = getClickedChildRecursive(child, x, y, path);
 		}
 	}
 	else
@@ -920,6 +926,13 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 
 		for (std::uint16_t i = 0; i < object->get_number_children(); i++)
 		{
+			// The other items of an Output List aren't on screen, so they can't be pressed
+			if ((isobus::VirtualTerminalObjectType::OutputList == object->get_object_type()) &&
+			    (i != OutputListComponent::get_selected_index(*std::static_pointer_cast<isobus::OutputList>(object), parentWorkingSet)))
+			{
+				continue;
+			}
+
 			auto child = object->get_object_by_id(object->get_child_id(i), parentWorkingSet->get_object_tree());
 
 			if ((nullptr != child) &&
@@ -930,7 +943,7 @@ std::shared_ptr<isobus::VTObject> DataMaskRenderAreaComponent::getClickedChildRe
 			}
 			else if (!objectCanBeClicked(child))
 			{
-				retVal = getClickedChildRecursive(child, x - object->get_child_x(i), y - object->get_child_y(i));
+				retVal = getClickedChildRecursive(child, x - object->get_child_x(i), y - object->get_child_y(i), path);
 
 				if (nullptr != retVal)
 				{

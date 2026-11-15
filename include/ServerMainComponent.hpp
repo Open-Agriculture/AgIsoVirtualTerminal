@@ -12,17 +12,20 @@
 
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
+#include "DiagnosticsWindow.hpp"
 #include "LoggerComponent.hpp"
 #include "SoftKeyMaskComponent.hpp"
 #include "SoftKeyMaskRenderAreaComponent.hpp"
 #include "UpdateChecker.hpp"
 #include "VT_NumberComponent.hpp"
+#include "VersionStorage.hpp"
 #include "WorkingSetSelectorComponent.hpp"
 #include "isobus/isobus/isobus_diagnostic_protocol.hpp"
 #include "isobus/isobus/isobus_time_date_interface.hpp"
 #include "isobus/isobus/isobus_virtual_terminal_server.hpp"
 
 #include <filesystem>
+#include <map>
 #include <set>
 
 class ServerMainComponent : public juce::Component
@@ -76,8 +79,8 @@ public:
 	/// @brief This function is called when the client wants the server to save an object pool
 	/// to the VT's non-volatile memory.
 	/// If the object pool is saved successfully, return true, otherwise return false.
-	/// @note This may be called multiple times with the same version, but different data. When this
-	/// happens, the expectation is that you will append each objectPool together into one large file.
+	/// @note This is called once per object pool transfer, in transfer order. The server calls delete_version()
+	/// with the same label first, so each call adds the next component of the version.
 	/// @param[in] objectPool The object pool data to save
 	/// @param[in] versionLabel The object pool version to save for the given client NAME
 	/// @param[in] clientNAME The client requesting the object pool
@@ -152,6 +155,8 @@ public:
 
 	void save_settings();
 
+	void show_diagnostics_window();
+
 	void identify_vt() override;
 
 	void screen_capture(std::uint8_t item, std::uint8_t path, std::shared_ptr<isobus::ControlFunction> requestor) override;
@@ -214,7 +219,8 @@ private:
 		AutoCheckForUpdates,
 		AlwaysOnTop,
 		FitMasksToWindow,
-		ScalePoolsToDataMask
+		ScalePoolsToDataMask,
+		ShowDiagnostics
 	};
 
 	SoftKeyMaskDimensions softKeyMaskDimensions;
@@ -224,8 +230,6 @@ private:
 	public:
 		void operator()(int result) const noexcept;
 		ServerMainComponent &mParent;
-
-	private:
 	};
 	friend class LanguageCommandConfigClosed;
 
@@ -243,15 +247,21 @@ private:
 
 	static VTVersion get_version_from_setting(std::uint8_t aVersion);
 
-	std::size_t number_of_iop_files_in_directory(std::filesystem::path path);
-
-	/// @brief The client's stored object pool directory, which may not exist yet
-	std::string get_client_iso_data_path(isobus::NAME clientNAME) const;
+	VersionStorage get_version_storage(isobus::NAME clientNAME) const;
 
 	bool timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDateToPopulate);
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
+	/// @brief Called when a client changes its active mask, from the CAN thread or, for a macro, the message thread
+	/// @param[in] affectedWorkingSet The working set whose active mask was changed
+	/// @param[in] workingSet The working set object ID
+	/// @param[in] newMask The new active data or alarm mask
 	void on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask);
+
+	/// @brief Shows the new active mask, or the alarm that outranks it. Runs on the message thread.
+	/// @param[in] affectedWorkingSet The working set whose active mask was changed
+	/// @param[in] newMask The new active data or alarm mask
+	void change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t newMask);
 
 	/// @brief Called from the CAN thread when a client changes a soft key mask, hands the change to the message thread
 	/// @param[in] affectedWorkingSet The working set whose mask was changed
@@ -281,10 +291,19 @@ private:
 	/// not inside its window yet at that point.
 	void apply_always_on_top();
 
+	bool can_show_alarm(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const;
+	void record_alarm_activation(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, std::uint16_t mask);
+	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> get_highest_priority_alarm_working_set() const;
+	void show_highest_priority_alarm();
+	void clear_active_working_set();
+	void update_alarm_sound();
 	void repaint_data_and_soft_key_mask();
 	bool is_active_alarm_mask() const;
 	void update_ack_button_visibility();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
+
+	/// @brief Fills in the ISO 11783-12 identification messages and functionalities
+	void configure_diagnostic_protocol();
 
 	/// @brief Asks GitHub if a newer release is available and tells the user if there is one
 	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
@@ -327,21 +346,32 @@ private:
 	VT_NumberComponent vtNumberComponent;
 	static constexpr int RESIZE_GRIP_SIZE = 44; ///< Large enough to drag with a finger
 	std::unique_ptr<juce::ResizableCornerComponent> resizeGrip; ///< Replaces the window's 18 pixel corner resizer
-	SoundPlayer mSoundPlayer;
+	AudioFormatManager alarmFormatManager;
+	std::unique_ptr<AudioFormatReaderSource> alarmSoundSource;
+	AudioTransportSource alarmTransport; ///< Detached with setSource(nullptr), because stop() sleeps until the audio thread has faded out
+	AudioSourcePlayer alarmPlayer;
 	AudioDeviceManager mAudioDeviceManager;
 	std::unique_ptr<isobus::TimeDateInterface> timeServingInterface;
 	std::unique_ptr<isobus::DiagnosticProtocol> diagnosticProtocol;
 	std::unique_ptr<AlertWindow> popupMenu;
 	std::unique_ptr<ConfigureHardwareWindow> configureHardwareWindow;
+	std::unique_ptr<DiagnosticsWindow> diagnosticsWindow;
 	std::shared_ptr<isobus::ControlFunction> alarmAckKeyWs;
 	std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &parentCANDrivers;
 	std::vector<HeldButtonData> heldButtons;
 	std::set<std::string> loadedNames;
 	std::set<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>> rejectedWorkingSets; ///< Their last object pool was rejected, so they are never selected automatically
 	std::uint32_t alarmAckKeyMaskId = isobus::NULL_OBJECT_ID;
+	std::map<std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>, std::pair<std::uint16_t, std::uint32_t>> alarmActivationOrder; ///< Active alarm mask and activation number per working set, for priority ties
+	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> lastDataMaskWorkingSet;
+	std::shared_ptr<isobus::VTObject> soundedAlarmMask;
+	std::uint32_t nextAlarmActivation = 0;
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	juce::int64 lastUpdateCheck = 0;
 	juce::String skippedUpdateVersion;
+	juce::String ecuPartNumber = "AgIsoVirtualTerminal";
+	juce::String ecuSerialNumber; ///< Generated on the first start, so it is unique per install
+	juce::String ecuHardwareId = "Generic";
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;

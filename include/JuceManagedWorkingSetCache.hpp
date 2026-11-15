@@ -13,6 +13,8 @@
 #include "JuceHeader.h"
 #include "SoftKeyMaskComponent.hpp"
 
+#include <vector>
+
 class JuceManagedWorkingSetCache
 {
 public:
@@ -24,6 +26,7 @@ public:
 
 private:
 	static SoftKeyMaskDimensions softKeyDimensionInfo;
+	static std::vector<std::uint16_t> objectsBeingCreated; ///< The objects create_component() is partway through building, outermost first
 	static int dataAndAlarmMaskSize;
 };
 

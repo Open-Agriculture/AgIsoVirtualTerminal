@@ -4,6 +4,7 @@
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
 #include "OutputLineComponent.hpp"
+#include "LineArt.hpp"
 
 OutputLineComponent::OutputLineComponent(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, isobus::OutputLine sourceObject) :
   isobus::OutputLine(sourceObject),
@@ -22,6 +23,7 @@ void OutputLineComponent::paint(Graphics &g)
 		{
 			auto line = std::static_pointer_cast<isobus::LineAttributes>(child);
 			const int brushSize = line->get_width();
+			const std::uint16_t lineArt = line->get_line_art_bit_pattern();
 
 			if ((0 != get_width()) && (0 != get_height()) && (0 != brushSize))
 			{
@@ -31,41 +33,89 @@ void OutputLineComponent::paint(Graphics &g)
 				// ISO 11783-6 draws lines with a square paintbrush the size of the line width, each point of the line
 				// being the brush's upper left corner. The brush stays inside the object's box, so the line runs
 				// between the corners that leave room for it; where the box is smaller than the brush, the brush is
-				// clipped to the box (Figure B.4).
+				// clipped to the box (ISO 11783-6:2018, Figure B.5).
 				const int endX = std::max(0, static_cast<int>(get_width()) - brushSize);
 				const int endY = std::max(0, static_cast<int>(get_height()) - brushSize);
 				const bool bottomLeftToTopRight = (LineDirection::BottomLeftToTopRight == get_line_direction());
 				const Point<int> from(0, bottomLeftToTopRight ? endY : 0);
 				const Point<int> to(endX, bottomLeftToTopRight ? 0 : endY);
 
-				// Bresenham's line algorithm, painting the brush at every point
-				const int deltaX = std::abs(to.x - from.x);
-				const int deltaY = -std::abs(to.y - from.y);
-				const int stepX = (from.x < to.x) ? 1 : -1;
-				const int stepY = (from.y < to.y) ? 1 : -1;
-				int error = deltaX + deltaY;
-				Point<int> point = from;
+				const std::vector<Point<int>> points = get_line_points(from, to);
 
-				while (true)
+				if (line_art::SOLID == lineArt)
 				{
-					g.fillRect(point.x, point.y, brushSize, brushSize);
-					if (point == to)
+					for (const auto &point : points)
 					{
-						break;
-					}
-					const int doubledError = 2 * error;
-					if (doubledError >= deltaY)
-					{
-						error += deltaY;
-						point.x += stepX;
-					}
-					if (doubledError <= deltaX)
-					{
-						error += deltaX;
-						point.y += stepY;
+						g.fillRect(point.x, point.y, brushSize, brushSize);
 					}
 				}
+				else
+				{
+					paint_line_art(g, points, from, to, brushSize, lineArt);
+				}
 			}
+		}
+	}
+}
+
+std::vector<Point<int>> OutputLineComponent::get_line_points(Point<int> from, Point<int> to)
+{
+	std::vector<Point<int>> points;
+	const int deltaX = std::abs(to.x - from.x);
+	const int deltaY = -std::abs(to.y - from.y);
+	const int stepX = (from.x < to.x) ? 1 : -1;
+	const int stepY = (from.y < to.y) ? 1 : -1;
+	int error = deltaX + deltaY;
+	Point<int> point = from;
+
+	while (true)
+	{
+		points.push_back(point);
+		if (point == to)
+		{
+			break;
+		}
+		const int doubledError = 2 * error;
+		if (doubledError >= deltaY)
+		{
+			error += deltaY;
+			point.x += stepX;
+		}
+		if (doubledError <= deltaX)
+		{
+			error += deltaX;
+			point.y += stepY;
+		}
+	}
+	return points;
+}
+
+void OutputLineComponent::paint_line_art(Graphics &g, const std::vector<Point<int>> &points, Point<int> from, Point<int> to, int brushSize, std::uint16_t lineArt)
+{
+	const bool alongX = (std::abs(to.x - from.x) >= std::abs(to.y - from.y));
+	// On a line drawn upwards along y, the start of the line is the brush's bottom edge
+	const bool startsAtFarEdge = !alongX && (to.y < from.y);
+	const int lastStep = static_cast<int>(points.size()) - 1;
+	const int lineLength = lastStep + brushSize;
+
+	for (int spot = 0; (spot * brushSize) < lineLength; spot++)
+	{
+		if (!line_art::is_spot_drawn(lineArt, spot))
+		{
+			continue;
+		}
+		const int step = std::min(spot * brushSize, lastStep);
+		const int skipped = (spot * brushSize) - step; // Pixels of the last brush before a cut short spot
+		const int length = brushSize - skipped;
+		const Point<int> &point = points[static_cast<std::size_t>(step)];
+
+		if (alongX)
+		{
+			g.fillRect(point.x + skipped, point.y, length, brushSize);
+		}
+		else
+		{
+			g.fillRect(point.x, point.y + (startsAtFarEdge ? 0 : skipped), brushSize, length);
 		}
 	}
 }
