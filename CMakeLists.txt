@@ -78,6 +78,9 @@ endif()
 
 target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
                                                         JUCE_WEB_BROWSER=0)
+string(SUBSTRING "${CAN_STACK_GIT_TAG}" 0 7 AGISOSTACK_VERSION)
+target_compile_definitions(AgISOVirtualTerminal
+                           PRIVATE AGISOSTACK_VERSION="${AGISOSTACK_VERSION}")
 
 juce_generate_juce_header(AgISOVirtualTerminal)
 
