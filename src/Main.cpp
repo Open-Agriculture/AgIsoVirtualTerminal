@@ -38,10 +38,7 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 
 	auto &config = isobus::CANNetworkManager::CANNetwork.get_configuration();
 	config.set_max_number_transport_protocol_sessions(256);
-	// A full 255-packet ETP burst can delay the following CTS long enough for
-	// some implement ECUs to time out. Keep a larger-than-default window while
-	// leaving enough time for the receiver to process each burst.
-	config.set_number_of_packets_per_dpo_message(64);
+	config.set_number_of_packets_per_dpo_message(255);
 	config.set_number_of_packets_per_cts_message(255);
 
 #ifndef JUCE_WINDOWS
