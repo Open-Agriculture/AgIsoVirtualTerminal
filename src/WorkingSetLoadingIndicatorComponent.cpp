@@ -1,5 +1,5 @@
 //================================================================================================
-/// @file WorkingSetLoadingIndicatorComponent.hpp
+/// @file WorkingSetLoadingIndicatorComponent.cpp
 ///
 /// @brief Defines a component to show object pools currently being transferred
 /// @author Miklos Marton
@@ -38,7 +38,6 @@ void WorkingSetLoadingIndicatorComponent::paint(Graphics &g)
 	layout.createLayout(attributedText, width);
 	layout.draw(g, juce::Rectangle<float>(0, 0, width, height * 0.75));
 
-	// draw "progress bar"
 	g.setColour(Colours::white);
 	g.fillRect(2, height * 0.75, width - 4, height / 4.0);
 	g.setColour(Colour::fromRGB(57, 255, 20));

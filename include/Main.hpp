@@ -3,7 +3,9 @@
 ** @author     Adrian Del Grosso
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
-#pragma once
+
+#ifndef MAIN_HPP
+#define MAIN_HPP
 
 #include <JuceHeader.h>
 #include "ASCIILogFile.hpp"
@@ -71,9 +73,12 @@ public:
 
 	void shutdown() override
 	{
-		// Add your application's shutdown code here..
-
-		mainWindow = nullptr; // (deletes our window)
+		// The CAN thread calls into the window, and not every quit goes through closeButtonPressed
+		if (isobus::CANHardwareInterface::is_running())
+		{
+			isobus::CANHardwareInterface::stop();
+		}
+		mainWindow = nullptr;
 	}
 
 	//==============================================================================
@@ -147,3 +152,5 @@ private:
 	std::unique_ptr<MainWindow> mainWindow;
 	ASCIILogFile logFile;
 };
+
+#endif // MAIN_HPP

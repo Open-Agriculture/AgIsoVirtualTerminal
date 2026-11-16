@@ -39,6 +39,22 @@ public:
 	static constexpr int BUTTON_HEIGHT = 72;
 	static constexpr int button_padding();
 
+	/// @brief Gets the bounds of a working set button
+	/// @param index The button's position in the column
+	/// @returns The button's bounds
+	static juce::Rectangle<int> button_bounds(int index);
+
+	/// @brief Fills a button with its working set's background colour
+	/// @param g The graphics context
+	/// @param bounds The button's bounds
+	/// @param workingSet The button's working set
+	static void paint_button_background(Graphics &g, juce::Rectangle<int> bounds, const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet);
+
+	/// @brief Positions and scales a designator in its button
+	/// @param designator The designator's component
+	/// @param bounds The button's bounds
+	static void place_designator(Component &designator, juce::Rectangle<int> bounds);
+
 private:
 	class AckButton : public juce::TextButton
 	{
@@ -64,7 +80,6 @@ private:
 	std::shared_ptr<Component> getWorkingSetChildComponent(
 	  std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet,
 	  int workingSetIndex);
-	static juce::Rectangle<int> button_bounds(int index);
 	void update_ack_button_bounds();
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WorkingSetSelectorComponent)

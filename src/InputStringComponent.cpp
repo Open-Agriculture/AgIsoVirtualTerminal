@@ -17,5 +17,5 @@ InputStringComponent::InputStringComponent(std::shared_ptr<isobus::VirtualTermin
 
 void InputStringComponent::paint(Graphics &g)
 {
-	paintString(g, displayed_value(parentWorkingSet->get_object_tree()));
+	paintString(g, displayed_value(parentWorkingSet->get_object_tree()), get_enabled());
 }

@@ -30,7 +30,7 @@ void InputBooleanComponent::paint(Graphics &g)
 
 		if ((nullptr != child) && (isobus::VirtualTerminalObjectType::FontAttributes == child->get_object_type()))
 		{
-			vtColour = parentWorkingSet->get_colour(std::static_pointer_cast<isobus::FontAttributes>(child)->get_background_color());
+			vtColour = parentWorkingSet->get_colour(std::static_pointer_cast<isobus::FontAttributes>(child)->get_colour());
 			g.setColour(Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f));
 		}
 	}

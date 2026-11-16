@@ -13,7 +13,9 @@
 ///
 /// @copyright 2025 The Open-Agriculture Developers
 //================================================================================================
-#pragma once
+
+#ifndef MANUFACTURER_MAP_HPP
+#define MANUFACTURER_MAP_HPP
 
 #include <string>
 #include <unordered_map>
@@ -1584,3 +1586,5 @@ static const std::unordered_map<int, std::string> manufacturerMap = {
 	{ 1862, "Sanshin" },
 	{ 1863, "Thomas G. Faria Co." }
 };
+
+#endif // MANUFACTURER_MAP_HPP

@@ -7,8 +7,13 @@
 
 #include "ASCIILogFile.hpp"
 
+#if JUCE_WINDOWS
+extern "C" __declspec(dllimport) int __stdcall DestroyCaret(void);
+#endif
+
 #include "AckSettingsWindow.hpp"
 #include "AlarmMaskAudio.h"
+#include "IndentedToggleButton.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "Main.hpp"
 #include "isobus/utility/system_timing.hpp"
@@ -22,7 +27,9 @@
 #endif
 #include "isobus/isobus/can_stack_logger.hpp"
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
@@ -63,18 +70,27 @@ ServerMainComponent::ServerMainComponent(
 	timeServingInterface = std::make_unique<isobus::TimeDateInterface>(serverControlFunction, timerCallback);
 	timeServingInterface->initialize();
 
+	const bool isNewSerialNumber = ecuSerialNumber.isEmpty();
+	if (isNewSerialNumber)
+	{
+		ecuSerialNumber = Uuid().toString().toUpperCase();
+	}
+
 	diagnosticProtocol = std::make_unique<isobus::DiagnosticProtocol>(serverControlFunction);
-	diagnosticProtocol->set_product_identification_brand("Open-Agriculture");
-	diagnosticProtocol->set_product_identification_model("AgIsoVirtualTerminal");
-	diagnosticProtocol->set_software_id_field(0, AgISOVirtualTerminalApplication::getApplicationBuildInfo());
+	configure_diagnostic_protocol();
 	diagnosticProtocol->initialize();
 
 	isobus::CANHardwareInterface::get_periodic_update_event_dispatcher().add_listener([this]() {
 		diagnosticProtocol->update();
 	});
+	get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); });
+	get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); });
+	get_on_change_active_softkey_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask) { this->on_change_active_softkey_mask_callback(affectedWorkingSet, mask, newSoftKeyMask); });
 
+	alarmFormatManager.registerBasicFormats();
 	mAudioDeviceManager.initialise(0, 1, nullptr, true);
-	mAudioDeviceManager.addAudioCallback(&mSoundPlayer);
+	alarmPlayer.setSource(&alarmTransport);
+	mAudioDeviceManager.addAudioCallback(&alarmPlayer);
 	addAndMakeVisible(workingSetSelector);
 	addAndMakeVisible(dataMaskRenderer);
 	addAndMakeVisible(softKeyMaskRenderer);
@@ -86,10 +102,9 @@ ServerMainComponent::ServerMainComponent(
 
 	// Make sure you set the size of the component after
 	// you add any child components.
+	// Includes the menu bar, so a new window opens at exactly 100 %
 	setSize(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width(),
-	        minimum_height() + LoggerComponent::HEIGHT);
-
-	workingSetSelector.setTopLeftPosition(0, juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight());
+	        juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() + minimum_height() + LoggerComponent::HEIGHT);
 
 	logger.setSize(getWidth(), LoggerComponent::HEIGHT);
 	loggerViewport.setViewedComponent(&logger, false);
@@ -100,6 +115,21 @@ ServerMainComponent::ServerMainComponent(
 
 	setWantsKeyboardFocus(true);
 	addKeyListener(this);
+
+	const auto millisecondsSinceLastUpdateCheck = Time::getCurrentTime().toMilliseconds() - lastUpdateCheck;
+	const bool hasRecentUpdateCheck = (lastUpdateCheck > 0) &&
+	  (millisecondsSinceLastUpdateCheck >= 0) &&
+	  (millisecondsSinceLastUpdateCheck < UPDATE_CHECK_INTERVAL_MS);
+
+	if (checkForUpdatesOnStartup && !hasRecentUpdateCheck)
+	{
+		check_for_update(false);
+	}
+
+	if (isNewSerialNumber)
+	{
+		save_settings();
+	}
 }
 
 ServerMainComponent::~ServerMainComponent()
@@ -267,52 +297,51 @@ void ServerMainComponent::send_alarm_ack_command(KeyActivationCode activationCod
 	}
 }
 
+// A version saved in several files by an older version may have grown on every Store after a Load (#271)
+static void log_retired_versions(const VersionStorage &storage, std::size_t labelLength, isobus::NAME clientNAME)
+{
+	for (const auto &label : storage.get_retired_labels(labelLength))
+	{
+		std::ostringstream nameString;
+		nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
+		isobus::CANStackLogger::info("[VT Server]: Not offering version \"" + std::string(label.begin(), label.end()) + "\" of client " + nameString.str() +
+		                             ", an older version stored it in several files. The client has to upload its object pool again.");
+	}
+}
+
 std::vector<std::array<std::uint8_t, 7>> ServerMainComponent::get_versions(isobus::NAME clientNAME)
 {
-	std::ostringstream nameString;
 	std::vector<std::array<std::uint8_t, 7>> retVal;
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-	File isoDirectory(getAppDataDir() +
-	                  File::getSeparatorString() +
-	                  ISO_DATA_PATH +
-	                  File::getSeparatorString() +
-	                  nameString.str());
+	const auto storage = get_version_storage(clientNAME);
+	log_retired_versions(storage, 7, clientNAME);
 
-	if (isoDirectory.exists() && isoDirectory.isDirectory())
+	for (const auto &label : storage.get_labels(7))
 	{
-		auto directoryFiles = isoDirectory.findChildFiles(File::TypesOfFileToFind::findFiles, false, "*.iopx");
-
-		for (auto &file : directoryFiles)
-		{
-			std::ifstream iopxFile(file.getFullPathName().toStdString(), std::ios::binary);
-
-			if (iopxFile.is_open())
-			{
-				iopxFile.unsetf(std::ios::skipws);
-				std::array<std::uint8_t, 7> versionLabel;
-				iopxFile.read(reinterpret_cast<char *>(versionLabel.data()), 7);
-
-				// Only add the version label if it is not already in the list
-				bool versionAlreadyInList = false;
-				for (const auto &version : retVal)
-				{
-					if (version == versionLabel)
-					{
-						versionAlreadyInList = true;
-						break;
-					}
-				}
-
-				if (!versionAlreadyInList)
-				{
-					retVal.push_back(versionLabel);
-				}
-			}
-		}
+		std::array<std::uint8_t, 7> versionLabel;
+		std::copy(label.begin(), label.end(), versionLabel.begin());
+		retVal.push_back(versionLabel);
 	}
-	else
+
+	if (retVal.empty())
 	{
+		std::ostringstream nameString;
+		nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
 		isobus::CANStackLogger::info("[VT Server]: No saved object pool data for client: " + nameString.str());
+	}
+	return retVal;
+}
+
+std::vector<std::array<std::uint8_t, 32>> ServerMainComponent::get_extended_versions(isobus::NAME clientNAME)
+{
+	std::vector<std::array<std::uint8_t, 32>> retVal;
+	const auto storage = get_version_storage(clientNAME);
+	log_retired_versions(storage, 32, clientNAME);
+
+	for (const auto &label : storage.get_labels(32))
+	{
+		std::array<std::uint8_t, 32> versionLabel;
+		std::copy(label.begin(), label.end(), versionLabel.begin());
+		retVal.push_back(versionLabel);
 	}
 	return retVal;
 }
@@ -325,202 +354,27 @@ std::vector<std::uint8_t> ServerMainComponent::get_supported_objects() const
 
 std::vector<std::uint8_t> ServerMainComponent::load_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
-	std::ostringstream nameString;
-	std::vector<std::uint8_t> loadedIOPData;
-	std::vector<std::uint8_t> loadedVersionLabel(7);
-	std::string path = (getAppDataDir() +
-	                    File::getSeparatorString() +
-	                    ISO_DATA_PATH +
-	                    File::getSeparatorString())
-	                     .toStdString();
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-
-	if ((std::filesystem::is_directory(path + nameString.str()) ||
-	     std::filesystem::exists(path + nameString.str())) &&
-	    (7 == versionLabel.size()))
-	{
-		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
-		{
-			if (entry.path().has_extension() && entry.path().extension() == ".iopx")
-			{
-				std::ifstream iopxFile(entry.path(), std::ios::binary);
-
-				if (iopxFile.is_open())
-				{
-					iopxFile.unsetf(std::ios::skipws);
-					iopxFile.read(reinterpret_cast<char *>(loadedVersionLabel.data()), 7);
-
-					if (7 == loadedVersionLabel.size())
-					{
-						bool versionMatches = true;
-						for (std::uint8_t i = 0; i < 7; i++)
-						{
-							if (loadedVersionLabel.at(i) != versionLabel.at(i))
-							{
-								versionMatches = false;
-								break;
-							}
-						}
-
-						if (versionMatches)
-						{
-							iopxFile.seekg(7, std::ios::beg);
-							loadedIOPData.insert(loadedIOPData.end(), std::istream_iterator<std::uint8_t>(iopxFile), std::istream_iterator<std::uint8_t>());
-						}
-					}
-				}
-			}
-		}
-	}
-	return loadedIOPData;
+	return get_version_storage(clientNAME).load(versionLabel);
 }
 
 bool ServerMainComponent::save_version(const std::vector<std::uint8_t> &objectPool, const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
-	bool retVal = false;
-	std::string path = (getAppDataDir() +
-	                    File::getSeparatorString() +
-	                    String(ISO_DATA_PATH))
-	                     .toStdString();
-
-	// Main saved data folder
-	if (!std::filesystem::is_directory(path) || !std::filesystem::exists(path))
-	{
-		std::filesystem::create_directory(path);
-	}
-
-	// NAME specific folder
-	std::ostringstream nameString;
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-
-	if (!std::filesystem::is_directory(path + "/" + nameString.str()) || !std::filesystem::exists(path + "/" + nameString.str()))
-	{ // Check if src folder exists
-		std::filesystem::create_directory(path + "/" + nameString.str()); // create src folder
-	}
-
-	std::ofstream iopxFile(path + "/" + nameString.str() + "/object_pool_with_label_" + std::to_string(number_of_iop_files_in_directory(path + "/" + nameString.str())) + ".iopx", std::ios::trunc | std::ios::binary);
-	std::ofstream iopFile(path + "/" + nameString.str() + "/object_pool_" + std::to_string(number_of_iop_files_in_directory(path + "/" + nameString.str())) + ".iop", std::ios::trunc | std::ios::binary);
-
-	if (iopxFile.is_open())
-	{
-		iopxFile.write(reinterpret_cast<const char *>(versionLabel.data()), static_cast<std::streamsize>(versionLabel.size()));
-		iopxFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast<std::streamsize>(objectPool.size()));
-		iopxFile.close();
-		retVal = true;
-	}
-	if (iopFile.is_open())
-	{
-		iopFile.write(reinterpret_cast<const char *>(objectPool.data()), static_cast<std::streamsize>(objectPool.size()));
-		iopFile.close();
-	}
-	return retVal;
+	return get_version_storage(clientNAME).save(objectPool, versionLabel);
 }
 
 bool ServerMainComponent::delete_version(const std::vector<std::uint8_t> &versionLabel, isobus::NAME clientNAME)
 {
-	bool retVal = false;
-	std::ostringstream nameString;
-	std::vector<std::uint8_t> loadedVersionLabel(7);
-	std::vector<std::filesystem::directory_entry> filesToRemove;
-	std::string path = (getAppDataDir() +
-	                    File::getSeparatorString() +
-	                    ISO_DATA_PATH +
-	                    File::getSeparatorString())
-	                     .toStdString();
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-
-	if ((std::filesystem::is_directory(path + nameString.str()) ||
-	     std::filesystem::exists(path + nameString.str())) &&
-	    (7 == versionLabel.size()))
-	{
-		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
-		{
-			if (entry.path().has_extension() && entry.path().extension() == ".iopx")
-			{
-				std::ifstream iopxFile(entry.path(), std::ios::binary);
-
-				if (iopxFile.is_open())
-				{
-					iopxFile.unsetf(std::ios::skipws);
-					iopxFile.read(reinterpret_cast<char *>(loadedVersionLabel.data()), 7);
-
-					if (7 == loadedVersionLabel.size())
-					{
-						bool versionMatches = true;
-						for (std::uint8_t i = 0; i < 7; i++)
-						{
-							if (loadedVersionLabel.at(i) != versionLabel.at(i))
-							{
-								versionMatches = false;
-								break;
-							}
-						}
-
-						if (versionMatches)
-						{
-							iopxFile.close();
-							filesToRemove.push_back(entry);
-							retVal = true;
-						}
-					}
-				}
-			}
-		}
-
-		for (const auto &entry : filesToRemove)
-		{
-			retVal &= std::filesystem::remove(entry);
-		}
-	}
-	return retVal;
+	return get_version_storage(clientNAME).remove(versionLabel);
 }
 
-bool ServerMainComponent::delete_all_versions(isobus::NAME clientNAME)
+bool ServerMainComponent::delete_all_versions(std::uint8_t versionLabelLength, isobus::NAME clientNAME)
 {
-	bool retVal = false;
-	std::ostringstream nameString;
-	std::vector<std::uint8_t> loadedVersionLabel(7);
-	std::vector<std::filesystem::directory_entry> filesToRemove;
-	auto path = (getAppDataDir() +
-	             File::getSeparatorString() +
-	             ISO_DATA_PATH +
-	             File::getSeparatorString())
-	              .toStdString();
-	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
-
-	if ((std::filesystem::is_directory(path + nameString.str()) ||
-	     std::filesystem::exists(path + nameString.str())))
-	{
-		for (const auto &entry : std::filesystem::directory_iterator(path + nameString.str()))
-		{
-			if (entry.path().has_extension() && entry.path().extension() == ".iopx")
-			{
-				filesToRemove.push_back(entry);
-			}
-		}
-
-		for (const auto &entry : filesToRemove)
-		{
-			retVal &= std::filesystem::remove(entry);
-		}
-	}
-	return retVal;
+	return get_version_storage(clientNAME).remove_all(versionLabelLength);
 }
 
-bool ServerMainComponent::delete_object_pool(isobus::NAME clientNAME)
+bool ServerMainComponent::delete_object_pool(isobus::NAME)
 {
-	bool retVal = false;
-
-	for (auto &ws : managedWorkingSetList)
-	{
-		if (ws->get_control_function()->get_NAME() == clientNAME)
-		{
-			ws->request_deletion(); // We'll delete it on our next update on our normal thread.
-			retVal = true;
-			break;
-		}
-	}
-	return retVal;
+	return true;
 }
 
 std::uint8_t ServerMainComponent::get_user_layout_datamask_bg_color() const
@@ -537,15 +391,17 @@ std::uint8_t ServerMainComponent::get_user_layout_softkeymask_bg_color() const
 
 void ServerMainComponent::timerCallback()
 {
-	if ((isobus::SystemTiming::time_expired_ms(statusMessageTimestamp_ms, 1000)) &&
-	    (send_status_message()))
-	{
-		statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
-	}
+	update();
 
 	auto activeCANDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
 	bool isAdapterConnected = (nullptr != activeCANDriver) && activeCANDriver->get_is_valid();
 	bool isInterfaceRunning = isobus::CANHardwareInterface::is_running();
+
+	if (hasStartBeenCalled && isInterfaceRunning && !isAdapterConnected)
+	{
+		stop_can_interface_with_alert("The CAN interface stopped");
+		mCommandManager.commandStatusChanged();
+	}
 
 	if ((isAdapterConnected != canAdapterConnected) || (isInterfaceRunning != canInterfaceRunning))
 	{
@@ -555,107 +411,9 @@ void ServerMainComponent::timerCallback()
 	}
 
 	bool hasIopLoadInProgress = false;
-	int wsIndex = 0;
 	for (auto &ws : managedWorkingSetList)
 	{
-		if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Success == ws->get_object_pool_processing_state())
-		{
-			ws->join_parsing_thread();
-
-			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
-
-			auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
-			if ((isobus::NULL_CAN_ADDRESS == activeWorkingSetMasterAddress) &&
-			    (nullptr != workingSetObject) &&
-			    (workingSetObject->get_selectable()))
-			{
-				ws->set_working_set_maintenance_message_timestamp_ms(isobus::SystemTiming::get_timestamp_ms());
-				change_selected_working_set(wsIndex);
-			}
-
-			// A Load Version response is only valid for the initial pool restored
-			// from non-volatile memory. A subsequently transferred IOP component
-			// must receive the normal End of Object Pool response.
-			const bool isInitialNonVolatileLoadResponse =
-			  ws->get_was_object_pool_loaded_from_non_volatile_memory() &&
-			  loadVersionResponsesSent.insert(ws.get()).second;
-			if (isInitialNonVolatileLoadResponse)
-			{
-				send_load_version_response(0, ws->get_control_function());
-			}
-			else
-			{
-				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, isobus::NULL_OBJECT_ID, 0, ws->get_control_function());
-			}
-
-			std::ostringstream nameString;
-			nameString << std::hex << std::setfill('0') << std::setw(16) << ws->get_control_function()->get_NAME().get_full_name();
-			loadedNames.insert(nameString.str());
-		}
-		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Fail == ws->get_object_pool_processing_state())
-		{
-			ws->join_parsing_thread();
-
-			const bool isInitialNonVolatileLoadResponse =
-			  ws->get_was_object_pool_loaded_from_non_volatile_memory() &&
-			  loadVersionResponsesSent.insert(ws.get()).second;
-			if (isInitialNonVolatileLoadResponse)
-			{
-				send_load_version_response(1, ws->get_control_function());
-			}
-			else
-			{
-				///  @todo Get the parent object ID of the faulting object
-				send_end_of_object_pool_response(true, isobus::NULL_OBJECT_ID, ws->get_object_pool_faulting_object_id(), 0, ws->get_control_function());
-			}
-		}
-		else if (isobus::SystemTiming::time_expired_ms(ws->get_working_set_maintenance_message_timestamp_ms(), 3000) || ws->is_deletion_requested())
-		{
-			managedWorkingSetIopLoadStateMap[ws] = false;
-			dataMaskRenderer.on_working_set_disconnect(ws);
-			softKeyMaskRenderer.on_working_set_disconnect(ws);
-
-			if (managedWorkingSetList.empty())
-			{
-				activeWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
-				activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
-			}
-			else if (ws->get_control_function()->get_address() == activeWorkingSetMasterAddress)
-			{
-				bool newWorkingSetFound = false;
-
-				for (auto &nextWorkingSet : managedWorkingSetList)
-				{
-					if (nextWorkingSet->get_control_function()->get_address() != activeWorkingSetMasterAddress)
-					{
-						activeWorkingSetMasterAddress = nextWorkingSet->get_control_function()->get_address();
-						auto nextWorkingSetObject = nextWorkingSet->get_working_set_object();
-						if (nextWorkingSetObject)
-						{
-							activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(nextWorkingSetObject)->get_active_mask();
-							newWorkingSetFound = true;
-						}
-						else
-						{
-							activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
-							newWorkingSetFound = false;
-						}
-						break;
-					}
-				}
-
-				if (!newWorkingSetFound)
-				{
-					activeWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
-					activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
-				}
-			}
-			remove_working_set(ws);
-			workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
-			update_ack_button_visibility();
-			break;
-		}
-		else if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state())
+		if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == ws->get_object_pool_processing_state())
 		{
 			if (dataMaskRenderer.needsRepaint() || needToRepaint)
 			{
@@ -698,7 +456,6 @@ void ServerMainComponent::timerCallback()
 				hasIopLoadInProgress = true;
 			}
 		}
-		wsIndex++;
 	}
 
 	if (hasIopLoadInProgress)
@@ -710,6 +467,7 @@ void ServerMainComponent::timerCallback()
 	if (needToApplyWindowState)
 	{
 		apply_window_state();
+		apply_window_size_limits(); // Again, now that the window has its native frame and saved size
 	}
 
 	if (needToApplyAlwaysOnTop)
@@ -753,21 +511,46 @@ void ServerMainComponent::resized()
 	auto lMenuBarHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight();
 	auto lBounds = getLocalBounds();
 
-	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, minimum_height());
-	dataMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH, lMenuBarHeight, get_data_mask_area_size_x_pixels(), get_data_mask_area_size_y_pixels());
-	vtNumberComponent.setBounds(dataMaskRenderer.getBounds().getX() + (dataMaskRenderer.getWidth() / 4.0),
-	                            dataMaskRenderer.getBounds().getY() + (dataMaskRenderer.getHeight() / 10.0),
-	                            dataMaskRenderer.getBounds().getWidth() / 2.0,
-	                            (dataMaskRenderer.getBounds().getHeight() / 10.0) * 8);
-	softKeyMaskRenderer.setBounds(WorkingSetSelectorComponent::WIDTH + get_data_mask_area_size_x_pixels(),
-	                              lMenuBarHeight,
-	                              2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
-	                              get_data_mask_area_size_y_pixels());
+	// Each area keeps its native size and is magnified around its own top left corner
+	const auto scale = static_cast<float>(display_scale());
+	const auto pickerScale = static_cast<float>(working_set_selector_scale());
+	const int dataMaskWidth = get_data_mask_area_size_x_pixels();
+	const int dataMaskHeight = get_data_mask_area_size_y_pixels();
+	const int softKeyWidth = softKeyMaskDimensions.total_width();
+	const int pickerLeft = juce::roundToInt(WorkingSetSelectorComponent::WIDTH * pickerScale);
+	const int dataMaskLeft = pickerLeft;
+	const int softKeyLeft = dataMaskLeft + juce::roundToInt(dataMaskWidth * scale);
+
+	// Derived from the scaled mask height, so the picker lines up with the masks whatever its own scale
+	workingSetSelector.setBounds(0, lMenuBarHeight, WorkingSetSelectorComponent::WIDTH, juce::roundToInt((dataMaskHeight * scale) / pickerScale));
+	workingSetSelector.setTransform(juce::AffineTransform::scale(pickerScale, pickerScale, 0.0f, static_cast<float>(lMenuBarHeight)));
+
+	dataMaskRenderer.setBounds(dataMaskLeft, lMenuBarHeight, dataMaskWidth, dataMaskHeight);
+	dataMaskRenderer.setTransform(juce::AffineTransform::scale(scale, scale, static_cast<float>(dataMaskLeft), static_cast<float>(lMenuBarHeight)));
+
+	softKeyMaskRenderer.setBounds(softKeyLeft, lMenuBarHeight, softKeyWidth, dataMaskHeight);
+	softKeyMaskRenderer.setTransform(juce::AffineTransform::scale(scale, scale, static_cast<float>(softKeyLeft), static_cast<float>(lMenuBarHeight)));
+
+	// Not part of a pool, so placed against the scaled rectangle
+	const auto scaledDataMask = juce::Rectangle<int>(dataMaskLeft, lMenuBarHeight, juce::roundToInt(dataMaskWidth * scale), juce::roundToInt(dataMaskHeight * scale));
+	vtNumberComponent.setBounds(scaledDataMask.getX() + (scaledDataMask.getWidth() / 4),
+	                            scaledDataMask.getY() + (scaledDataMask.getHeight() / 10),
+	                            scaledDataMask.getWidth() / 2,
+	                            (scaledDataMask.getHeight() / 10) * 8);
+
 	// The logging area occupies everything below the mask render areas. The viewport needs an
 	// explicit size, otherwise it stays 0 x 0 and nothing is drawn even when it is made visible.
 	const int loggerTop = lMenuBarHeight + minimum_height();
 	loggerViewport.setBounds(0, loggerTop, getWidth(), juce::jmax(0, getHeight() - loggerTop));
 	menuBar.setBounds(lBounds.removeFromTop(lMenuBarHeight).withTrimmedRight(CAN_STATUS_INDICATOR_WIDTH));
+
+	if (nullptr != resizeGrip)
+	{
+		// Hidden while maximised or full screen
+		const auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+		resizeGrip->setVisible((nullptr != window) && window->isResizable() && !window->isFullScreen() && !window->isKioskMode());
+		resizeGrip->setBounds(getLocalBounds().removeFromBottom(RESIZE_GRIP_SIZE).removeFromRight(RESIZE_GRIP_SIZE));
+	}
 
 	// The visible sizes exclude any scroll bars, which keeps the log text from triggering a
 	// horizontal scroll bar of its own.
@@ -776,6 +559,21 @@ void ServerMainComponent::resized()
 	if (logger.getHeight() < loggerViewport.getMaximumVisibleHeight())
 	{
 		logger.setSize(loggerViewport.getMaximumVisibleWidth(), loggerViewport.getMaximumVisibleHeight());
+	}
+}
+
+void ServerMainComponent::parentHierarchyChanged()
+{
+	// The window's own corner resizer is too small for touch, so a larger one is added once in a window
+	auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+
+	if ((nullptr != window) && (nullptr == resizeGrip))
+	{
+		apply_window_size_limits(); // First, so the grip gets the window's constrainer
+		resizeGrip = std::make_unique<juce::ResizableCornerComponent>(window, window->getConstrainer());
+		resizeGrip->setAlwaysOnTop(true);
+		addChildComponent(*resizeGrip);
+		resized();
 	}
 }
 
@@ -795,9 +593,14 @@ void ServerMainComponent::getAllCommands(juce::Array<juce::CommandID> &allComman
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackage));
 	allCommands.add(static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 	allCommands.add(static_cast<int>(CommandIDs::ClearISOData));
+	allCommands.add(static_cast<int>(CommandIDs::ShowDiagnostics));
 	allCommands.add(static_cast<int>(CommandIDs::StartStop));
 	allCommands.add(static_cast<int>(CommandIDs::AutoStart));
+	allCommands.add(static_cast<int>(CommandIDs::CheckForUpdates));
+	allCommands.add(static_cast<int>(CommandIDs::AutoCheckForUpdates));
 	allCommands.add(static_cast<int>(CommandIDs::AlwaysOnTop));
+	allCommands.add(static_cast<int>(CommandIDs::FitMasksToWindow));
+	allCommands.add(static_cast<int>(CommandIDs::ScalePoolsToDataMask));
 #ifdef JUCE_WINDOWS
 	allCommands.add(static_cast<int>(CommandIDs::ConfigureCANHardware));
 #elif JUCE_LINUX
@@ -857,6 +660,12 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		}
 		break;
 
+		case CommandIDs::ShowDiagnostics:
+		{
+			result.setInfo("Diagnostics", "Show active diagnostic trouble codes from devices on the bus", "Troubleshooting", 0);
+		}
+		break;
+
 		case CommandIDs::ConfigureShortcuts:
 		{
 			result.setInfo("ACK button", "Configure ACK keyboard shortcut and button", "Configure", 0);
@@ -881,9 +690,33 @@ void ServerMainComponent::getCommandInfo(juce::CommandID commandID, ApplicationC
 		}
 		break;
 
+		case CommandIDs::CheckForUpdates:
+		{
+			result.setInfo("Check for Updates", "Checks GitHub for a newer version of this application", "About", updateChecker.is_check_in_progress() ? ApplicationCommandInfo::CommandFlags::isDisabled : 0);
+		}
+		break;
+
+		case CommandIDs::AutoCheckForUpdates:
+		{
+			result.setInfo("Check for Updates on launch", "Controls whether or not GitHub is checked for a newer version when the program is launched", "About", checkForUpdatesOnStartup ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
 		case CommandIDs::AlwaysOnTop:
 		{
 			result.setInfo("Always on top", "Keeps the VT window in front of other windows", "Control", alwaysOnTop ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::FitMasksToWindow:
+		{
+			result.setInfo("Fit masks to window", "Scales the data and soft key masks to fill the window", "Control", fitMasksToWindow ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
+		}
+		break;
+
+		case CommandIDs::ScalePoolsToDataMask:
+		{
+			result.setInfo("Scale pools to data mask size", "Scales object pools drawn for another data mask size to the configured one, which can also enlarge a pool that leaves space on purpose", "Control", scalePoolsToDataMask ? ApplicationCommandInfo::CommandFlags::isTicked : 0);
 		}
 		break;
 
@@ -1060,7 +893,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 				AlertWindow::showAsync(MessageBoxOptions()
 				                         .withIconType(MessageBoxIconType::WarningIcon)
 				                         .withTitle("Export Failed")
-				                         .withButton("OK"),
+				                         .withButton("OK", 1),
 				                       nullptr);
 			}
 			retVal = true;
@@ -1075,13 +908,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			auto canLogFileName = File(canLogPath);
 			diagnosticFileBuilder->addFile(canLogFileName, 9, canLogFileName.getFileName());
 
-			// Cut the output logging where we started
-			FileInputStream *fis = new FileInputStream(logger.getLogFile());
-			if (fis->openedOk())
-			{
-				fis->setPosition(logger.initialPos());
-				diagnosticFileBuilder->addEntry(fis, 9, "AgISOVirtualTerminalLog.txt", Time::getCurrentTime());
-			}
+			diagnosticFileBuilder->addFile(logger.getLogFile(), 9, logger.getLogFile().getFileName());
 
 			auto userDataFolder = File(File::getSpecialLocation(File::userApplicationDataDirectory).getFullPathName() + File::getSeparatorString() + "Open-Agriculture" + File::getSeparatorString());
 
@@ -1128,7 +955,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 			Rectangle<int> area(0, 0, 400, 280);
 			RectanglePlacement placement(RectanglePlacement::centred |
 			                             RectanglePlacement::doNotResize);
-			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.reduced(20));
+			auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userBounds.toNearestInt().reduced(20));
 			configureHardwareWindow->setBounds(result);
 
 			// A modal dialog is still its own window, so it has to be raised too when the main
@@ -1139,51 +966,30 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::ShowDiagnostics):
+		{
+			show_diagnostics_window();
+			retVal = true;
+		}
+		break;
+
 		case static_cast<int>(CommandIDs::StartStop):
 		{
 			if (hasStartBeenCalled)
 			{
-				isobus::CANStackLogger::info("Stopping CAN interface");
-
-				// Save the frame handlers so we can re-add them after stopping the interface
-#ifdef JUCE_WINDOWS
-				auto canDriver0 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
-				auto canDriver1 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(1);
-				auto canDriver2 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(2);
-				auto canDriver3 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(3);
-#else
-				auto canDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
-#endif
-
-				isobus::CANHardwareInterface::stop();
-
-				// Since "Stop" clears all frame handlers, we need to re-add the ones we saved
-#ifdef JUCE_WINDOWS
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver0);
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(1, canDriver1);
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(2, canDriver2);
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(3, canDriver3);
-#else
-				isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
-#endif
-
-				dataMaskRenderer.set_has_started(false);
-				hasStartBeenCalled = false;
+				stop_can_interface();
 			}
 			else if (nullptr == isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0))
 			{
 				AlertWindow::showAsync(MessageBoxOptions()
 				                         .withIconType(MessageBoxIconType::InfoIcon)
 				                         .withTitle("No CAN hardware has been configured yet! Before you start the VT for the first time, select which CAN driver to use in the \"configure\" menu.")
-				                         .withButton("OK"),
+				                         .withButton("OK", 1),
 				                       nullptr);
 			}
 			else
 			{
-				isobus::CANStackLogger::info("Starting CAN interface");
-				isobus::CANHardwareInterface::start();
-				dataMaskRenderer.set_has_started(true);
-				hasStartBeenCalled = true;
+				start_can_interface();
 			}
 			mCommandManager.commandStatusChanged();
 			retVal = true;
@@ -1199,10 +1005,47 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		}
 		break;
 
+		case static_cast<int>(CommandIDs::CheckForUpdates):
+		{
+			check_for_update(true);
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::AutoCheckForUpdates):
+		{
+			checkForUpdatesOnStartup = !checkForUpdatesOnStartup;
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
 		case static_cast<int>(CommandIDs::AlwaysOnTop):
 		{
 			alwaysOnTop = !alwaysOnTop;
 			apply_always_on_top();
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::FitMasksToWindow):
+		{
+			fitMasksToWindow = !fitMasksToWindow;
+			apply_window_size_limits();
+			resized();
+			mCommandManager.commandStatusChanged();
+			save_settings();
+			retVal = true;
+		}
+		break;
+
+		case static_cast<int>(CommandIDs::ScalePoolsToDataMask):
+		{
+			scalePoolsToDataMask = !scalePoolsToDataMask;
+			dataMaskRenderer.on_change_active_mask(get_active_working_set());
 			mCommandManager.commandStatusChanged();
 			save_settings();
 			retVal = true;
@@ -1231,6 +1074,8 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::StartStop));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoStart));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AlwaysOnTop));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::FitMasksToWindow));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ScalePoolsToDataMask));
 		}
 		break;
 
@@ -1255,12 +1100,15 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackage));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::GenerateLogPackageFromCurrentSession));
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ClearISOData));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::ShowDiagnostics));
 		}
 		break;
 
 		case 3:
 		{
 			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::About));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::CheckForUpdates));
+			retVal.addCommandItem(&mCommandManager, static_cast<int>(CommandIDs::AutoCheckForUpdates));
 		}
 		break;
 
@@ -1273,6 +1121,23 @@ PopupMenu ServerMainComponent::getMenuForIndex(int index, const juce::String &)
 void ServerMainComponent::menuItemSelected(int, int)
 {
 	// Do nothing
+}
+
+void ServerMainComponent::show_diagnostics_window()
+{
+	if (nullptr == diagnosticsWindow)
+	{
+		diagnosticsWindow = std::make_unique<DiagnosticsWindow>(*this);
+		diagnosticsWindow->addToDesktop();
+		Rectangle<int> area(0, 0, DiagnosticsComponent::WIDTH + 40, 400);
+		RectanglePlacement placement(RectanglePlacement::centred |
+		                             RectanglePlacement::doNotResize);
+		auto result = placement.appliedTo(area, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userBounds.toNearestInt().reduced(20));
+		diagnosticsWindow->setBounds(result);
+	}
+	diagnosticsWindow->setAlwaysOnTop(alwaysOnTop);
+	diagnosticsWindow->setVisible(true);
+	diagnosticsWindow->toFront(true);
 }
 
 std::shared_ptr<isobus::ControlFunction> ServerMainComponent::get_client_control_function_for_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet) const
@@ -1339,18 +1204,51 @@ void ServerMainComponent::apply_always_on_top()
 	}
 }
 
+static bool is_alarm_mask(const std::shared_ptr<isobus::VTObject> &mask)
+{
+	return (nullptr != mask) && (isobus::VirtualTerminalObjectType::AlarmMask == mask->get_object_type());
+}
+
+static std::shared_ptr<isobus::VTObject> get_active_mask(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet)
+{
+	std::shared_ptr<isobus::VTObject> retVal;
+	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(workingSet->get_working_set_object());
+
+	if (nullptr != workingSetObject)
+	{
+		retVal = workingSet->get_object_by_id(workingSetObject->get_active_mask());
+	}
+	return retVal;
+}
+
+static std::uint16_t get_soft_key_mask(const std::shared_ptr<isobus::VTObject> &mask)
+{
+	std::uint16_t retVal = isobus::NULL_OBJECT_ID;
+
+	if (is_alarm_mask(mask))
+	{
+		retVal = std::static_pointer_cast<isobus::AlarmMask>(mask)->get_soft_key_mask();
+	}
+	else if ((nullptr != mask) && (isobus::VirtualTerminalObjectType::DataMask == mask->get_object_type()))
+	{
+		retVal = std::static_pointer_cast<isobus::DataMask>(mask)->get_soft_key_mask();
+	}
+	return retVal;
+}
+
 void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 {
+	const auto highestAlarmWorkingSet = get_highest_priority_alarm_working_set();
+
+	// The highest priority alarm stays on screen until its owner changes the mask
 	if ((index < managedWorkingSetList.size()) &&
+	    ((nullptr == highestAlarmWorkingSet) || (highestAlarmWorkingSet == managedWorkingSetList.at(index))) &&
 	    (nullptr != managedWorkingSetList.at(index)->get_working_set_object()) &&
-	    (std::static_pointer_cast<isobus::WorkingSet>(managedWorkingSetList.at(index)->get_working_set_object())->get_selectable()))
+	    (std::static_pointer_cast<isobus::WorkingSet>(managedWorkingSetList.at(index)->get_working_set_object())->get_selectable() ||
+	     can_show_alarm(managedWorkingSetList.at(index))))
 	{
 		bool lProcessActivateDeactivateMacros = false;
 
-		for (auto &ws : managedWorkingSetList)
-		{
-			ws->clear_callback_handles();
-		}
 		auto &ws = managedWorkingSetList.at(index);
 
 		if (activeWorkingSetMasterAddress != ws->get_control_function()->get_address())
@@ -1368,15 +1266,20 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 
 		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object());
 		std::uint16_t previousActiveMask = activeWorkingSetDataMaskObjectID;
-		activeWorkingSetDataMaskObjectID = std::static_pointer_cast<isobus::WorkingSet>(ws->get_working_set_object())->get_active_mask();
+		activeWorkingSetDataMaskObjectID = workingSetObject->get_active_mask();
+		auto activeMask = ws->get_object_by_id(activeWorkingSetDataMaskObjectID);
+		activeWorkingSetSoftkeyMaskObjectID = get_soft_key_mask(activeMask);
+
+		if ((nullptr != activeMask) && (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type()))
+		{
+			lastDataMaskWorkingSet = ws;
+		}
 
 		dataMaskRenderer.on_change_active_mask(ws);
 		softKeyMaskRenderer.on_change_active_mask(ws);
 		activeWorkingSet = ws;
 		update_ack_button_visibility();
-		process_macro(activeWorkingSet->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, activeWorkingSet);
-		ws->save_callback_handle(get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); }));
-		ws->save_callback_handle(get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); }));
+		process_macro(ws->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, ws);
 
 		if (send_status_message())
 		{
@@ -1389,11 +1292,12 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 
 		if (previousActiveMask != activeWorkingSetDataMaskObjectID)
 		{
-			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
-			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
-			process_macro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
-			process_macro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, ws);
+			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::AlarmMask, ws);
+			process_macro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, ws);
+			process_macro(ws->get_object_by_id(activeWorkingSetDataMaskObjectID), isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, ws);
 		}
+		update_alarm_sound();
 	}
 }
 
@@ -1426,6 +1330,37 @@ void ServerMainComponent::set_button_released(std::shared_ptr<isobus::VirtualTer
 	if (heldButtons.end() != found)
 	{
 		heldButtons.erase(found);
+	}
+}
+
+void ServerMainComponent::release_held_buttons(bool aborted)
+{
+	const auto activationCode = (aborted && (versionToReport >= VTVersion::Version4)) ? KeyActivationCode::ButtonPressAborted : KeyActivationCode::ButtonUnlatchedOrReleased;
+
+	for (const auto &button : heldButtons)
+	{
+		send_held_button_activation(button, activationCode);
+	}
+	heldButtons.clear();
+}
+
+void ServerMainComponent::send_held_button_activation(const HeldButtonData &button, KeyActivationCode activationCode)
+{
+	if (button.isSoftKey)
+	{
+		send_soft_key_activation_message(activationCode,
+		                                 button.buttonObjectID,
+		                                 button.activeMaskObjectID,
+		                                 button.buttonKeyCode,
+		                                 button.associatedWorkingSet->get_control_function());
+	}
+	else
+	{
+		send_button_activation_message(activationCode,
+		                               button.buttonObjectID,
+		                               button.activeMaskObjectID,
+		                               button.buttonKeyCode,
+		                               button.associatedWorkingSet->get_control_function());
 	}
 }
 
@@ -1512,6 +1447,8 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 			}
 
 			mParent.save_settings();
+			mParent.apply_window_size_limits();
+			mParent.resized();
 			mParent.repaint_data_and_soft_key_mask();
 		}
 		break;
@@ -1529,6 +1466,7 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 				mParent.logger.setVisible(false);
 				mParent.loggerViewport.setVisible(false);
 			}
+			mParent.resized(); // The masks fit around the logging window
 
 			ASCIILogFile::set_logging_enabled(1 == mParent.popupMenu->getComboBoxComponent("CAN Traffic Log")->getSelectedItemIndex());
 			mParent.saveIopBeforeParse = (mParent.popupMenu->getComboBoxComponent("Save IOP data before parsing")->getSelectedItemIndex() == 1);
@@ -1554,6 +1492,9 @@ void ServerMainComponent::LanguageCommandConfigClosed::operator()(int result) co
 	}
 	mParent.exitModalState(result);
 	mParent.popupMenu.reset();
+
+	// These dialogs carry text fields, so the caret has to be dealt with explicitly
+	ServerMainComponent::release_text_input_focus();
 }
 
 ServerMainComponent::HeldButtonData::HeldButtonData(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, std::uint16_t objectID, std::uint16_t maskObjectID, std::uint8_t keyCode, bool isSoftKey) :
@@ -1610,18 +1551,11 @@ ServerMainComponent::VTVersion ServerMainComponent::get_version_from_setting(std
 	return retVal;
 }
 
-std::size_t ServerMainComponent::number_of_iop_files_in_directory(std::filesystem::path path)
+VersionStorage ServerMainComponent::get_version_storage(isobus::NAME clientNAME) const
 {
-	std::size_t retVal = 0;
-
-	for (const auto &entry : std::filesystem::directory_iterator(path))
-	{
-		if (entry.path().has_extension() && entry.path().extension() == ".iop")
-		{
-			retVal++;
-		}
-	}
-	return retVal;
+	std::ostringstream nameString;
+	nameString << std::hex << std::setfill('0') << std::setw(16) << clientNAME.get_full_name();
+	return VersionStorage(std::filesystem::u8path(getAppDataDir()) / ISO_DATA_PATH / nameString.str());
 }
 
 bool ServerMainComponent::timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDate)
@@ -1670,16 +1604,234 @@ void ServerMainComponent::transferred_object_pool_parse_start(std::shared_ptr<is
 	fs.close();
 }
 
+// VT version 6 lets a working set that is not selectable show alarms.
+// The working set has to be version 6 too, but the stack doesn't keep the version it reports.
+bool ServerMainComponent::can_show_alarm(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const
+{
+	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(workingSet->get_working_set_object());
+
+	return (nullptr != workingSetObject) &&
+	  is_alarm_mask(get_active_mask(workingSet)) &&
+	  (workingSetObject->get_selectable() || (6 <= get_vt_version_byte(get_version())));
+}
+
+// Resending the same alarm mask keeps its place in the queue
+void ServerMainComponent::record_alarm_activation(const std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet, std::uint16_t mask)
+{
+	if (!is_alarm_mask(workingSet->get_object_by_id(mask)))
+	{
+		alarmActivationOrder.erase(workingSet);
+	}
+	else if ((0 == alarmActivationOrder.count(workingSet)) || (mask != alarmActivationOrder.at(workingSet).first))
+	{
+		alarmActivationOrder[workingSet] = { mask, nextAlarmActivation++ };
+	}
+}
+
+// The lowest priority value wins, then the earliest activation
+std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> ServerMainComponent::get_highest_priority_alarm_working_set() const
+{
+	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> retVal;
+	std::shared_ptr<isobus::AlarmMask> highestAlarm;
+	std::uint32_t highestAlarmOrder = 0;
+
+	for (const auto &activation : alarmActivationOrder)
+	{
+		if (can_show_alarm(activation.first) && (0 == rejectedWorkingSets.count(activation.first)))
+		{
+			auto alarm = std::static_pointer_cast<isobus::AlarmMask>(get_active_mask(activation.first));
+
+			if ((nullptr == highestAlarm) ||
+			    (alarm->get_mask_priority() < highestAlarm->get_mask_priority()) ||
+			    ((alarm->get_mask_priority() == highestAlarm->get_mask_priority()) && (activation.second.second < highestAlarmOrder)))
+			{
+				retVal = activation.first;
+				highestAlarm = alarm;
+				highestAlarmOrder = activation.second.second;
+			}
+		}
+	}
+	return retVal;
+}
+
+void ServerMainComponent::show_highest_priority_alarm()
+{
+	const auto highestAlarmWorkingSet = get_highest_priority_alarm_working_set();
+
+	if ((nullptr != highestAlarmWorkingSet) && (highestAlarmWorkingSet != activeWorkingSet))
+	{
+		select_working_set(highestAlarmWorkingSet);
+	}
+}
+
+void ServerMainComponent::clear_active_working_set()
+{
+	const auto workingSet = activeWorkingSet;
+	const auto hiddenMask = workingSet->get_object_by_id(activeWorkingSetDataMaskObjectID);
+
+	// Cleared first, because a macro can select a working set again
+	activeWorkingSet = nullptr;
+	activeWorkingSetMasterAddress = isobus::NULL_CAN_ADDRESS;
+	activeWorkingSetDataMaskObjectID = isobus::NULL_OBJECT_ID;
+	activeWorkingSetSoftkeyMaskObjectID = isobus::NULL_OBJECT_ID;
+	dataMaskRenderer.on_change_active_mask(nullptr);
+	softKeyMaskRenderer.on_change_active_mask(nullptr);
+	workingSetSelector.repaint();
+	update_ack_button_visibility();
+	process_macro(hiddenMask, isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::AlarmMask, workingSet);
+	process_macro(workingSet->get_working_set_object(), isobus::EventID::OnDeactivate, isobus::VirtualTerminalObjectType::WorkingSet, workingSet);
+
+	if (send_status_message())
+	{
+		statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+	}
+	else
+	{
+		statusMessageTimestamp_ms = 0;
+	}
+	update_alarm_sound();
+}
+
+void ServerMainComponent::update_alarm_sound()
+{
+	const auto displayedMask = ((nullptr != activeWorkingSet) && (0 == rejectedWorkingSets.count(activeWorkingSet))) ? activeWorkingSet->get_object_by_id(activeWorkingSetDataMaskObjectID) : nullptr;
+	const auto displayedAlarmMask = is_alarm_mask(displayedMask) ? displayedMask : nullptr;
+
+	if (displayedAlarmMask != soundedAlarmMask)
+	{
+		soundedAlarmMask = displayedAlarmMask;
+		alarmTransport.setSource(nullptr);
+		alarmSoundSource.reset();
+
+		const void *clip = nullptr;
+		std::size_t clipSize = 0;
+
+		if (nullptr != soundedAlarmMask)
+		{
+			switch (std::static_pointer_cast<isobus::AlarmMask>(soundedAlarmMask)->get_signal_priority())
+			{
+				case isobus::AlarmMask::AcousticSignal::Highest:
+				{
+					clip = AlarmMaskAudio::alarmMaskHigh_mp3;
+					clipSize = AlarmMaskAudio::alarmMaskHigh_mp3Size;
+				}
+				break;
+
+				case isobus::AlarmMask::AcousticSignal::Medium:
+				{
+					clip = AlarmMaskAudio::alarmMaskMedium_mp3;
+					clipSize = AlarmMaskAudio::alarmMaskMedium_mp3Size;
+				}
+				break;
+
+				case isobus::AlarmMask::AcousticSignal::Lowest:
+				{
+					clip = AlarmMaskAudio::alarmMaskLow_mp3;
+					clipSize = AlarmMaskAudio::alarmMaskLow_mp3Size;
+				}
+				break;
+
+				case isobus::AlarmMask::AcousticSignal::None:
+				default:
+					break;
+			}
+		}
+
+		if (nullptr != clip)
+		{
+			auto reader = alarmFormatManager.createReaderFor(std::make_unique<MemoryInputStream>(clip, clipSize, false));
+
+			if (nullptr != reader)
+			{
+				const double clipSampleRate = reader->sampleRate;
+				alarmSoundSource = std::make_unique<AudioFormatReaderSource>(reader, true);
+				alarmTransport.setSource(alarmSoundSource.get(), 0, nullptr, clipSampleRate);
+				alarmTransport.start();
+			}
+		}
+	}
+}
+
 void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t, std::uint16_t newMask)
 {
-	if (isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == affectedWorkingSet->get_object_pool_processing_state())
+	if (juce::MessageManager::existsAndIsCurrentThread())
 	{
-		const MessageManagerLock mmLock;
+		// A macro's mask change must be finished before the rest of the macro runs
+		change_active_mask(affectedWorkingSet, newMask);
+	}
+	else
+	{
+		// The CAN thread holds stack locks here, and the message thread may be waiting on them or joining this thread
+		juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this), affectedWorkingSet, newMask]() {
+			if (nullptr != safeThis)
+			{
+				safeThis->change_active_mask(affectedWorkingSet, newMask);
+			}
+		});
+	}
+}
 
+void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t newMask)
+{
+	// A deferred call can arrive after the working set shut down or deleted its pool
+	if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined != affectedWorkingSet->get_object_pool_processing_state()) ||
+	    (nullptr == affectedWorkingSet->get_working_set_object()) ||
+	    (managedWorkingSetList.end() == std::find(managedWorkingSetList.begin(), managedWorkingSetList.end(), affectedWorkingSet)))
+	{
+		return;
+	}
+
+	auto newActiveMask = affectedWorkingSet->get_object_by_id(newMask);
+	record_alarm_activation(affectedWorkingSet, newMask);
+
+	const auto highestAlarmWorkingSet = get_highest_priority_alarm_working_set();
+	bool showNewMask = (affectedWorkingSet == activeWorkingSet);
+	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToSelect;
+
+	if (affectedWorkingSet != activeWorkingSet)
+	{
+		workingSetToSelect = (highestAlarmWorkingSet == affectedWorkingSet) ? affectedWorkingSet : nullptr;
+	}
+	else
+	{
+		const bool wasShowingAlarm = is_alarm_mask(activeWorkingSet->get_object_by_id(activeWorkingSetDataMaskObjectID));
+
+		if ((wasShowingAlarm || is_alarm_mask(newActiveMask)) && (nullptr != highestAlarmWorkingSet) && (highestAlarmWorkingSet != activeWorkingSet))
+		{
+			workingSetToSelect = highestAlarmWorkingSet;
+			showNewMask = false;
+		}
+		else if (wasShowingAlarm && !is_alarm_mask(newActiveMask) && (lastDataMaskWorkingSet != activeWorkingSet))
+		{
+			workingSetToSelect = lastDataMaskWorkingSet;
+			showNewMask = false;
+		}
+	}
+
+	if (!showNewMask)
+	{
+		// Macros run even when the display does not change
+		process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
+		process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, affectedWorkingSet);
+
+		// A macro that changed the mask again was handled by its own callback
+		if (newMask == std::static_pointer_cast<isobus::WorkingSet>(affectedWorkingSet->get_working_set_object())->get_active_mask())
+		{
+			if (nullptr != workingSetToSelect)
+			{
+				select_working_set(workingSetToSelect);
+				show_highest_priority_alarm();
+			}
+			else if (affectedWorkingSet == activeWorkingSet)
+			{
+				clear_active_working_set();
+			}
+		}
+	}
+	else
+	{
 		dataMaskRenderer.on_change_active_mask(activeWorkingSet);
 		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
-
-		auto activeMask = affectedWorkingSet->get_object_by_id(newMask);
 
 		if (activeWorkingSetDataMaskObjectID != newMask)
 		{
@@ -1696,51 +1848,175 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 		}
 
 		update_ack_button_visibility();
+		update_alarm_sound();
 
-		if (nullptr != activeMask)
+		if (nullptr != newActiveMask)
 		{
-			if (isobus::VirtualTerminalObjectType::AlarmMask == activeMask->get_object_type())
+			if (isobus::VirtualTerminalObjectType::AlarmMask == newActiveMask->get_object_type())
 			{
-				auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(activeMask);
+				auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(newActiveMask);
 				activeWorkingSetSoftkeyMaskObjectID = alarmMask->get_soft_key_mask();
 
-				switch (alarmMask->get_signal_priority())
-				{
-					case isobus::AlarmMask::AcousticSignal::Highest:
-					{
-						mSoundPlayer.play(AlarmMaskAudio::alarmMaskHigh_mp3, AlarmMaskAudio::alarmMaskHigh_mp3Size);
-					}
-					break;
-
-					case isobus::AlarmMask::AcousticSignal::Medium:
-					{
-						mSoundPlayer.play(AlarmMaskAudio::alarmMaskMedium_mp3, AlarmMaskAudio::alarmMaskMedium_mp3Size);
-					}
-					break;
-
-					case isobus::AlarmMask::AcousticSignal::Lowest:
-					{
-						mSoundPlayer.play(AlarmMaskAudio::alarmMaskLow_mp3, AlarmMaskAudio::alarmMaskLow_mp3Size);
-					}
-					break;
-
-					case isobus::AlarmMask::AcousticSignal::None:
-					default:
-						break;
-				}
-				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
-				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, activeWorkingSet);
+				process_macro(newActiveMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
+				process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
 			}
-			else if (isobus::VirtualTerminalObjectType::DataMask == activeMask->get_object_type())
+			else if (isobus::VirtualTerminalObjectType::DataMask == newActiveMask->get_object_type())
 			{
-				auto dataMask = std::static_pointer_cast<isobus::DataMask>(activeMask);
+				auto dataMask = std::static_pointer_cast<isobus::DataMask>(newActiveMask);
 				activeWorkingSetSoftkeyMaskObjectID = dataMask->get_soft_key_mask();
+				lastDataMaskWorkingSet = activeWorkingSet;
 				// Also process macros for the actual datamask (container) show event
-				process_macro(activeMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
-				process_macro(activeMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, activeWorkingSet);
+				process_macro(newActiveMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, affectedWorkingSet);
+				process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, affectedWorkingSet);
 			}
 		}
 	}
+}
+
+void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask)
+{
+	// Called from the CAN thread, so the work is handed to the message thread
+	juce::Component::SafePointer<ServerMainComponent> safeThis(this);
+
+	juce::MessageManager::callAsync([safeThis, affectedWorkingSet, mask, newSoftKeyMask]() {
+		if (nullptr != safeThis)
+		{
+			safeThis->change_active_softkey_mask(affectedWorkingSet, mask, newSoftKeyMask);
+		}
+	});
+}
+
+void ServerMainComponent::change_active_softkey_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask)
+{
+	if ((nullptr == affectedWorkingSet) || (affectedWorkingSet != activeWorkingSet))
+	{
+		return;
+	}
+
+	// A mask that is not on screen shows its new soft keys when it becomes active
+	auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(affectedWorkingSet->get_working_set_object());
+
+	if ((nullptr == workingSetObject) || (mask != workingSetObject->get_active_mask()))
+	{
+		return;
+	}
+
+	activeWorkingSetSoftkeyMaskObjectID = newSoftKeyMask;
+	softKeyMaskRenderer.on_change_active_mask(affectedWorkingSet);
+
+	if (send_status_message())
+	{
+		statusMessageTimestamp_ms = isobus::SystemTiming::get_timestamp_ms();
+	}
+	else
+	{
+		statusMessageTimestamp_ms = 0;
+	}
+}
+
+void ServerMainComponent::object_pool_parse_finished(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, bool success)
+{
+	if (success)
+	{
+		rejectedWorkingSets.erase(workingSet);
+		workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
+
+		std::ostringstream nameString;
+		nameString << std::hex << std::setfill('0') << std::setw(16) << workingSet->get_control_function()->get_NAME().get_full_name();
+		loadedNames.insert(nameString.str());
+
+		// A new pool is a new activation, and Load Version changes the mask without a callback
+		alarmActivationOrder.erase(workingSet);
+		const auto activeMaskID = std::static_pointer_cast<isobus::WorkingSet>(workingSet->get_working_set_object())->get_active_mask();
+		record_alarm_activation(workingSet, activeMaskID);
+
+		// The drawn masks still hold the old pool's objects, and the new pool can set a different active mask
+		if (workingSet == activeWorkingSet)
+		{
+			if (activeMaskID != activeWorkingSetDataMaskObjectID)
+			{
+				change_active_mask(workingSet, activeMaskID);
+			}
+			else
+			{
+				dataMaskRenderer.close_replaced_input_dialog(workingSet);
+				activeWorkingSetSoftkeyMaskObjectID = get_soft_key_mask(workingSet->get_object_by_id(activeMaskID));
+				repaint_data_and_soft_key_mask();
+				update_ack_button_visibility();
+			}
+		}
+	}
+	else
+	{
+		rejectedWorkingSets.insert(workingSet);
+	}
+	show_highest_priority_alarm();
+	update_alarm_sound();
+}
+
+void ServerMainComponent::select_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	auto position = std::find(managedWorkingSetList.begin(), managedWorkingSetList.end(), workingSet);
+	change_selected_working_set(static_cast<std::uint8_t>(std::distance(managedWorkingSetList.begin(), position)));
+}
+
+void ServerMainComponent::object_pool_deleted(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	stop_presenting_working_set(workingSet);
+}
+
+std::uint16_t ServerMainComponent::abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	// CAN thread, under the stack's callback mutex: waiting on the message thread could deadlock, so only closing the dialog is deferred
+	const std::uint16_t abortedObjectID = dataMaskRenderer.abort_input(workingSet);
+
+	if (isobus::NULL_OBJECT_ID != abortedObjectID)
+	{
+		juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this)]() {
+			if (nullptr != safeThis)
+			{
+				safeThis->dataMaskRenderer.close_aborted_input_dialogs();
+			}
+		});
+	}
+	return abortedObjectID;
+}
+
+void ServerMainComponent::handle_unexpected_working_set_shutdown(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, UnexpectedShutdownReason)
+{
+	stop_presenting_working_set(workingSet);
+}
+
+void ServerMainComponent::stop_presenting_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+{
+	rejectedWorkingSets.erase(workingSet);
+	alarmActivationOrder.erase(workingSet);
+	if (lastDataMaskWorkingSet == workingSet)
+	{
+		lastDataMaskWorkingSet.reset();
+	}
+	auto removedButtons = std::stable_partition(heldButtons.begin(), heldButtons.end(), [&workingSet](const HeldButtonData &button) { return workingSet != button.associatedWorkingSet; });
+	std::for_each(removedButtons, heldButtons.end(), [this](const HeldButtonData &button) { send_held_button_activation(button, KeyActivationCode::ButtonUnlatchedOrReleased); });
+	heldButtons.erase(removedButtons, heldButtons.end());
+	dataMaskRenderer.on_working_set_disconnect(workingSet);
+	softKeyMaskRenderer.on_working_set_disconnect(workingSet);
+
+	// The stack already cleared activeWorkingSet if this one was active
+	show_highest_priority_alarm();
+
+	for (std::size_t i = 0; (nullptr == activeWorkingSet) && (i < managedWorkingSetList.size()); i++)
+	{
+		const auto &nextWorkingSet = managedWorkingSetList.at(i);
+
+		if ((isobus::VirtualTerminalServerManagedWorkingSet::ObjectPoolProcessingThreadState::Joined == nextWorkingSet->get_object_pool_processing_state()) &&
+		    (0 == rejectedWorkingSets.count(nextWorkingSet)))
+		{
+			change_selected_working_set(static_cast<std::uint8_t>(i));
+		}
+	}
+	workingSetSelector.update_drawn_working_sets(managedWorkingSetList);
+	update_ack_button_visibility();
+	update_alarm_sound();
 }
 
 void ServerMainComponent::repaint_data_and_soft_key_mask()
@@ -1768,6 +2044,103 @@ bool ServerMainComponent::is_active_alarm_mask() const
 void ServerMainComponent::update_ack_button_visibility()
 {
 	workingSetSelector.set_ack_button_visible(showAckButton && is_active_alarm_mask());
+}
+
+void ServerMainComponent::stop_can_interface()
+{
+	isobus::CANStackLogger::info("Stopping CAN interface");
+
+#ifdef JUCE_WINDOWS
+	auto canDriver0 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+	auto canDriver1 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(1);
+	auto canDriver2 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(2);
+	auto canDriver3 = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(3);
+#else
+	auto canDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+#endif
+
+	isobus::CANHardwareInterface::stop();
+
+	// Since "Stop" clears all frame handlers, we need to re-add the ones we saved
+#ifdef JUCE_WINDOWS
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver0);
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(1, canDriver1);
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(2, canDriver2);
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(3, canDriver3);
+#else
+	isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
+#endif
+
+	dataMaskRenderer.set_has_started(false);
+	hasStartBeenCalled = false;
+}
+
+void ServerMainComponent::stop_can_interface_with_alert(const String &title)
+{
+	std::string reason;
+	auto canDriver = isobus::CANHardwareInterface::get_assigned_can_channel_frame_handler(0);
+
+	if (nullptr != canDriver)
+	{
+		reason = canDriver->get_last_error();
+	}
+
+	stop_can_interface();
+	isobus::CANStackLogger::error(reason.empty() ? title.toStdString() : title.toStdString() + ": " + reason);
+	AlertWindow::showAsync(MessageBoxOptions()
+	                         .withIconType(MessageBoxIconType::WarningIcon)
+	                         .withTitle(title)
+	                         .withMessage(reason.empty() ? String("Check the CAN hardware in the Configure menu, then press Start.") : String(reason))
+	                         .withButton("OK", 1),
+	                       nullptr);
+}
+
+void ServerMainComponent::start_can_interface()
+{
+	isobus::CANStackLogger::info("Starting CAN interface");
+	bool started = isobus::CANHardwareInterface::start();
+	dataMaskRenderer.set_has_started(true);
+	hasStartBeenCalled = true;
+
+	if (!started)
+	{
+		stop_can_interface_with_alert("Could not start the CAN interface");
+	}
+}
+
+void ServerMainComponent::configure_diagnostic_protocol()
+{
+	using ECUIdentificationFields = isobus::DiagnosticProtocol::ECUIdentificationFields;
+	using Functionalities = isobus::ControlFunctionFunctionalities::Functionalities;
+
+	diagnosticProtocol->set_product_identification_code(ecuSerialNumber.toStdString()); // Unique together with the brand, see ISO 11783-12 A.14
+	diagnosticProtocol->set_product_identification_brand("Open-Agriculture");
+	diagnosticProtocol->set_product_identification_model("AgIsoVirtualTerminal");
+	diagnosticProtocol->set_software_id_field(0, AgISOVirtualTerminalApplication::getApplicationBuildInfo());
+#ifdef AGISOSTACK_VERSION
+	diagnosticProtocol->set_software_id_field(1, "AgIsoStack++ " AGISOSTACK_VERSION);
+#endif
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::PartNumber, ecuPartNumber.toStdString());
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::SerialNumber, ecuSerialNumber.toStdString());
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::Location, "Cab");
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::Type, "Virtual Terminal");
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::ManufacturerName, "Open-Agriculture");
+	diagnosticProtocol->set_ecu_id_field(ECUIdentificationFields::HardwareID, ecuHardwareId.toStdString());
+
+	// UT 1 is VT version 2, UT 2 is VT version 3 to 5, UT 3 is VT version 6
+	std::uint8_t generation = 2;
+	if (VTVersion::Version2OrOlder == versionToReport)
+	{
+		generation = 1;
+	}
+	else if (VTVersion::Version6 == versionToReport)
+	{
+		generation = 3;
+	}
+
+	auto &functionalities = diagnosticProtocol->ControlFunctionFunctionalitiesMessageInterface;
+	functionalities.set_functionality_is_supported(Functionalities::UniversalTerminalServer, generation, true);
+	functionalities.set_minimum_control_function_option_state(isobus::ControlFunctionFunctionalities::MinimumControlFunctionOptions::SupportOfHeartbeatProducer, true);
 }
 
 void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> settings)
@@ -1832,6 +2205,22 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				languageCommandInterface.set_language_code(String(child.getProperty("LanguageCode").toString()).toStdString());
 			}
 		}
+		else if (Identifier("Identification") == child.getType())
+		{
+			// "*" and "#" are delimiters in the ISO 11783-12 messages
+			if (!child.getProperty("PartNumber").isVoid())
+			{
+				ecuPartNumber = child.getProperty("PartNumber").toString().removeCharacters("*#");
+			}
+			if (!child.getProperty("SerialNumber").isVoid())
+			{
+				ecuSerialNumber = child.getProperty("SerialNumber").toString().removeCharacters("*#");
+			}
+			if (!child.getProperty("HardwareID").isVoid())
+			{
+				ecuHardwareId = child.getProperty("HardwareID").toString().removeCharacters("*#");
+			}
+		}
 		else if (Identifier("Compatibility") == child.getType())
 		{
 			if (!child.getProperty("Version").isVoid())
@@ -1860,7 +2249,7 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			if (!child.getProperty("DataMaskRenderAreaSize").isVoid())
 			{
 				dataMaskRenderer.setSize(static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))), static_cast<std::uint16_t>(static_cast<int>(child.getProperty("DataMaskRenderAreaSize"))));
-				softKeyMaskRenderer.setSize(2 * SoftKeyMaskDimensions::PADDING + get_physical_soft_key_columns() * (SoftKeyMaskDimensions::PADDING + get_soft_key_descriptor_y_pixel_height()),
+				softKeyMaskRenderer.setSize(softKeyMaskDimensions.total_width(),
 				                            static_cast<int>(child.getProperty("DataMaskRenderAreaSize")));
 			}
 #ifdef JUCE_WINDOWS
@@ -1939,9 +2328,7 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 
 				if (autostart)
 				{
-					isobus::CANHardwareInterface::start();
-					dataMaskRenderer.set_has_started(true);
-					hasStartBeenCalled = true;
+					start_can_interface();
 					isobus::CANStackLogger::info("AutoStart enabled. Starting CAN hardware interface.");
 				}
 			}
@@ -1956,10 +2343,35 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 				showAckButton = static_cast<int>(child.getProperty("ShowAckButton")) != 0;
 			}
 
+			if (!child.getProperty("CheckForUpdates").isVoid())
+			{
+				checkForUpdatesOnStartup = static_cast<bool>(static_cast<int>(child.getProperty("CheckForUpdates")));
+			}
+
+			if (!child.getProperty("LastUpdateCheck").isVoid())
+			{
+				lastUpdateCheck = static_cast<juce::int64>(child.getProperty("LastUpdateCheck"));
+			}
+
+			if (!child.getProperty("SkippedUpdateVersion").isVoid())
+			{
+				skippedUpdateVersion = child.getProperty("SkippedUpdateVersion").toString();
+			}
+
 			if (!child.getProperty("AlwaysOnTop").isVoid())
 			{
 				// The window does not exist yet at this point, so this is applied by the timer
 				alwaysOnTop = static_cast<bool>(static_cast<int>(child.getProperty("AlwaysOnTop")));
+			}
+
+			if (!child.getProperty("FitMasksToWindow").isVoid())
+			{
+				fitMasksToWindow = static_cast<bool>(static_cast<int>(child.getProperty("FitMasksToWindow")));
+			}
+
+			if (!child.getProperty("ScalePoolsToDataMask").isVoid())
+			{
+				scalePoolsToDataMask = static_cast<bool>(static_cast<int>(child.getProperty("ScalePoolsToDataMask")));
 			}
 		}
 		index++;
@@ -1971,6 +2383,130 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 	if (!autostart)
 	{
 		isobus::CANStackLogger::info("AutoStart is disabled. Waiting for user to start the CAN hardware interface.");
+	}
+}
+
+void ServerMainComponent::check_for_update(bool reportWhenUpToDate)
+{
+	auto checkStarted = updateChecker.start([safeThis = Component::SafePointer<ServerMainComponent>(this), reportWhenUpToDate](const UpdateChecker::Result &result) {
+		if (nullptr != safeThis.getComponent())
+		{
+			safeThis->on_update_check_complete(result, reportWhenUpToDate);
+		}
+	});
+
+	if (checkStarted)
+	{
+		mCommandManager.commandStatusChanged();
+	}
+	else if (updateChecker.is_check_in_progress())
+	{
+		isobus::CANStackLogger::info("An update check is already in progress.");
+	}
+	else
+	{
+		isobus::CANStackLogger::warn("Could not start a background thread to check for updates.");
+
+		if (reportWhenUpToDate)
+		{
+			AlertWindow::showAsync(MessageBoxOptions()
+			                         .withIconType(MessageBoxIconType::WarningIcon)
+			                         .withTitle("Update Check Failed")
+			                         .withMessage("Could not start the update check.")
+			                         .withButton("OK", 1),
+			                       nullptr);
+		}
+	}
+}
+
+void ServerMainComponent::on_update_check_complete(const UpdateChecker::Result &result, bool reportWhenUpToDate)
+{
+	mCommandManager.commandStatusChanged();
+	const bool updateIsSkipped = result.updateAvailable && (skippedUpdateVersion == result.latestVersion);
+
+	if (result.checkSucceeded && (!result.updateAvailable || updateIsSkipped))
+	{
+		lastUpdateCheck = Time::getCurrentTime().toMilliseconds();
+		save_settings();
+	}
+
+	if (result.updateAvailable)
+	{
+		isobus::CANStackLogger::info("Version " + result.latestVersion.toStdString() + " of this application is available at " + result.releaseUrl.toStdString());
+
+		// On startup we stay quiet about a version the user chose to skip. A manual check still
+		// shows the dialog with the box ticked, so they can un-skip it from there.
+		if (updateIsSkipped && !reportWhenUpToDate)
+		{
+			return;
+		}
+
+		auto skipToggle = std::make_shared<IndentedToggleButton>();
+		skipToggle->toggle.setButtonText("Don't notify me about version " + result.latestVersion + " again");
+		skipToggle->setSize(360, 24);
+		skipToggle->toggle.setToggleState(updateIsSkipped, NotificationType::dontSendNotification);
+
+		auto *updateBox = new AlertWindow("Update Available",
+		                                  "Version " + result.latestVersion + " is available. You are running " + String(ProjectInfo::versionString) + ".",
+		                                  MessageBoxIconType::InfoIcon);
+		updateBox->addCustomComponent(skipToggle.get());
+		updateBox->addButton("Download", 1, KeyPress(KeyPress::returnKey));
+		updateBox->addButton("Not Now", 0, KeyPress(KeyPress::escapeKey));
+		updateBox->enterModalState(true,
+		                           ModalCallbackFunction::create([safeThis = Component::SafePointer<ServerMainComponent>(this), latestVersion = result.latestVersion, releaseUrl = result.releaseUrl, skipToggle](int choice) {
+			                           if (nullptr != safeThis.getComponent())
+			                           {
+				                           const String newSkippedVersion = skipToggle->toggle.getToggleState() ? latestVersion : String();
+
+				                           if (newSkippedVersion != safeThis->skippedUpdateVersion)
+				                           {
+					                           safeThis->skippedUpdateVersion = newSkippedVersion;
+					                           safeThis->lastUpdateCheck = 0;
+					                           safeThis->save_settings();
+				                           }
+			                           }
+
+			                           if (1 == choice)
+			                           {
+				                           URL(releaseUrl).launchInDefaultBrowser();
+			                           }
+		                           }),
+		                           true);
+	}
+	else if (result.checkSucceeded)
+	{
+		isobus::CANStackLogger::info("This application is up to date.");
+
+		if (reportWhenUpToDate)
+		{
+			AlertWindow::showAsync(MessageBoxOptions()
+			                         .withIconType(MessageBoxIconType::InfoIcon)
+			                         .withTitle("No Updates Available")
+			                         .withMessage("You are running the latest version, " + String(ProjectInfo::versionString) + ".")
+			                         .withButton("OK", 1),
+			                       nullptr);
+		}
+	}
+	else
+	{
+		auto failureMessage = std::string("Could not check GitHub for a newer version of this application.");
+
+		if (0 != result.statusCode)
+		{
+			failureMessage += " HTTP status code: " + std::to_string(result.statusCode) + ".";
+		}
+
+		isobus::CANStackLogger::warn(failureMessage);
+
+		if (reportWhenUpToDate)
+		{
+			AlertWindow::showAsync(MessageBoxOptions()
+			                         .withIconType(MessageBoxIconType::WarningIcon)
+			                         .withTitle("Update Check Failed")
+			                         .withMessage("Could not reach GitHub to check for a newer version.")
+			                         .withButton("OK", 1),
+			                       nullptr);
+		}
 	}
 }
 
@@ -1999,6 +2535,7 @@ void ServerMainComponent::save_settings()
 		ValueTree hardwareSettings("Hardware");
 		ValueTree loggingSettings("Logging");
 		ValueTree controlSettings("Control");
+		ValueTree identificationSettings("Identification");
 
 		std::uint32_t hardwareDriverIndex = 0xFFFFFFFF;
 
@@ -2043,18 +2580,28 @@ void ServerMainComponent::save_settings()
 			hardwareSettings.setProperty("CANDriver", static_cast<int>(hardwareDriverIndex), nullptr);
 		}
 		loggingSettings.setProperty("Level", static_cast<int>(isobus::CANStackLogger::get_log_level()), nullptr);
-		loggingSettings.setProperty("Shown", static_cast<int>(logger.isVisible()), nullptr);
+		// The viewport, because setViewedComponent() makes the logger itself visible
+		loggingSettings.setProperty("Shown", static_cast<int>(loggerViewport.isVisible()), nullptr);
 		loggingSettings.setProperty("SaveIopBeforeParse", static_cast<int>(saveIopBeforeParse), nullptr);
 		loggingSettings.setProperty("LogCANTraffic", static_cast<int>(ASCIILogFile::is_logging_enabled()), nullptr);
 		controlSettings.setProperty("AutoStart", autostart, nullptr);
 		controlSettings.setProperty("AlwaysOnTop", alwaysOnTop, nullptr);
+		controlSettings.setProperty("FitMasksToWindow", fitMasksToWindow, nullptr);
+		controlSettings.setProperty("ScalePoolsToDataMask", scalePoolsToDataMask, nullptr);
 		controlSettings.setProperty("AlarmAckKey", alarmAckKeyCode, nullptr);
 		controlSettings.setProperty("ShowAckButton", showAckButton, nullptr);
+		controlSettings.setProperty("CheckForUpdates", checkForUpdatesOnStartup, nullptr);
+		controlSettings.setProperty("LastUpdateCheck", lastUpdateCheck, nullptr);
+		controlSettings.setProperty("SkippedUpdateVersion", skippedUpdateVersion, nullptr);
+		identificationSettings.setProperty("PartNumber", ecuPartNumber, nullptr);
+		identificationSettings.setProperty("SerialNumber", ecuSerialNumber, nullptr);
+		identificationSettings.setProperty("HardwareID", ecuHardwareId, nullptr);
 		settings.appendChild(languageCommandSettings, nullptr);
 		settings.appendChild(compatibilitySettings, nullptr);
 		settings.appendChild(hardwareSettings, nullptr);
 		settings.appendChild(loggingSettings, nullptr);
 		settings.appendChild(controlSettings, nullptr);
+		settings.appendChild(identificationSettings, nullptr);
 
 		// An empty state means there is no window yet, and overwriting a good saved geometry
 		// with nothing would lose it.
@@ -2202,23 +2749,91 @@ void ServerMainComponent::screen_capture(std::uint8_t item, std::uint8_t path, s
 
 int ServerMainComponent::minimum_height() const
 {
-	if (dataMaskRenderer.getHeight() > softKeyMaskDimensions.total_height())
-		return dataMaskRenderer.getHeight();
-	return softKeyMaskDimensions.total_height();
+	// Both areas are drawn at the data mask's height; soft key rows past it are clipped anyway
+	return juce::roundToInt(get_data_mask_area_size_y_pixels() * display_scale());
 }
 
-void ServerMainComponent::remove_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetToRemove)
+bool ServerMainComponent::get_scale_pools_to_data_mask() const
 {
-	loadVersionResponsesSent.erase(workingSetToRemove.get());
-	for (auto it = managedWorkingSetList.begin(); it != managedWorkingSetList.end(); it++)
+	return scalePoolsToDataMask;
+}
+
+double ServerMainComponent::display_scale() const
+{
+	if (!fitMasksToWindow)
 	{
-		if (workingSetToRemove == *it)
+		return 1.0;
+	}
+
+	// The picker's floored scale is not part of the fit, so in a tiny window it may be slightly wider than assumed
+	const int isoWidth = get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width();
+	const int isoHeight = get_data_mask_area_size_y_pixels();
+
+	if ((isoWidth <= 0) || (isoHeight <= 0) || (getWidth() <= 0) || (getHeight() <= 0))
+	{
+		return 1.0; // Not sized yet
+	}
+
+	const int availableWidth = getWidth() - WorkingSetSelectorComponent::WIDTH;
+	const int availableHeight = getHeight() -
+	  juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() -
+	  (loggerViewport.isVisible() ? LoggerComponent::HEIGHT : 0);
+
+	if ((availableWidth <= 0) || (availableHeight <= 0))
+	{
+		return MINIMUM_DISPLAY_SCALE;
+	}
+
+	return juce::jlimit(MINIMUM_DISPLAY_SCALE,
+	                    MAXIMUM_DISPLAY_SCALE,
+	                    juce::jmin(static_cast<double>(availableWidth) / isoWidth,
+	                               static_cast<double>(availableHeight) / isoHeight));
+}
+
+void ServerMainComponent::apply_window_size_limits()
+{
+	auto *window = dynamic_cast<juce::ResizableWindow *>(getTopLevelComponent());
+
+	if (nullptr == window)
+	{
+		return;
+	}
+
+	const double maskScale = fitMasksToWindow ? MINIMUM_DISPLAY_SCALE : 1.0;
+	const double pickerScale = fitMasksToWindow ? MINIMUM_WORKING_SET_SELECTOR_SCALE : 1.0;
+	const int minimumWidth = juce::roundToInt(WorkingSetSelectorComponent::WIDTH * pickerScale) +
+	  juce::roundToInt((get_data_mask_area_size_x_pixels() + softKeyMaskDimensions.total_width()) * maskScale);
+	const int minimumHeight = juce::LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight() +
+	  juce::roundToInt(get_data_mask_area_size_y_pixels() * maskScale);
+
+	// The limits apply to the whole window, including a native title bar and borders
+	juce::BorderSize<int> frame;
+
+	if (auto *peer = window->getPeer())
+	{
+		if (const auto frameSize = peer->getFrameSizeIfPresent())
 		{
-			managedWorkingSetIopLoadStateMap.erase(*it);
-			managedWorkingSetList.erase(it);
-			break;
+			frame = *frameSize;
 		}
 	}
+	window->setResizeLimits(minimumWidth + frame.getLeftAndRight(), minimumHeight + frame.getTopAndBottom(), 32768, 32768);
+}
+
+double ServerMainComponent::working_set_selector_scale() const
+{
+	return juce::jmax(MINIMUM_WORKING_SET_SELECTOR_SCALE, display_scale());
+}
+
+void ServerMainComponent::release_text_input_focus()
+{
+	juce::Component::unfocusAllComponents();
+
+#if JUCE_WINDOWS
+	// Declared here rather than pulling in windows.h, which does not mix well with the JUCE
+	// headers. DestroyCaret works on the calling thread's caret and harmlessly reports failure
+	// when there is none.
+	DestroyCaret();
+#endif
 }
 
 void ServerMainComponent::clear_iso_data()
