@@ -128,6 +128,7 @@ public:
 	std::uint8_t get_user_layout_softkeymask_bg_color() const override;
 
 	void timerCallback() override;
+	void on_rx_messages_pending() override;
 
 	void paint(juce::Graphics &g) override;
 	void resized() override;

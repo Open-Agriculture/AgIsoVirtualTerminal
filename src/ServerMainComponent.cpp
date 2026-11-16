@@ -476,6 +476,16 @@ void ServerMainComponent::timerCallback()
 	}
 }
 
+void ServerMainComponent::on_rx_messages_pending()
+{
+	juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this)]() {
+		if (nullptr != safeThis)
+		{
+			safeThis->update();
+		}
+	});
+}
+
 void ServerMainComponent::paint(juce::Graphics &g)
 {
 	// (Our component is opaque, so we must completely fill the background with a solid colour)
