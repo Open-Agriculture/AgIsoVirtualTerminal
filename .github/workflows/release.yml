@@ -29,4 +29,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" "Windows Installer"/*.exe "OSX dmg package"/*.dmg *.deb --clobber
+        run: gh release upload "$TAG" "Windows Installer"/*.exe "OSX dmg package"/*.dmg *.deb "Fedora 44 rpm package"/*.rpm --clobber
