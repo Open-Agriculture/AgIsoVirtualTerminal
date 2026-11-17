@@ -1764,21 +1764,13 @@ void ServerMainComponent::update_alarm_sound()
 
 void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t, std::uint16_t newMask)
 {
-	if (juce::MessageManager::existsAndIsCurrentThread())
-	{
-		// A macro's mask change must be finished before the rest of the macro runs
-		change_active_mask(affectedWorkingSet, newMask);
-	}
-	else
-	{
-		// The CAN thread holds stack locks here, and the message thread may be waiting on them or joining this thread
-		juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this), affectedWorkingSet, newMask]() {
-			if (nullptr != safeThis)
-			{
-				safeThis->change_active_mask(affectedWorkingSet, newMask);
-			}
-		});
-	}
+	// Deferred until the command's macros have run, as On Change Active Mask can change the mask again
+	juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this), affectedWorkingSet, newMask]() {
+		if (nullptr != safeThis)
+		{
+			safeThis->change_active_mask(affectedWorkingSet, newMask);
+		}
+	});
 }
 
 // The VT server runs the macros of a Change Active Mask command itself: On Change Active Mask of the Working Set,
@@ -1879,7 +1871,7 @@ void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerm
 
 void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask)
 {
-	// Called from the CAN thread, so the work is handed to the message thread
+	// Deferred like the mask changes, so both reach the display in command order
 	juce::Component::SafePointer<ServerMainComponent> safeThis(this);
 
 	juce::MessageManager::callAsync([safeThis, affectedWorkingSet, mask, newSoftKeyMask]() {
@@ -1972,17 +1964,11 @@ void ServerMainComponent::object_pool_deleted(std::shared_ptr<isobus::VirtualTer
 
 std::uint16_t ServerMainComponent::abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
-	// CAN thread, under the stack's callback mutex: waiting on the message thread could deadlock, so only closing the dialog is deferred
 	const std::uint16_t abortedObjectID = dataMaskRenderer.abort_input(workingSet);
 
 	if (isobus::NULL_OBJECT_ID != abortedObjectID)
 	{
-		juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this)]() {
-			if (nullptr != safeThis)
-			{
-				safeThis->dataMaskRenderer.close_aborted_input_dialogs();
-			}
-		});
+		dataMaskRenderer.close_input_dialogs();
 	}
 	return abortedObjectID;
 }
@@ -2647,11 +2633,14 @@ void ServerMainComponent::identify_vt()
 		}
 	}
 
-	juce::MessageManager::callAsync([this] {
-		vtNumberComponent.setVtNumber(vtNumber);
-		vtNumberComponent.setVisible(true);
-		repaint();
-		juce::Timer::callAfterDelay(3000, [this]() { vtNumberComponent.setVisible(false); });
+	vtNumberComponent.setVtNumber(vtNumber);
+	vtNumberComponent.setVisible(true);
+	repaint();
+	juce::Timer::callAfterDelay(3000, [safeThis = juce::Component::SafePointer<ServerMainComponent>(this)]() {
+		if (nullptr != safeThis)
+		{
+			safeThis->vtNumberComponent.setVisible(false);
+		}
 	});
 }
 

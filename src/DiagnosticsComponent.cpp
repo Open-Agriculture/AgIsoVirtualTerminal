@@ -181,7 +181,7 @@ void DiagnosticsComponent::process_dm1_message(const isobus::CANMessage &message
 		entry.activeDTCs.push_back(dtc);
 	}
 
-	// The stack holds its callback mutex here, which the destructor needs to unregister, so waiting on the message thread could deadlock
+	// DM1 arrives on the CAN thread, and the sources are only touched on the message thread
 	MessageManager::callAsync([safeComponent = SafePointer<DiagnosticsComponent>(component), sourceNAME = source->get_NAME().get_full_name(), entry = std::move(entry)]() mutable {
 		if (nullptr != safeComponent)
 		{

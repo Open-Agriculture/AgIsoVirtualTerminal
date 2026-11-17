@@ -253,7 +253,7 @@ private:
 	bool timeAndDateCallback(isobus::TimeDateInterface::TimeAndDate &timeAndDateToPopulate);
 	void transferred_object_pool_parse_start(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> &workingSet) const override;
 
-	/// @brief Called when a client changes its active mask, from the CAN thread or, for a macro, the message thread
+	/// @brief Called when a client or a macro changes an active mask, defers the display change to after the command
 	/// @param[in] affectedWorkingSet The working set whose active mask was changed
 	/// @param[in] workingSet The working set object ID
 	/// @param[in] newMask The new active data or alarm mask
@@ -264,7 +264,7 @@ private:
 	/// @param[in] newMask The new active data or alarm mask
 	void change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t newMask);
 
-	/// @brief Called from the CAN thread when a client changes a soft key mask, hands the change to the message thread
+	/// @brief Called when a client or a macro changes a soft key mask, defers the display change to after the command
 	/// @param[in] affectedWorkingSet The working set whose mask was changed
 	/// @param[in] mask The data or alarm mask that was given a new soft key mask
 	/// @param[in] newSoftKeyMask The new soft key mask

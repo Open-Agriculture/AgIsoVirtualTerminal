@@ -224,14 +224,11 @@ void DataMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<isob
 std::uint16_t DataMaskRenderAreaComponent::abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
 	std::uint16_t abortedObjectID = isobus::NULL_OBJECT_ID;
+	if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
 	{
-		const std::lock_guard<std::mutex> lock(openInputMutex);
-		if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
-		{
-			abortedObjectID = openInputObject->get_id();
-			openInputWorkingSet.reset();
-			openInputObject.reset();
-		}
+		abortedObjectID = openInputObject->get_id();
+		openInputWorkingSet.reset();
+		openInputObject.reset();
 	}
 
 	if (isobus::NULL_OBJECT_ID != abortedObjectID)
@@ -241,31 +238,13 @@ std::uint16_t DataMaskRenderAreaComponent::abort_input(std::shared_ptr<isobus::V
 	return abortedObjectID;
 }
 
-void DataMaskRenderAreaComponent::close_aborted_input_dialogs()
-{
-	bool reopened;
-	{
-		const std::lock_guard<std::mutex> lock(openInputMutex);
-		reopened = (nullptr != openInputWorkingSet);
-	}
-
-	// An input opened after abort_input() is not the one the VT closed
-	if (!reopened)
-	{
-		close_input_dialogs();
-	}
-}
-
 void DataMaskRenderAreaComponent::close_input_dialogs()
 {
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet;
 	std::uint16_t objectID;
-	{
-		const std::lock_guard<std::mutex> lock(openInputMutex);
-		workingSet = std::move(openInputWorkingSet);
-		objectID = (nullptr != openInputObject) ? openInputObject->get_id() : isobus::NULL_OBJECT_ID;
-		openInputObject.reset();
-	}
+	workingSet = std::move(openInputWorkingSet);
+	objectID = (nullptr != openInputObject) ? openInputObject->get_id() : isobus::NULL_OBJECT_ID;
+	openInputObject.reset();
 
 	// The callbacks will see the input as ended, so the close messages go out here
 	if (isobus::NULL_OBJECT_ID != objectID)
@@ -288,12 +267,9 @@ void DataMaskRenderAreaComponent::close_input_dialogs()
 void DataMaskRenderAreaComponent::close_replaced_input_dialog(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
 	std::shared_ptr<isobus::VTObject> openInput;
+	if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
 	{
-		const std::lock_guard<std::mutex> lock(openInputMutex);
-		if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
-		{
-			openInput = openInputObject;
-		}
+		openInput = openInputObject;
 	}
 
 	// A pool update ends data input only when it replaced the focused object (ISO 11783-6 Table 5)
@@ -305,14 +281,12 @@ void DataMaskRenderAreaComponent::close_replaced_input_dialog(std::shared_ptr<is
 
 void DataMaskRenderAreaComponent::begin_open_input(std::shared_ptr<isobus::VTObject> object)
 {
-	const std::lock_guard<std::mutex> lock(openInputMutex);
 	openInputWorkingSet = parentWorkingSet;
 	openInputObject = std::move(object);
 }
 
 bool DataMaskRenderAreaComponent::end_open_input()
 {
-	const std::lock_guard<std::mutex> lock(openInputMutex);
 	const bool wasOpen = (nullptr != openInputWorkingSet);
 	openInputWorkingSet.reset();
 	openInputObject.reset();
