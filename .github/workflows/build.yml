@@ -129,6 +129,7 @@ jobs:
       - name: Build AppImage
         run: |
           cmake --install build --component applications --prefix AppDir/usr
+          convert -background none res/AgIsoVT.svg -resize 256x256 AppDir/AgIsoVT.png
           wget -q -O linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy
           APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy --appdir AppDir --desktop-file res/AgISOVirtualTerminal.desktop --icon-file res/AgIsoVT.svg --output appimage
