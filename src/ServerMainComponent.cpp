@@ -1830,10 +1830,12 @@ void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerm
 	}
 	else
 	{
-		dataMaskRenderer.on_change_active_mask(activeWorkingSet);
-		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet);
+		// Each queued change counts, even when a later one has already put the old mask back
+		const bool maskReplaced = (newMask != activeWorkingSetDataMaskObjectID);
+		dataMaskRenderer.on_change_active_mask(activeWorkingSet, maskReplaced);
+		softKeyMaskRenderer.on_change_active_mask(activeWorkingSet, maskReplaced);
 
-		if (activeWorkingSetDataMaskObjectID != newMask)
+		if (maskReplaced)
 		{
 			activeWorkingSetDataMaskObjectID = newMask;
 
@@ -1901,8 +1903,9 @@ void ServerMainComponent::change_active_softkey_mask(std::shared_ptr<isobus::Vir
 		return;
 	}
 
+	const bool maskReplaced = (newSoftKeyMask != activeWorkingSetSoftkeyMaskObjectID);
 	activeWorkingSetSoftkeyMaskObjectID = newSoftKeyMask;
-	softKeyMaskRenderer.on_change_active_mask(affectedWorkingSet);
+	softKeyMaskRenderer.on_change_active_mask(affectedWorkingSet, maskReplaced);
 
 	if (send_status_message())
 	{

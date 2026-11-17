@@ -27,7 +27,7 @@ class DataMaskRenderAreaComponent : public Component
 public:
 	DataMaskRenderAreaComponent(ServerMainComponent &parentServer);
 
-	void on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
+	void on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, bool maskReplaced = false);
 
 	void on_working_set_disconnect(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
@@ -98,6 +98,8 @@ private:
 	int designedMaskSize = 0;
 	std::uint16_t activeMaskID = isobus::NULL_OBJECT_ID;
 	std::uint16_t pressedButtonID = isobus::NULL_OBJECT_ID;
+	juce::Point<int> pressedButtonPoint; ///< Where the press landed, in pool coordinates
+	bool pressCancelled = false; ///< This touch's press was released early, so lifting it does nothing
 	bool needToRepaintActiveArea = false;
 	bool hasStarted = false;
 
