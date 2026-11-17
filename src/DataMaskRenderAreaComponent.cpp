@@ -227,6 +227,7 @@ std::uint16_t DataMaskRenderAreaComponent::abort_input(std::shared_ptr<isobus::V
 	if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
 	{
 		abortedObjectID = openInputObject->get_id();
+		workingSet->set_object_open_for_input(isobus::NULL_OBJECT_ID);
 		openInputWorkingSet.reset();
 		openInputObject.reset();
 	}
@@ -245,6 +246,11 @@ void DataMaskRenderAreaComponent::close_input_dialogs()
 	workingSet = std::move(openInputWorkingSet);
 	objectID = (nullptr != openInputObject) ? openInputObject->get_id() : isobus::NULL_OBJECT_ID;
 	openInputObject.reset();
+
+	if (nullptr != workingSet)
+	{
+		workingSet->set_object_open_for_input(isobus::NULL_OBJECT_ID);
+	}
 
 	// The callbacks will see the input as ended, so the close messages go out here
 	if (isobus::NULL_OBJECT_ID != objectID)
@@ -282,12 +288,20 @@ void DataMaskRenderAreaComponent::close_replaced_input_dialog(std::shared_ptr<is
 void DataMaskRenderAreaComponent::begin_open_input(std::shared_ptr<isobus::VTObject> object)
 {
 	openInputWorkingSet = parentWorkingSet;
+	if (nullptr != openInputWorkingSet)
+	{
+		openInputWorkingSet->set_object_open_for_input(object->get_id());
+	}
 	openInputObject = std::move(object);
 }
 
 bool DataMaskRenderAreaComponent::end_open_input()
 {
 	const bool wasOpen = (nullptr != openInputWorkingSet);
+	if (nullptr != openInputWorkingSet)
+	{
+		openInputWorkingSet->set_object_open_for_input(isobus::NULL_OBJECT_ID);
+	}
 	openInputWorkingSet.reset();
 	openInputObject.reset();
 	return wasOpen;
