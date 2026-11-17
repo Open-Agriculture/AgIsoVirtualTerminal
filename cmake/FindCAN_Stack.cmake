@@ -1,4 +1,4 @@
-set(CAN_STACK_GIT_TAG 03f8846af2bce635920cb0c146ebcc1a47aed29c)
+set(CAN_STACK_GIT_TAG c683deaacc09d5fd251587efe5ae2b4cec2acef3)
 if(NOT TARGET isobus::isobus)
   include(FetchContent)
   FetchContent_Declare(
