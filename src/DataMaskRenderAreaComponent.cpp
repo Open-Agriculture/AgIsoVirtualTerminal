@@ -134,7 +134,7 @@ int DataMaskRenderAreaComponent::to_pool_coordinate(float renderedCoordinate) co
 	return static_cast<int>(std::floor(poolCoordinate));
 }
 
-void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, bool maskReplaced)
 {
 	const auto previousWorkingSet = parentWorkingSet;
 	const auto previousDesignedMaskSize = designedMaskSize;
@@ -185,11 +185,25 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 			}
 		}
 	}
-	// Every repaint comes through here, so only a new mask or working set ends the edit or the press
-	if ((previousWorkingSet != parentWorkingSet) || (previousActiveMaskID != activeMaskID))
+	const bool maskChanged = maskReplaced || (previousWorkingSet != parentWorkingSet) || (previousActiveMaskID != activeMaskID);
+
+	// Every repaint comes through here, so only a new mask or working set ends the edit
+	if (maskChanged)
 	{
-		pressedButtonID = isobus::NULL_OBJECT_ID;
 		close_input_dialogs();
+	}
+
+	if (isobus::NULL_OBJECT_ID != pressedButtonID)
+	{
+		const auto objectUnderPress = (nullptr != parentWorkingSet) ? getClickedChildRecursive(parentWorkingSet->get_object_by_id(activeMaskID), pressedButtonPoint.x, pressedButtonPoint.y) : nullptr;
+
+		// A Button that a command erased or moved off the touch is released now, and the rest of the touch is ignored
+		if (maskChanged || (nullptr == objectUnderPress) || (pressedButtonID != objectUnderPress->get_id()))
+		{
+			pressedButtonID = isobus::NULL_OBJECT_ID;
+			pressCancelled = true;
+			ownerServer.release_held_buttons();
+		}
 	}
 	// Rebuilt Buttons start unpressed
 	show_button_pressed(*this, pressedButtonID, true);
@@ -338,6 +352,8 @@ void DataMaskRenderAreaComponent::paint(Graphics &g)
 
 void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 {
+	pressCancelled = false;
+
 	if (nullptr != parentWorkingSet)
 	{
 		// Do a top down search to see if they clicked on some interactable object
@@ -374,6 +390,7 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 						{
 							// Set before the macro, which can change the mask and so clear it
 							pressedButtonID = clickedObject->get_id();
+							pressedButtonPoint = { to_pool_coordinate(relativeEvent.mouseDownPosition.x), to_pool_coordinate(relativeEvent.mouseDownPosition.y) };
 						}
 						ownerServer.process_macro(clickedObject, pressed ? isobus::EventID::OnKeyPress : isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
 						ownerServer.send_button_activation_message(pressed ? isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched : isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
@@ -411,6 +428,7 @@ void DataMaskRenderAreaComponent::mouseDrag(const MouseEvent &event)
 			{
 				show_button_pressed(*this, pressedButtonID, false);
 				pressedButtonID = isobus::NULL_OBJECT_ID;
+				pressCancelled = true;
 				ownerServer.release_held_buttons(true);
 			}
 		}
@@ -424,7 +442,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 	show_button_pressed(*this, pressedButtonID, false);
 	pressedButtonID = isobus::NULL_OBJECT_ID;
 
-	if (nullptr != parentWorkingSet)
+	if ((!pressCancelled) && (nullptr != parentWorkingSet))
 	{
 		// Do a top down search to see if they clicked on some interactable object
 		auto workingSetObject = std::static_pointer_cast<isobus::WorkingSet>(parentWorkingSet->get_working_set_object());
@@ -447,7 +465,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 				{
 					case isobus::VirtualTerminalObjectType::Button:
 					{
-						// A press cut off by a mask change is released by release_held_buttons() below
+						// Latchable and disabled Buttons send nothing on release
 						if (releasedButtonID == clickedObject->get_id())
 						{
 							std::uint8_t keyCode = std::static_pointer_cast<isobus::Button>(clickedObject)->get_key_code();
@@ -875,9 +893,9 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						break;
 				}
 			}
-			ownerServer.release_held_buttons();
 		}
 	}
+	ownerServer.release_held_buttons();
 }
 
 bool DataMaskRenderAreaComponent::needsRepaint() const

@@ -126,6 +126,19 @@ jobs:
           name: 'Ubuntu 22.04 deb package'
           path: build/_CPack_Packages/Linux/DEB/*.deb
           if-no-files-found: error
+      - name: Build AppImage
+        run: |
+          cmake --install build --component applications --prefix AppDir/usr
+          convert -background none res/AgIsoVT.svg -resize 256x256 AppDir/AgIsoVT.png
+          wget -q -O linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy
+          APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy --appdir AppDir --desktop-file res/AgISOVirtualTerminal.desktop --icon-file res/AgIsoVT.svg --output appimage
+      - name: 'Upload AppImage'
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'Linux AppImage'
+          path: '*.AppImage'
+          if-no-files-found: error
   ubuntu_24_04_build:
     name: Ubuntu 24.04 Build
     runs-on: ubuntu-24.04

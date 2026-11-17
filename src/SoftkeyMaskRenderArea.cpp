@@ -16,7 +16,7 @@ SoftKeyMaskRenderAreaComponent::SoftKeyMaskRenderAreaComponent(ServerMainCompone
 	addChildComponent(pageBar);
 }
 
-void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
+void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, bool maskReplaced)
 {
 	std::uint16_t activeMaskID = isobus::NULL_OBJECT_ID;
 	std::shared_ptr<isobus::VTObject> softKeyMask;
@@ -51,7 +51,9 @@ void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobu
 
 	const std::uint16_t softKeyMaskID = (nullptr != softKeyMask) ? softKeyMask->get_id() : isobus::NULL_OBJECT_ID;
 
-	if ((workingSet != parentWorkingSet) || (activeMaskID != previousActiveMaskID) || (softKeyMaskID != previousSoftKeyMaskID))
+	const bool maskChanged = maskReplaced || (workingSet != parentWorkingSet) || (activeMaskID != previousActiveMaskID) || (softKeyMaskID != previousSoftKeyMaskID);
+
+	if (maskChanged)
 	{
 		currentPage = 0;
 	}
@@ -81,6 +83,18 @@ void SoftKeyMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobu
 		addAndMakeVisible(*childComponents.back());
 	}
 	update_page_bar(pageCount);
+
+	if (!pressedKeyBounds.isEmpty())
+	{
+		const auto keyUnderPress = getClickedChildRecursive(softKeyMask, pressedKeyBounds.getCentreX(), pressedKeyBounds.getCentreY());
+
+		// A Key that a command erased is released now, and its mouseUp sends nothing
+		if (maskChanged || (nullptr == keyUnderPress) || (pressedKeyID != keyUnderPress->get_id()))
+		{
+			pressedKeyBounds = {};
+			ownerServer.release_held_buttons();
+		}
+	}
 	repaint();
 }
 
@@ -202,6 +216,7 @@ void SoftKeyMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 					if (keyBounds.contains(relativeEvent.getMouseDownPosition()))
 					{
 						pressedKeyBounds = keyBounds;
+						pressedKeyID = clickedObject->get_id();
 						repaint();
 					}
 				}
