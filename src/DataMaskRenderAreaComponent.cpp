@@ -10,6 +10,7 @@
 #include <limits>
 #include "AppImages.h"
 #include "ButtonComponent.hpp"
+#include "FocusFrame.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "NumberComponent.hpp"
 #include "OutputListComponent.hpp"
@@ -347,6 +348,14 @@ void DataMaskRenderAreaComponent::paint(Graphics &g)
 		{
 			g.drawFittedText("To start the VT server, select \"Start/Stop\" from the control menu in the top left.", 0, 440, 400, 40, Justification::centredTop, 2);
 		}
+	}
+}
+
+void DataMaskRenderAreaComponent::paintOverChildren(Graphics &g)
+{
+	if (nullptr != parentWorkingSet)
+	{
+		FocusFrame::paint(g, *this, parentWorkingSet->get_object_focus());
 	}
 }
 

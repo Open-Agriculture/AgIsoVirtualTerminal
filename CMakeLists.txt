@@ -128,6 +128,7 @@ set(AGISOVT_SOURCES
     "src/StringEncodingConversions.cpp"
     "src/InputListComponent.cpp"
     "src/OutputListComponent.cpp"
+    "src/FocusFrame.cpp"
     "src/AckSettingsWindow.cpp"
     "src/Settings.cpp"
     "src/UpdateChecker.cpp"

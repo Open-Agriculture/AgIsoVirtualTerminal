@@ -14,9 +14,11 @@ The executable is `vt-render` in `build-renderer/VtRender_artefacts/<config>/`. 
 ## Usage
 
 ```
-vt-render --pool <path>/pool.iop --out <dir>
+vt-render --pool <path>/pool.iop --out <dir> [--focus <object id>]
 vt-render --all <collection root> --out <dir>
 ```
+
+`--focus` draws the focus frame around that object in every mask that shows it, as if the working set had selected it with Select Input Object.
 
 `--all` renders every `<collection root>/pools/*/*/pool.iop` of an [AgIsoObjectPoolCollection](https://github.com/gunicsba/AgIsoObjectPoolCollection) checkout into `<dir>/<pool id>/`, where the id is the first 8 hex digits of the pool's SHA-256. Earlier images and the manifest are removed from each output folder first.
 
