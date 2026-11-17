@@ -26,8 +26,9 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 
 	rangeLabel.setJustificationType(Justification::centredRight);
 	rangeLabel.setFont(Font(FontOptions(13.0f).withMetricsKind(TypefaceMetricsKind::legacy)));
-	rangeLabel.setText("Range " + String(minimum, static_cast<int>(decimals)).replaceCharacter('.', separator) +
-	                     " to " + String(maximum, static_cast<int>(decimals)).replaceCharacter('.', separator),
+	rangeLabel.setText(TRANS("Range {minimum} to {maximum}")
+	                     .replace("{minimum}", String(minimum, static_cast<int>(decimals)).replaceCharacter('.', separator))
+	                     .replace("{maximum}", String(maximum, static_cast<int>(decimals)).replaceCharacter('.', separator)),
 	                   dontSendNotification);
 	addAndMakeVisible(rangeLabel);
 
@@ -45,7 +46,7 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 		}
 	};
 	const char *editLabels[3] = { "\xe2\x8c\xab", "C", "\xe2\x9c\x95" };
-	const char *editTooltips[3] = { "Backspace", "Clear the entry", "Cancel" };
+	const char *editTooltips[3] = { NEEDS_TRANS("Backspace"), NEEDS_TRANS("Clear the entry"), NEEDS_TRANS("Cancel") };
 
 	for (int row = 0; row < 3; row++)
 	{
@@ -56,7 +57,7 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 		}
 
 		auto *editKey = add_key(String::fromUTF8(editLabels[row]), editActions[row]);
-		editKey->setTooltip(editTooltips[row]);
+		editKey->setTooltip(TRANS(editTooltips[row]));
 	}
 	keys.getLast()->setColour(TextButton::buttonColourId, Colour(0xffc62828));
 
@@ -66,12 +67,12 @@ NumericKeypadComponent::NumericKeypadComponent(double initialValue,
 		entry = entry.startsWith("-") ? entry.substring(1) : ("-" + entry);
 		refresh_display();
 	});
-	signKey->setTooltip("Change the sign");
+	signKey->setTooltip(TRANS("Change the sign"));
 	signKey->setEnabled(minimum < 0.0); // Pointless when the object cannot represent a negative value
 	add_key("0", [this]() { append('0'); });
 	add_key(String::charToString(separator), [this]() { append('.'); })->setEnabled(0 != decimals);
 	confirmKey = add_key(String::fromUTF8("\xe2\x9c\x93"), [this]() { confirm(); });
-	confirmKey->setTooltip("Confirm");
+	confirmKey->setTooltip(TRANS("Confirm"));
 	confirmKey->setColour(TextButton::buttonColourId, Colour(0xff2e7d32));
 
 	setWantsKeyboardFocus(true);

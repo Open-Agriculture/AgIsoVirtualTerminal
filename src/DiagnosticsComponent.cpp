@@ -84,7 +84,7 @@ void DiagnosticsComponent::paint(Graphics &g)
 	if (sources.empty())
 	{
 		g.setColour(Colours::grey);
-		g.drawFittedText("No active DTCs", 4, 0, getWidth() - 4, LINE_HEIGHT, Justification::centredLeft, 1);
+		g.drawFittedText(TRANS("No active DTCs"), 4, 0, getWidth() - 4, LINE_HEIGHT, Justification::centredLeft, 1);
 		return;
 	}
 
@@ -102,7 +102,7 @@ void DiagnosticsComponent::paint(Graphics &g)
 		g.setColour(Colours::grey);
 		g.drawText("SPN", SPN_COLUMN_X, line * LINE_HEIGHT, FMI_COLUMN_X - SPN_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
 		g.drawText("FMI", FMI_COLUMN_X, line * LINE_HEIGHT, COUNT_COLUMN_X - FMI_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
-		g.drawText("Count", COUNT_COLUMN_X, line * LINE_HEIGHT, getWidth() - COUNT_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
+		g.drawText(TRANS("Count"), COUNT_COLUMN_X, line * LINE_HEIGHT, getWidth() - COUNT_COLUMN_X, LINE_HEIGHT, Justification::centredLeft);
 		line++;
 
 		g.setColour(Colours::yellow);
