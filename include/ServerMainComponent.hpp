@@ -381,6 +381,7 @@ private:
 	bool canInterfaceRunning = false;
 	bool autostart = false;
 	bool hasStartBeenCalled = false;
+	juce::Component::SafePointer<ServerMainComponent> wakeTarget{ this }; // Made before the CAN thread starts, as JUCE sets up a weak reference holder without a lock
 	bool alarmAckKeyPressed = false;
 	bool showAckButton = false;
 	bool saveIopBeforeParse = false;

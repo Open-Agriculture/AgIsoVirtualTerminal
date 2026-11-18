@@ -478,7 +478,7 @@ void ServerMainComponent::timerCallback()
 
 void ServerMainComponent::on_rx_messages_pending()
 {
-	juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this)]() {
+	juce::MessageManager::callAsync([safeThis = wakeTarget]() {
 		if (nullptr != safeThis)
 		{
 			safeThis->update();
