@@ -88,6 +88,8 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 	{
 		g.fillAll(backgroundColour);
 	}
+	// Popups such as Input List resize this component, so clip to the object itself
+	g.reduceClipRegion(0, 0, sourceString->get_width(), sourceString->get_height());
 	g.setColour(drawColour);
 
 	// JUCE Graphics::drawFittedText will throw an exception if the font's horizontal width multiplied by
@@ -98,19 +100,38 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 		drawTextHorizontalScale = 0.999999f / g.getCurrentFont().getHorizontalScale();
 	}
 
-	if (sourceString->get_option(isobus::StringVTObject::Options::AutoWrap)) // TODO need to figure out proper font clipping
+	const auto horizontalJustification = sourceString->get_horizontal_justification();
+
+	if (sourceString->get_option(isobus::StringVTObject::Options::AutoWrap))
 	{
 		g.drawFittedText(decodedValue, 0, 0, sourceString->get_width(), sourceString->get_height(), convert_justification(sourceString->get_horizontal_justification(), sourceString->get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(sourceString->get_height()) + 0.1f) / fontHeight)), drawTextHorizontalScale);
 	}
 	else
 	{
-		g.drawFittedText(decodedValue, 0, 0, sourceString->get_width(), sourceString->get_height(), convert_justification(sourceString->get_horizontal_justification(), sourceString->get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(sourceString->get_height()) + 0.1f) / fontHeight)), drawTextHorizontalScale);
+		std::vector<String> lines;
+		// The standard ends a line at CR, LF or CRLF, so LFCR is two. A whole CRLF for
+		// U+2028/2029 keeps them from pairing with a CR or LF next to them.
+		const auto paragraphs = StringArray::fromLines(decodedValue.replace(String::charToString(0x2028), "\r\n").replace(String::charToString(0x2029), "\r\n"));
+
+		for (int i = 0; i < paragraphs.size(); i++)
+		{
+			// A line end after the last line starts no new line
+			if (paragraphs[i].isEmpty() && ((i + 1) == paragraphs.size()) && (i > 0))
+			{
+				break;
+			}
+
+			// The standard never counts trailing spaces, and middle justification ignores leading ones too
+			const String trimmed = paragraphs[i].trimCharactersAtEnd(" ");
+			lines.push_back((isobus::TextualVTObject::HorizontalJustification::PositionMiddle == horizontalJustification) ? trimmed.trimCharactersAtStart(" ") : trimmed);
+		}
+		draw_lines(g, lines, sourceString->get_width(), sourceString->get_height(), horizontalJustification, sourceString->get_vertical_justification());
 	}
 
 	if (strikeThrough)
 	{
 		// Juce does not support Strikethrough text drawing, draw the line manually
-		drawStrikeThrough(g, sourceString->get_width(), sourceString->get_height(), decodedValue, sourceString->get_horizontal_justification());
+		drawStrikeThrough(g, sourceString->get_width(), sourceString->get_height(), decodedValue, horizontalJustification);
 	}
 
 	// If disabled, try and show that by drawing some semi-transparent grey
@@ -118,4 +139,46 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 	{
 		g.fillAll(Colour::fromFloatRGBA(0.5f, 0.5f, 0.5f, 0.5f));
 	}
+}
+
+void StringDrawingComponent::draw_lines(Graphics &g,
+                                        const std::vector<String> &lines,
+                                        int width,
+                                        int height,
+                                        isobus::TextualVTObject::HorizontalJustification horizontalJustification,
+                                        isobus::TextualVTObject::VerticalJustification verticalJustification)
+{
+	// Full font size, no ellipsis: the standard clips what doesn't fit by pixel
+	const Font font = g.getCurrentFont();
+	const float lineHeight = font.getHeight();
+	const float blockHeight = lineHeight * static_cast<float>(lines.size());
+	float y = 0.0f;
+
+	if (isobus::TextualVTObject::VerticalJustification::PositionMiddle == verticalJustification)
+	{
+		y = (static_cast<float>(height) - blockHeight) / 2.0f;
+	}
+	else if (isobus::TextualVTObject::VerticalJustification::PositionBottom == verticalJustification)
+	{
+		y = static_cast<float>(height) - blockHeight;
+	}
+
+	GlyphArrangement glyphs;
+	for (const auto &line : lines)
+	{
+		const float lineWidth = GlyphArrangement::getStringWidth(font, line);
+		float x = 0.0f;
+
+		if (isobus::TextualVTObject::HorizontalJustification::PositionMiddle == horizontalJustification)
+		{
+			x = (static_cast<float>(width) - lineWidth) / 2.0f;
+		}
+		else if (isobus::TextualVTObject::HorizontalJustification::PositionRight == horizontalJustification)
+		{
+			x = static_cast<float>(width) - lineWidth;
+		}
+		glyphs.addLineOfText(font, line, x, y + font.getAscent());
+		y += lineHeight;
+	}
+	glyphs.draw(g);
 }
