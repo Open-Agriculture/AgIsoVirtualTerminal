@@ -211,7 +211,7 @@ void convert_string_to_utf_8(SourceEncoding encoding, const std::string &input, 
 		std::uint16_t newCharacter = table[encodedChar];
 
 		if (((static_cast<std::uint8_t>(encodedChar) >= 0x7F) &&
-		     (static_cast<std::uint8_t>(encodedChar) <= 0xA0)) ||
+		     (static_cast<std::uint8_t>(encodedChar) < 0xA0)) ||
 		    ((static_cast<std::uint8_t>(encodedChar) < 0x20) &&
 		     (0x0A != static_cast<std::uint8_t>(encodedChar)) &&
 		     (0x0D != static_cast<std::uint8_t>(encodedChar))))
