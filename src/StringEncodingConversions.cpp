@@ -200,7 +200,7 @@ static void add_character(std::uint16_t character, std::string &output)
 	}
 }
 
-void convert_string_to_utf_8(SourceEncoding encoding, const std::string &input, std::string &output, bool autoWrappingEnabled)
+void convert_string_to_utf_8(SourceEncoding encoding, const std::string &input, std::string &output)
 {
 	auto table = getTable(encoding);
 	auto input_length = input.size();
@@ -218,18 +218,6 @@ void convert_string_to_utf_8(SourceEncoding encoding, const std::string &input, 
 		{
 			// We ignore the character because unsupported control characters are not supposed to take
 			// up any room in the presentation of a string
-		}
-		else if (0xAD == (static_cast<std::uint8_t>(encodedChar))) // // Soft Hyphen wraps in ISO 11783
-		{
-			if (autoWrappingEnabled)
-			{
-				add_character(newCharacter, output); // The soft hyphen is drawn when wrapping on it occurs
-				add_character(table[0x0A], output); // Line feed
-			}
-			else
-			{
-				// If not wrapping, the soft hyphen is not shown
-			}
 		}
 		else
 		{

@@ -30,7 +30,6 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 
 	auto sourceString = static_cast<const isobus::StringVTObject *>(vtObject());
 
-	std::uint8_t fontHeight = 8;
 	auto fontType = isobus::FontAttributes::FontType::ISO8859_1;
 	auto fontAttrID = sourceString->get_font_attributes();
 
@@ -48,7 +47,7 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 			}
 			auto colour = parentWorkingSet->get_colour(font->get_colour());
 			drawColour = Colour::fromFloatRGBA(colour.r, colour.g, colour.b, 1.0f);
-			fontHeight = prepare_text_painting(g, font, 'a', drawColour, backgroundColour);
+			prepare_text_painting(g, font, 'a', drawColour, backgroundColour);
 			strikeThrough = font->get_style(isobus::FontAttributes::FontStyleBits::CrossedOut);
 			fontType = font->get_type();
 		}
@@ -79,7 +78,7 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 		if (it != fontTypeToEncodingMap.end())
 		{
 			std::string utf8String;
-			convert_string_to_utf_8(it->second, value, utf8String, sourceString->get_option(isobus::StringVTObject::Options::AutoWrap));
+			convert_string_to_utf_8(it->second, value, utf8String);
 			decodedValue = utf8String;
 		}
 	}
@@ -92,46 +91,48 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 	g.reduceClipRegion(0, 0, sourceString->get_width(), sourceString->get_height());
 	g.setColour(drawColour);
 
-	// JUCE Graphics::drawFittedText will throw an exception if the font's horizontal width multiplied by
-	// the texts minimumHorizontalScale is larger or equal to 1.0
-	float drawTextHorizontalScale = 0.8f;
-	if ((drawTextHorizontalScale * g.getCurrentFont().getHorizontalScale()) > 1.0f)
-	{
-		drawTextHorizontalScale = 0.999999f / g.getCurrentFont().getHorizontalScale();
-	}
-
 	const auto horizontalJustification = sourceString->get_horizontal_justification();
+	const bool autoWrap = sourceString->get_option(isobus::StringVTObject::Options::AutoWrap);
+	const String softHyphen = String::charToString(SOFT_HYPHEN);
+	// The standard ends a line at CR, LF or CRLF, so LFCR is two. A whole CRLF for
+	// U+2028/2029 keeps them from pairing with a CR or LF next to them.
+	const auto paragraphs = StringArray::fromLines(decodedValue.replace(String::charToString(0x2028), "\r\n").replace(String::charToString(0x2029), "\r\n"));
+	std::vector<String> lines;
 
-	if (sourceString->get_option(isobus::StringVTObject::Options::AutoWrap))
+	for (int i = 0; i < paragraphs.size(); i++)
 	{
-		g.drawFittedText(decodedValue, 0, 0, sourceString->get_width(), sourceString->get_height(), convert_justification(sourceString->get_horizontal_justification(), sourceString->get_vertical_justification()), static_cast<int>(std::floor((static_cast<float>(sourceString->get_height()) + 0.1f) / fontHeight)), drawTextHorizontalScale);
-	}
-	else
-	{
-		std::vector<String> lines;
-		// The standard ends a line at CR, LF or CRLF, so LFCR is two. A whole CRLF for
-		// U+2028/2029 keeps them from pairing with a CR or LF next to them.
-		const auto paragraphs = StringArray::fromLines(decodedValue.replace(String::charToString(0x2028), "\r\n").replace(String::charToString(0x2029), "\r\n"));
+		String line = paragraphs[i];
+		const bool forcedLineEnd = (i + 1) < paragraphs.size();
 
-		for (int i = 0; i < paragraphs.size(); i++)
+		// A line end after the last line starts no new line, but wrap_line still needs to know it was there
+		if (line.removeCharacters(softHyphen).isEmpty() && !forcedLineEnd && (i > 0))
 		{
-			// A line end after the last line starts no new line
-			if (paragraphs[i].isEmpty() && ((i + 1) == paragraphs.size()) && (i > 0))
-			{
-				break;
-			}
-
-			// The standard never counts trailing spaces, and middle justification ignores leading ones too
-			const String trimmed = paragraphs[i].trimCharactersAtEnd(" ");
-			lines.push_back((isobus::TextualVTObject::HorizontalJustification::PositionMiddle == horizontalJustification) ? trimmed.trimCharactersAtStart(" ") : trimmed);
+			break;
 		}
-		draw_lines(g, lines, sourceString->get_width(), sourceString->get_height(), horizontalJustification, sourceString->get_vertical_justification());
+
+		// The standard has middle justification ignore leading spaces (and invisible soft hyphens)
+		if (isobus::TextualVTObject::HorizontalJustification::PositionMiddle == horizontalJustification)
+		{
+			line = line.trimCharactersAtStart(" " + softHyphen);
+		}
+
+		if (autoWrap)
+		{
+			const auto wrapped = wrap_line(line, g.getCurrentFont(), static_cast<float>(sourceString->get_width()), sourceString->get_option(isobus::StringVTObject::Options::WrapOnHyphen), forcedLineEnd);
+			lines.insert(lines.end(), wrapped.begin(), wrapped.end());
+		}
+		else
+		{
+			// The standard never counts trailing spaces
+			lines.push_back(line.removeCharacters(softHyphen).trimCharactersAtEnd(" "));
+		}
 	}
+	draw_lines(g, lines, sourceString->get_width(), sourceString->get_height(), horizontalJustification, sourceString->get_vertical_justification());
 
 	if (strikeThrough)
 	{
 		// Juce does not support Strikethrough text drawing, draw the line manually
-		drawStrikeThrough(g, sourceString->get_width(), sourceString->get_height(), decodedValue, horizontalJustification);
+		drawStrikeThrough(g, sourceString->get_width(), sourceString->get_height(), decodedValue.removeCharacters(softHyphen), horizontalJustification);
 	}
 
 	// If disabled, try and show that by drawing some semi-transparent grey
@@ -139,6 +140,94 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 	{
 		g.fillAll(Colour::fromFloatRGBA(0.5f, 0.5f, 0.5f, 0.5f));
 	}
+}
+
+std::vector<String> StringDrawingComponent::wrap_line(const String &line, const Font &font, float width, bool wrapOnHyphen, bool forcedLineEnd)
+{
+	// The standard breaks at a space, a soft hyphen (drawn only there) or, with Wrap on Hyphen, after a hyphen,
+	// else after the last character that fits. Trailing spaces aren't drawn but still take room
+	const String softHyphen = String::charToString(SOFT_HYPHEN);
+	// JUCE measures an 8 px cell as 8.000015 px, and a real overflow is a whole cell
+	const auto fits = [&font, width](const String &text) {
+		return GlyphArrangement::getStringWidth(font, text) <= (width + 0.5f);
+	};
+	std::vector<String> lines;
+	String remaining = line.trimCharactersAtStart(softHyphen);
+
+	while (true)
+	{
+		const String visible = remaining.removeCharacters(softHyphen);
+
+		if (fits(visible))
+		{
+			lines.push_back(visible.trimCharactersAtEnd(" "));
+			break;
+		}
+
+		String bestLine;
+		int bestNext = -1;
+
+		for (int i = 0; i < remaining.length(); i++)
+		{
+			const juce_wchar character = remaining[i];
+			const bool breaksAfter = wrapOnHyphen && ('-' == character);
+
+			if ((' ' != character) && (SOFT_HYPHEN != character) && !breaksAfter)
+			{
+				continue;
+			}
+
+			String candidate = remaining.substring(0, breaksAfter ? (i + 1) : i).removeCharacters(softHyphen);
+
+			if (!fits(candidate))
+			{
+				break;
+			}
+			if (SOFT_HYPHEN == character)
+			{
+				// Skip it if nothing precedes it or only its dash overflows; a later break may still fit
+				if (candidate.trimCharactersAtEnd(" ").isEmpty() || !fits(candidate + "-"))
+				{
+					continue;
+				}
+				candidate += "-";
+			}
+			candidate = candidate.trimCharactersAtEnd(" ");
+
+			if (candidate.isNotEmpty())
+			{
+				bestLine = candidate;
+				bestNext = i + 1;
+			}
+		}
+
+		if (bestNext < 0)
+		{
+			int count = 1;
+			while ((count < remaining.length()) && fits(remaining.substring(0, count + 1).removeCharacters(softHyphen)))
+			{
+				count++;
+			}
+			bestLine = remaining.substring(0, count).removeCharacters(softHyphen);
+			bestNext = count;
+		}
+
+		lines.push_back(bestLine);
+		remaining = remaining.substring(bestNext);
+		const String next = remaining.trimCharactersAtStart(" " + softHyphen);
+
+		if (next.isEmpty())
+		{
+			// The standard draws spaces left between the wrap and a forced line end as an empty line
+			if (forcedLineEnd && remaining.containsChar(' '))
+			{
+				lines.push_back(String());
+			}
+			break;
+		}
+		remaining = next;
+	}
+	return lines;
 }
 
 void StringDrawingComponent::draw_lines(Graphics &g,
