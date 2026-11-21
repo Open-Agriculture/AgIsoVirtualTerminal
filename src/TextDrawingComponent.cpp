@@ -173,8 +173,8 @@ std::uint8_t TextDrawingComponent::prepare_text_painting(Graphics &g,
 void TextDrawingComponent::drawStrikeThrough(Graphics &g, Rectangle<float> line)
 {
 	// JUCE has no strike-through font style, so draw the line through the middle of the text line
-	const float thickness = std::max(1.0f, line.getHeight() * 0.05f);
-	g.drawLine(line.getX(), line.getCentreY(), line.getRight(), line.getCentreY(), thickness);
+	const float thickness = std::max(1.0f, std::round(line.getHeight() * 0.05f));
+	g.fillRect(line.getX(), std::floor(line.getCentreY()), line.getWidth(), thickness);
 }
 
 void TextDrawingComponent::visibilityChanged()
