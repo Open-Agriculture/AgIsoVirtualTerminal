@@ -34,7 +34,7 @@ protected:
 
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 
-	void drawStrikeThrough(Graphics &g, int w, int h, const String &str, isobus::TextualVTObject::HorizontalJustification justification);
+	static void drawStrikeThrough(Graphics &g, Rectangle<float> line);
 
 	void visibilityChanged() override;
 

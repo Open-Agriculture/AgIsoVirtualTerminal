@@ -170,32 +170,11 @@ std::uint8_t TextDrawingComponent::prepare_text_painting(Graphics &g,
 	return fontHeight;
 }
 
-void TextDrawingComponent::drawStrikeThrough(Graphics &g, int w, int h, const String &str, isobus::TextualVTObject::HorizontalJustification justification)
+void TextDrawingComponent::drawStrikeThrough(Graphics &g, Rectangle<float> line)
 {
-	auto font = g.getCurrentFont();
-	auto textWidth = GlyphArrangement::getStringWidthInt(font, str);
-	auto lineThickness = h * 0.05f; // set the thickness to 5% of the total text height
-	if (lineThickness < 1.0f)
-	{
-		lineThickness = 1.0f;
-	}
-
-	auto y = h / 2;
-
-	switch (justification)
-	{
-		case isobus::TextualVTObject::HorizontalJustification::PositionLeft:
-			g.drawLine(0, y, textWidth, y, lineThickness);
-			break;
-		case isobus::TextualVTObject::HorizontalJustification::PositionMiddle:
-			g.drawLine(w / 2 - textWidth / 2, y, w / 2 + textWidth / 2, y, lineThickness);
-			break;
-		case isobus::TextualVTObject::HorizontalJustification::PositionRight:
-			g.drawLine(w - textWidth, y, w, y, lineThickness);
-			break;
-		default:
-			break;
-	}
+	// JUCE has no strike-through font style, so draw the line through the middle of the text line
+	const float thickness = std::max(1.0f, line.getHeight() * 0.05f);
+	g.drawLine(line.getX(), line.getCentreY(), line.getRight(), line.getCentreY(), thickness);
 }
 
 void TextDrawingComponent::visibilityChanged()
