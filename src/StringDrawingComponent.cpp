@@ -104,7 +104,7 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 		String line = paragraphs[i];
 		const bool forcedLineEnd = (i + 1) < paragraphs.size();
 
-		// A line end after the last line starts no new line, but wrap_line still needs to know it was there
+		// fromLines gives an empty last line after a final line end, and the standard starts no new line there
 		if (line.removeCharacters(softHyphen).isEmpty() && !forcedLineEnd && (i > 0))
 		{
 			break;
@@ -142,90 +142,134 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 	}
 }
 
+std::vector<float> StringDrawingComponent::character_offsets(const String &line, const Font &font, std::unordered_map<juce_wchar, float> &characterWidths)
+{
+	// JUCE shapes the text on every measurement, which is slow for long strings.
+	// The VT font is monospaced, so the widths of single characters add up the same.
+	// JUCE strings are UTF-8, so indexing one walks from its start each time
+	const auto characters = line.toUTF32();
+	const int length = line.length();
+	std::vector<float> offsets(static_cast<std::size_t>(length) + 1, 0.0f);
+
+	for (int i = 0; i < length; i++)
+	{
+		const juce_wchar character = characters[i];
+		float characterWidth = 0.0f;
+
+		if (SOFT_HYPHEN != character)
+		{
+			auto cached = characterWidths.find(character);
+			if (characterWidths.end() == cached)
+			{
+				cached = characterWidths.emplace(character, GlyphArrangement::getStringWidth(font, String::charToString(character))).first;
+			}
+			characterWidth = cached->second;
+		}
+		offsets[static_cast<std::size_t>(i) + 1] = offsets[static_cast<std::size_t>(i)] + characterWidth;
+	}
+	return offsets;
+}
+
 std::vector<String> StringDrawingComponent::wrap_line(const String &line, const Font &font, float width, bool wrapOnHyphen, bool forcedLineEnd)
 {
 	// The standard breaks at a space, a soft hyphen (drawn only there) or, with Wrap on Hyphen, after a hyphen,
 	// else after the last character that fits. Trailing spaces aren't drawn but still take room
 	const String softHyphen = String::charToString(SOFT_HYPHEN);
+	std::unordered_map<juce_wchar, float> characterWidths;
+	const std::vector<float> offsets = character_offsets(line, font, characterWidths);
+	const auto characters = line.toUTF32();
+	const float hyphenWidth = GlyphArrangement::getStringWidth(font, "-");
 	// JUCE measures an 8 px cell as 8.000015 px, and a real overflow is a whole cell
-	const auto fits = [&font, width](const String &text) {
-		return GlyphArrangement::getStringWidth(font, text) <= (width + 0.5f);
+	const auto fits = [&offsets, width](int start, int end, float extra = 0.0f) {
+		return (offsets[static_cast<std::size_t>(end)] - offsets[static_cast<std::size_t>(start)] + extra) <= (width + 0.5f);
 	};
 	std::vector<String> lines;
-	String remaining = line.trimCharactersAtStart(softHyphen);
+	const int end = line.length();
+	int start = 0;
+
+	while ((start < end) && (SOFT_HYPHEN == characters[start]))
+	{
+		start++;
+	}
 
 	while (true)
 	{
-		const String visible = remaining.removeCharacters(softHyphen);
-
-		if (fits(visible))
+		if (fits(start, end))
 		{
-			lines.push_back(visible.trimCharactersAtEnd(" "));
+			lines.push_back(String(characters + start, characters + end).removeCharacters(softHyphen).trimCharactersAtEnd(" "));
 			break;
 		}
 
-		String bestLine;
+		int bestEnd = -1;
 		int bestNext = -1;
+		bool bestHyphen = false;
+		bool hasText = false;
 
-		for (int i = 0; i < remaining.length(); i++)
+		for (int i = start; i < end; i++)
 		{
-			const juce_wchar character = remaining[i];
+			// Any break here ends at i or i + 1, so once the text up to i overflows, no later break fits
+			if (!fits(start, i))
+			{
+				break;
+			}
+
+			const juce_wchar character = characters[i];
 			const bool breaksAfter = wrapOnHyphen && ('-' == character);
+			hasText = hasText || ((' ' != character) && (SOFT_HYPHEN != character));
 
 			if ((' ' != character) && (SOFT_HYPHEN != character) && !breaksAfter)
 			{
 				continue;
 			}
 
-			String candidate = remaining.substring(0, breaksAfter ? (i + 1) : i).removeCharacters(softHyphen);
+			const int candidateEnd = breaksAfter ? (i + 1) : i;
 
-			if (!fits(candidate))
+			if (!fits(start, candidateEnd))
 			{
 				break;
 			}
-			if (SOFT_HYPHEN == character)
-			{
-				// Skip it if nothing precedes it or only its dash overflows; a later break may still fit
-				if (candidate.trimCharactersAtEnd(" ").isEmpty() || !fits(candidate + "-"))
-				{
-					continue;
-				}
-				candidate += "-";
-			}
-			candidate = candidate.trimCharactersAtEnd(" ");
 
-			if (candidate.isNotEmpty())
+			// A soft hyphen whose dash overflows doesn't end the scan, as a later space may still fit.
+			// Only the break is kept here: building each candidate's text is quadratic in a run of soft hyphens
+			if (hasText && ((SOFT_HYPHEN != character) || fits(start, candidateEnd, hyphenWidth)))
 			{
-				bestLine = candidate;
+				bestEnd = candidateEnd;
 				bestNext = i + 1;
+				bestHyphen = (SOFT_HYPHEN == character);
 			}
 		}
 
 		if (bestNext < 0)
 		{
 			int count = 1;
-			while ((count < remaining.length()) && fits(remaining.substring(0, count + 1).removeCharacters(softHyphen)))
+			while (((start + count) < end) && fits(start, start + count + 1))
 			{
 				count++;
 			}
-			bestLine = remaining.substring(0, count).removeCharacters(softHyphen);
-			bestNext = count;
+			lines.push_back(String(characters + start, characters + start + count).removeCharacters(softHyphen));
+			bestNext = start + count;
+		}
+		else
+		{
+			lines.push_back((String(characters + start, characters + bestEnd).removeCharacters(softHyphen) + (bestHyphen ? "-" : "")).trimCharactersAtEnd(" "));
+		}
+		int next = bestNext;
+
+		while ((next < end) && ((' ' == characters[next]) || (SOFT_HYPHEN == characters[next])))
+		{
+			next++;
 		}
 
-		lines.push_back(bestLine);
-		remaining = remaining.substring(bestNext);
-		const String next = remaining.trimCharactersAtStart(" " + softHyphen);
-
-		if (next.isEmpty())
+		if (end == next)
 		{
 			// The standard draws spaces left between the wrap and a forced line end as an empty line
-			if (forcedLineEnd && remaining.containsChar(' '))
+			if (forcedLineEnd && String(characters + bestNext, characters + end).containsChar(' '))
 			{
 				lines.push_back(String());
 			}
 			break;
 		}
-		remaining = next;
+		start = next;
 	}
 	return lines;
 }
@@ -252,10 +296,12 @@ void StringDrawingComponent::draw_lines(Graphics &g,
 		y = static_cast<float>(height) - blockHeight;
 	}
 
+	std::unordered_map<juce_wchar, float> characterWidths;
 	GlyphArrangement glyphs;
 	for (const auto &line : lines)
 	{
-		const float lineWidth = GlyphArrangement::getStringWidth(font, line);
+		const std::vector<float> offsets = character_offsets(line, font, characterWidths);
+		const float lineWidth = offsets.back();
 		float x = 0.0f;
 
 		if (isobus::TextualVTObject::HorizontalJustification::PositionMiddle == horizontalJustification)
@@ -266,7 +312,11 @@ void StringDrawingComponent::draw_lines(Graphics &g,
 		{
 			x = static_cast<float>(width) - lineWidth;
 		}
-		glyphs.addLineOfText(font, line, x, y + font.getAscent());
+
+		if (((y + lineHeight) > 0.0f) && (y < static_cast<float>(height)))
+		{
+			glyphs.addLineOfText(font, line, x, y + font.getAscent());
+		}
 		y += lineHeight;
 	}
 	glyphs.draw(g);
