@@ -30,7 +30,8 @@ private:
 	                       int width,
 	                       int height,
 	                       isobus::TextualVTObject::HorizontalJustification horizontalJustification,
-	                       isobus::TextualVTObject::VerticalJustification verticalJustification);
+	                       isobus::TextualVTObject::VerticalJustification verticalJustification,
+	                       bool strikeThrough);
 	static constexpr juce_wchar SOFT_HYPHEN = 0x00AD;
 	static const std::unordered_map<isobus::FontAttributes::FontType, SourceEncoding> fontTypeToEncodingMap;
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StringDrawingComponent)

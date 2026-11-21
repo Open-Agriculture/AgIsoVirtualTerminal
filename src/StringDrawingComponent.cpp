@@ -5,6 +5,8 @@
 *******************************************************************************/
 #include "StringDrawingComponent.hpp"
 
+#include <cmath>
+
 const std::unordered_map<isobus::FontAttributes::FontType, SourceEncoding> StringDrawingComponent::fontTypeToEncodingMap = {
 	{ isobus::FontAttributes::FontType::ISO8859_1, SourceEncoding::ISO8859_1 },
 	{ isobus::FontAttributes::FontType::ISO8859_15, SourceEncoding::ISO8859_15 },
@@ -127,13 +129,7 @@ void StringDrawingComponent::paintString(Graphics &g, const std::string &text, b
 			lines.push_back(line.removeCharacters(softHyphen).trimCharactersAtEnd(" "));
 		}
 	}
-	draw_lines(g, lines, sourceString->get_width(), sourceString->get_height(), horizontalJustification, sourceString->get_vertical_justification());
-
-	if (strikeThrough)
-	{
-		// Juce does not support Strikethrough text drawing, draw the line manually
-		drawStrikeThrough(g, sourceString->get_width(), sourceString->get_height(), decodedValue.removeCharacters(softHyphen), horizontalJustification);
-	}
+	draw_lines(g, lines, sourceString->get_width(), sourceString->get_height(), horizontalJustification, sourceString->get_vertical_justification(), strikeThrough);
 
 	// If disabled, try and show that by drawing some semi-transparent grey
 	if (!enabled)
@@ -279,7 +275,8 @@ void StringDrawingComponent::draw_lines(Graphics &g,
                                         int width,
                                         int height,
                                         isobus::TextualVTObject::HorizontalJustification horizontalJustification,
-                                        isobus::TextualVTObject::VerticalJustification verticalJustification)
+                                        isobus::TextualVTObject::VerticalJustification verticalJustification,
+                                        bool strikeThrough)
 {
 	// Full font size, no ellipsis: the standard clips what doesn't fit by pixel
 	const Font font = g.getCurrentFont();
@@ -295,6 +292,9 @@ void StringDrawingComponent::draw_lines(Graphics &g,
 	{
 		y = static_cast<float>(height) - blockHeight;
 	}
+
+	// Whole pixel positions: JUCE keeps a fractional x, which blurs each glyph over two pixel columns
+	y = std::round(y);
 
 	std::unordered_map<juce_wchar, float> characterWidths;
 	GlyphArrangement glyphs;
@@ -312,10 +312,16 @@ void StringDrawingComponent::draw_lines(Graphics &g,
 		{
 			x = static_cast<float>(width) - lineWidth;
 		}
+		x = std::round(x);
 
 		if (((y + lineHeight) > 0.0f) && (y < static_cast<float>(height)))
 		{
 			glyphs.addLineOfText(font, line, x, y + font.getAscent());
+
+			if (strikeThrough && (lineWidth > 0.0f))
+			{
+				drawStrikeThrough(g, { x, y, lineWidth, lineHeight });
+			}
 		}
 		y += lineHeight;
 	}
