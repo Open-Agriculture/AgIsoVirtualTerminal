@@ -5,6 +5,7 @@
 *******************************************************************************/
 #include "isobus/hardware_integration/available_can_drivers.hpp"
 
+#include "CANDeviceDrivers.hpp"
 #include "Main.hpp"
 #include "Settings.hpp"
 
@@ -26,6 +27,11 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 #endif
 	canDrivers.push_back(std::make_shared<isobus::TouCANPlugin>(static_cast<std::int16_t>(0), 0));
 	canDrivers.push_back(std::make_shared<isobus::SysTecWindowsPlugin>());
+#ifdef ISOBUS_WINDOWSCANDLELIGHT_AVAILABLE
+	canDrivers.push_back(std::make_shared<isobus::CandleLightWindowsPlugin>(0, 250000, 0));
+#else
+	canDrivers.push_back(nullptr);
+#endif
 #elif defined(JUCE_MAC)
 	canDrivers.push_back(std::make_shared<isobus::MacCANPCANPlugin>(PCAN_USBBUS1));
 #else
@@ -79,7 +85,7 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 	// JUCE 9 turned this off by default, which makes Windows treat a held touch as a right click
 	setUsingWindowsMultiTouch(true);
 	setUsingNativeTitleBar(true);
-	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, settings.settingsValueTree(), canLogPath, vtNumber, screenCaptureDir), true);
+	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, &CANDeviceDrivers::list_devices, &CANDeviceDrivers::create_driver, settings.settingsValueTree(), canLogPath, vtNumber, screenCaptureDir), true);
 
 #if JUCE_IOS || JUCE_ANDROID
 	setFullScreen(true);
