@@ -1294,6 +1294,8 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		activeWorkingSet = ws;
 		update_ack_button_visibility();
 		process_macro(ws->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, ws);
+		// A Change Active Mask in that macro already ran On Hide/On Show, and updates the display later
+		const bool maskChangedByActivate = (activeWorkingSetDataMaskObjectID != workingSetObject->get_active_mask());
 
 		if (send_status_message())
 		{
@@ -1304,7 +1306,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 			statusMessageTimestamp_ms = 0;
 		}
 
-		if (previousActiveMask != activeWorkingSetDataMaskObjectID)
+		if (!maskChangedByActivate && (previousActiveMask != activeWorkingSetDataMaskObjectID))
 		{
 			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, ws);
 			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::AlarmMask, ws);
