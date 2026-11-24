@@ -21,6 +21,6 @@ enum class SourceEncoding
 	ISO8859_15
 };
 
-void convert_string_to_utf_8(SourceEncoding encoding, const std::string &input, std::string &output, bool autoWrappingEnabled);
+void convert_string_to_utf_8(SourceEncoding encoding, const std::string &input, std::string &output);
 
 #endif // STRING_ENCODING_CONVERSIONS_HPP

@@ -30,9 +30,9 @@ ConfigureHardwareComponent::ConfigureHardwareComponent(ConfigureHardwareWindow &
 	hardwareInterfaceSelector.setTextWhenNothingSelected("Select Hardware Interface");
 
 #ifdef ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE
-	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec" }, 1);
+	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN", "TouCAN", "SysTec", "candleLight / gs_usb (WinUSB)" }, 1);
 #else
-	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN (not supported with mingw)", "TouCAN", "SysTec" }, 1);
+	hardwareInterfaceSelector.addItemList({ "PEAK PCAN USB", "Innomaker2CAN (not supported with mingw)", "TouCAN", "SysTec", "candleLight / gs_usb (WinUSB)" }, 1);
 #endif
 	int selectedID = 1;
 

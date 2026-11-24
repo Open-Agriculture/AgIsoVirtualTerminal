@@ -85,7 +85,7 @@ void NumberComponent::paintNumber(Graphics &g, bool enabled)
 
 		if (strikeThrough)
 		{
-			drawStrikeThrough(g, sourceNumber->get_width(), sourceNumber->get_height(), valueText.str(), sourceNumber->get_horizontal_justification());
+			drawStrikeThrough(g, glyphs.getBoundingBox(0, -1, true));
 		}
 	}
 
