@@ -1970,13 +1970,7 @@ void ServerMainComponent::object_pool_deleted(std::shared_ptr<isobus::VirtualTer
 
 std::uint16_t ServerMainComponent::abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
-	const std::uint16_t abortedObjectID = dataMaskRenderer.abort_input(workingSet);
-
-	if (isobus::NULL_OBJECT_ID != abortedObjectID)
-	{
-		dataMaskRenderer.close_input_dialogs();
-	}
-	return abortedObjectID;
+	return dataMaskRenderer.abort_input(workingSet);
 }
 
 void ServerMainComponent::handle_unexpected_working_set_shutdown(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, UnexpectedShutdownReason)

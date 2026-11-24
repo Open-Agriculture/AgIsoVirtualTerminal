@@ -32,8 +32,6 @@ public:
 
 	std::uint16_t abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
-	void close_input_dialogs();
-
 	void close_replaced_input_dialog(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
 	void paint(Graphics &g) override;
@@ -72,6 +70,8 @@ private:
 
 	void begin_open_input(std::shared_ptr<isobus::VTObject> object);
 	bool end_open_input();
+	void close_input_dialogs();
+	void close_input_modals();
 	void process_deselection_macro(std::shared_ptr<isobus::VTObject> input, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet);
 
 	std::shared_ptr<isobus::VTObject> getClickedChildRecursive(std::shared_ptr<isobus::VTObject> object, int x, int y, std::vector<std::uint16_t> path = {});

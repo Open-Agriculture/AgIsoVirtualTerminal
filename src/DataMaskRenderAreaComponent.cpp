@@ -227,24 +227,17 @@ std::uint16_t DataMaskRenderAreaComponent::abort_input(std::shared_ptr<isobus::V
 	if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
 	{
 		abortedObjectID = openInputObject->get_id();
-		workingSet->set_object_open_for_input(isobus::NULL_OBJECT_ID);
-		openInputWorkingSet.reset();
-		openInputObject.reset();
-	}
-
-	if (isobus::NULL_OBJECT_ID != abortedObjectID)
-	{
+		end_open_input();
 		ownerServer.send_select_input_object_message(abortedObjectID, false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
+		close_input_modals();
 	}
 	return abortedObjectID;
 }
 
 void DataMaskRenderAreaComponent::close_input_dialogs()
 {
-	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet;
-	std::uint16_t objectID;
-	workingSet = std::move(openInputWorkingSet);
-	objectID = (nullptr != openInputObject) ? openInputObject->get_id() : isobus::NULL_OBJECT_ID;
+	const auto workingSet = std::move(openInputWorkingSet);
+	const std::uint16_t objectID = (nullptr != openInputObject) ? openInputObject->get_id() : isobus::NULL_OBJECT_ID;
 	openInputObject.reset();
 
 	if (nullptr != workingSet)
@@ -260,14 +253,7 @@ void DataMaskRenderAreaComponent::close_input_dialogs()
 		ownerServer.send_select_input_object_message(objectID, false, false, destination);
 	}
 
-	// 0 = Cancel, the same result JUCE gives a window close or Escape
-	for (auto *dialog : { inputListModal.get(), inputNumberModal.get(), inputStringModal.get() })
-	{
-		if (nullptr != dialog)
-		{
-			dialog->exitModalState(0);
-		}
-	}
+	close_input_modals();
 }
 
 void DataMaskRenderAreaComponent::close_replaced_input_dialog(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
@@ -305,6 +291,18 @@ bool DataMaskRenderAreaComponent::end_open_input()
 	openInputWorkingSet.reset();
 	openInputObject.reset();
 	return wasOpen;
+}
+
+void DataMaskRenderAreaComponent::close_input_modals()
+{
+	// 0 = Cancel, the same result JUCE gives a window close or Escape
+	for (auto *dialog : { inputListModal.get(), inputNumberModal.get(), inputStringModal.get() })
+	{
+		if (nullptr != dialog)
+		{
+			dialog->exitModalState(0);
+		}
+	}
 }
 
 void DataMaskRenderAreaComponent::process_deselection_macro(std::shared_ptr<isobus::VTObject> input, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
