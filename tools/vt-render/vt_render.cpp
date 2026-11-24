@@ -3,6 +3,7 @@
 ** @brief      vt-render: renders an object pool to PNG files and a manifest.json
 ** @copyright  The Open-Agriculture Developers
 *******************************************************************************/
+#include "FocusFrame.hpp"
 #include "JuceHeader.h"
 
 #include "JuceManagedWorkingSetCache.hpp"
@@ -65,6 +66,12 @@ public:
 	  background(LookAndFeel::getDefaultLookAndFeel().findColour(ResizableWindow::backgroundColourId)),
 	  collector(errorCollector)
 	{
+	}
+
+	/// Draws the focus frame around this object, as when a working set selects it
+	void set_focus(std::uint16_t objectID)
+	{
+		focusObjectID = objectID;
 	}
 
 	ExitCode render(const PoolInput &input, const File &outputDirectory)
@@ -184,12 +191,13 @@ public:
 	static void print_usage()
 	{
 		std::cout << "Usage:\n"
-		             "  vt-render --pool <pool.iop> --out <folder>\n"
+		             "  vt-render --pool <pool.iop> --out <folder> [--focus <object id>]\n"
 		             "  vt-render --all <collection root> --out <folder>\n"
 		             "\n"
 		             "Renders the working set designator and every data mask, alarm mask and soft key mask\n"
 		             "of an object pool to PNG, plus manifest.json with the hash of every image.\n"
 		             "--all renders each <collection root>/pools/*/*/ into <folder>/<pool id>/.\n"
+		             "--focus draws the focus frame around that object, as if the working set selected it.\n"
 		             "\n"
 		             "Exit codes: 0 everything rendered, 1 some image could not be rendered,\n"
 		             "            2 a pool could not be loaded, 3 wrong arguments."
@@ -575,7 +583,7 @@ private:
 		}
 
 		const auto image = paint_image(component->getWidth(), component->getHeight(), [&](Graphics &g) {
-			component->paintEntireComponent(g, true);
+			paint_with_focus(g, *component);
 		});
 		add_image(fileName, mask, image);
 	}
@@ -625,11 +633,17 @@ private:
 	}
 
 	/// Paints a mask clipped to its bounds
-	static void paint_clipped(Graphics &g, Component &component)
+	void paint_clipped(Graphics &g, Component &component) const
 	{
 		Graphics::ScopedSaveState state(g);
 		g.reduceClipRegion(component.getBounds());
+		paint_with_focus(g, component);
+	}
+
+	void paint_with_focus(Graphics &g, Component &component) const
+	{
 		component.paintEntireComponent(g, true);
+		FocusFrame::paint(g, component, focusObjectID);
 	}
 
 	void paint_screen(Graphics &g, Component &mask, Component *softKeyMask, Colour softKeyBackground, int pageCount)
@@ -771,7 +785,7 @@ private:
 
 	void paint_soft_key_page(Graphics &g, Component &softKeyMask, Colour background, int page, int pageCount)
 	{
-		softKeyMask.paintEntireComponent(g, true);
+		paint_with_focus(g, softKeyMask);
 		paint_page_bar(g, background, page, pageCount);
 	}
 
@@ -898,6 +912,7 @@ private:
 
 	const Colour background;
 	ErrorCollector &collector;
+	std::uint16_t focusObjectID = isobus::NULL_OBJECT_ID;
 	const SoftKeyMaskDimensions dimensions; // the VT's defaults
 	File directory;
 	Array<var> images;
@@ -914,7 +929,7 @@ int main(int argc, char *argv[])
 	for (int i = 1; i < argc; i++)
 	{
 		const auto name = String::fromUTF8(argv[i]);
-		if (!StringArray({ "--pool", "--out", "--all" }).contains(name) || (i + 1 >= argc) || (arguments.count(name) > 0))
+		if (!StringArray({ "--pool", "--out", "--all", "--focus" }).contains(name) || (i + 1 >= argc) || (arguments.count(name) > 0))
 		{
 			PoolRenderer::print_usage();
 			return EXIT_USAGE;
@@ -924,7 +939,8 @@ int main(int argc, char *argv[])
 
 	const bool singlePool = (arguments.count("--pool") > 0) && (0 == arguments.count("--all"));
 	const bool collection = (arguments.count("--all") > 0) && (0 == arguments.count("--pool"));
-	if ((0 == arguments.count("--out")) || !(singlePool || collection))
+	const bool validFocus = (0 == arguments.count("--focus")) || (singlePool && arguments["--focus"].isNotEmpty() && arguments["--focus"].containsOnly("0123456789") && (arguments["--focus"].getIntValue() < isobus::NULL_OBJECT_ID));
+	if ((0 == arguments.count("--out")) || !(singlePool || collection) || !validFocus)
 	{
 		PoolRenderer::print_usage();
 		return EXIT_USAGE;
@@ -948,6 +964,10 @@ int main(int argc, char *argv[])
 	ExitCode result;
 	{
 		PoolRenderer renderer(errorCollector);
+		if (arguments.count("--focus") > 0)
+		{
+			renderer.set_focus(static_cast<std::uint16_t>(arguments["--focus"].getIntValue()));
+		}
 		if (singlePool)
 		{
 			result = renderer.render(PoolRenderer::read_pool_input(resolve(arguments["--pool"])), outputDirectory);
