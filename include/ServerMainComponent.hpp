@@ -55,7 +55,11 @@ public:
 	std::uint8_t get_physical_soft_key_columns() const;
 	std::uint16_t get_data_mask_area_size_x_pixels() const override;
 	std::uint16_t get_data_mask_area_size_y_pixels() const override;
-	void suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSetWithError) override;
+	void suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet,
+	                         std::uint8_t errorCodes,
+	                         std::uint16_t parentIDOfFaultingObject,
+	                         std::uint16_t faultingObjectID,
+	                         std::uint8_t objectPoolErrorCodes) override;
 	SupportedWideCharsErrorCode get_supported_wide_chars(std::uint8_t codePlane,
 	                                                     std::uint16_t firstWideCharInInquiryRange,
 	                                                     std::uint16_t lastWideCharInInquiryRange,
@@ -128,7 +132,7 @@ public:
 	std::uint8_t get_user_layout_softkeymask_bg_color() const override;
 
 	void timerCallback() override;
-	void on_rx_messages_pending() override;
+	void on_update_needed() override;
 
 	void paint(juce::Graphics &g) override;
 	void resized() override;

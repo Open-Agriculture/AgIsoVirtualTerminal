@@ -73,10 +73,14 @@ public:
 
 	void shutdown() override
 	{
-		// The CAN thread calls into the window, and not every quit goes through closeButtonPressed
+		// The CAN and parsing threads call into the window, and not every quit goes through closeButtonPressed
 		if (isobus::CANHardwareInterface::is_running())
 		{
 			isobus::CANHardwareInterface::stop();
+		}
+		if (nullptr != mainWindow)
+		{
+			static_cast<ServerMainComponent *>(mainWindow->getContentComponent())->join_parsing_threads();
 		}
 		mainWindow = nullptr;
 	}

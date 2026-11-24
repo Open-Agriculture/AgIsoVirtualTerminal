@@ -238,7 +238,11 @@ std::uint16_t ServerMainComponent::get_data_mask_area_size_y_pixels() const
 	return dataMaskRenderer.getHeight() != 0 ? dataMaskRenderer.getHeight() : 480;
 }
 
-void ServerMainComponent::suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> /*workingSetWithError*/)
+void ServerMainComponent::suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> /*workingSet*/,
+                                              std::uint8_t /*errorCodes*/,
+                                              std::uint16_t /*parentIDOfFaultingObject*/,
+                                              std::uint16_t /*faultingObjectID*/,
+                                              std::uint8_t /*objectPoolErrorCodes*/)
 {
 }
 
@@ -476,7 +480,7 @@ void ServerMainComponent::timerCallback()
 	}
 }
 
-void ServerMainComponent::on_rx_messages_pending()
+void ServerMainComponent::on_update_needed()
 {
 	juce::MessageManager::callAsync([safeThis = wakeTarget]() {
 		if (nullptr != safeThis)
