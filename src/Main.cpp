@@ -9,7 +9,7 @@
 #include "Settings.hpp"
 
 AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
-                                                        const std::string &canLogPath,
+                                                        ASCIILogFile &canLog,
                                                         int vtNumberCmdLineArg,
                                                         std::string screenCaptureDir) :
   DocumentWindow(name,
@@ -84,7 +84,7 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 	// JUCE 9 turned this off by default, which makes Windows treat a held touch as a right click
 	setUsingWindowsMultiTouch(true);
 	setUsingNativeTitleBar(true);
-	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, settings.settingsValueTree(), canLogPath, vtNumber, screenCaptureDir), true);
+	setContentOwned(new ServerMainComponent(serverInternalControlFunction, canDrivers, settings.settingsValueTree(), canLog, vtNumber, screenCaptureDir), true);
 
 #if JUCE_IOS || JUCE_ANDROID
 	setFullScreen(true);
