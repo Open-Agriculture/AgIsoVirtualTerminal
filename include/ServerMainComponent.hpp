@@ -302,6 +302,9 @@ private:
 	void update_ack_button_visibility();
 	void check_load_settings(std::shared_ptr<ValueTree> settings);
 
+	/// @brief Fills in the ISO 11783-12 identification messages and functionalities
+	void configure_diagnostic_protocol();
+
 	/// @brief Asks GitHub if a newer release is available and tells the user if there is one
 	/// @param[in] reportWhenUpToDate If true, also show a message when this is already the latest release
 	void check_for_update(bool reportWhenUpToDate);
@@ -366,6 +369,9 @@ private:
 	int alarmAckKeyCode = juce::KeyPress::escapeKey;
 	juce::int64 lastUpdateCheck = 0;
 	juce::String skippedUpdateVersion;
+	juce::String ecuPartNumber = "AgIsoVirtualTerminal";
+	juce::String ecuSerialNumber; ///< Generated on the first start, so it is unique per install
+	juce::String ecuHardwareId = "Generic";
 	std::uint8_t vtNumber = 1; // VT number in the range of 1-32
 	std::uint8_t numberOfPoolsToRender = 0;
 	VTVersion versionToReport = VTVersion::Version5;

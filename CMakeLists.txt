@@ -37,6 +37,7 @@ if(WIN32)
     )
   endif()
   list(APPEND CAN_DRIVER "SYS_TEC")
+  list(APPEND CAN_DRIVER "WindowsCandleLight")
 elseif(APPLE)
   set(CAN_DRIVER "MacCANPCAN")
 else()
@@ -78,6 +79,9 @@ endif()
 
 target_compile_definitions(AgISOVirtualTerminal PRIVATE JUCE_USE_CURL=1
                                                         JUCE_WEB_BROWSER=0)
+string(SUBSTRING "${CAN_STACK_GIT_TAG}" 0 7 AGISOSTACK_VERSION)
+target_compile_definitions(AgISOVirtualTerminal
+                           PRIVATE AGISOSTACK_VERSION="${AGISOSTACK_VERSION}")
 
 juce_generate_juce_header(AgISOVirtualTerminal)
 
@@ -222,13 +226,16 @@ if(APPLE)
     BUNDLE DESTINATION . COMPONENT applications)
 else()
   if(UNIX)
-    install(FILES "${CMAKE_SOURCE_DIR}/res/AgISOVirtualTerminal.desktop"
-            DESTINATION share/applications)
+    install(
+      FILES "${CMAKE_SOURCE_DIR}/res/AgISOVirtualTerminal.desktop"
+      DESTINATION share/applications
+      COMPONENT applications)
 
     install(
       FILES "${CMAKE_SOURCE_DIR}/res/AgIsoVT.svg"
       DESTINATION share/icons/hicolor/scalable/apps
-      RENAME AgIsoVT.svg)
+      RENAME AgIsoVT.svg
+      COMPONENT applications)
   endif()
   install(TARGETS AgISOVirtualTerminal RUNTIME DESTINATION bin
                                                COMPONENT applications)
@@ -288,6 +295,12 @@ if(APPLE)
   set(CPACK_SYSTEM_NAME "OSX")
   set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}")
   set(CPACK_PACKAGE_ICON ${CPACK_NSIS_MUI_ICON})
+endif()
+
+if(UNIX AND NOT APPLE)
+  set(CPACK_INSTALL_CMAKE_PROJECTS
+      "${CMAKE_BINARY_DIR};${PROJECT_NAME};applications;/")
+  set(CPACK_STRIP_FILES ON)
 endif()
 
 # Must be after the last CPACK macros

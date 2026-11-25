@@ -26,6 +26,11 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 #endif
 	canDrivers.push_back(std::make_shared<isobus::TouCANPlugin>(static_cast<std::int16_t>(0), 0));
 	canDrivers.push_back(std::make_shared<isobus::SysTecWindowsPlugin>());
+#ifdef ISOBUS_WINDOWSCANDLELIGHT_AVAILABLE
+	canDrivers.push_back(std::make_shared<isobus::CandleLightWindowsPlugin>(0, 250000, 0));
+#else
+	canDrivers.push_back(nullptr);
+#endif
 #elif defined(JUCE_MAC)
 	canDrivers.push_back(std::make_shared<isobus::MacCANPCANPlugin>(PCAN_USBBUS1));
 #else
@@ -35,7 +40,7 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 	jassert(!canDrivers.empty()); // You need some kind of CAN interface to run this program!
 	isobus::CANHardwareInterface::set_number_of_can_channels(1);
 
-	auto config = isobus::CANNetworkManager::CANNetwork.get_configuration();
+	auto &config = isobus::CANNetworkManager::CANNetwork.get_configuration();
 	config.set_max_number_transport_protocol_sessions(256);
 	config.set_number_of_packets_per_dpo_message(255);
 	config.set_number_of_packets_per_cts_message(255);
