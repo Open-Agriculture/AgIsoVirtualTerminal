@@ -1774,6 +1774,8 @@ void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus:
 	}
 }
 
+// The VT server runs the macros of a Change Active Mask command itself: On Change Active Mask of the Working Set,
+// and On Hide/On Show of the old and new mask and their Soft Key Masks. This only updates the display.
 void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t newMask)
 {
 	// A deferred call can arrive after the working set shut down or deleted its pool
@@ -1813,10 +1815,6 @@ void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerm
 
 	if (!showNewMask)
 	{
-		// Macros run even when the display does not change
-		process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
-		process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, affectedWorkingSet);
-
 		// A macro that changed the mask again was handled by its own callback
 		if (newMask == std::static_pointer_cast<isobus::WorkingSet>(affectedWorkingSet->get_working_set_object())->get_active_mask())
 		{
@@ -1861,18 +1859,12 @@ void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerm
 			{
 				auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(newActiveMask);
 				activeWorkingSetSoftkeyMaskObjectID = alarmMask->get_soft_key_mask();
-
-				process_macro(newActiveMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
-				process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
 			}
 			else if (isobus::VirtualTerminalObjectType::DataMask == newActiveMask->get_object_type())
 			{
 				auto dataMask = std::static_pointer_cast<isobus::DataMask>(newActiveMask);
 				activeWorkingSetSoftkeyMaskObjectID = dataMask->get_soft_key_mask();
 				lastDataMaskWorkingSet = activeWorkingSet;
-				// Also process macros for the actual datamask (container) show event
-				process_macro(newActiveMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, affectedWorkingSet);
-				process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, affectedWorkingSet);
 			}
 		}
 	}
