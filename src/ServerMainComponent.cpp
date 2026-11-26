@@ -39,10 +39,10 @@ ServerMainComponent::ServerMainComponent(
   std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
   std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
   std::shared_ptr<ValueTree> settings,
-  const std::string &canLogPath_,
+  ASCIILogFile &canLog_,
   std::uint8_t vtNumberArg,
   std::string screenCaptureDir) :
-  VirtualTerminalServer(serverControlFunction), screenCaptureDirArgument(screenCaptureDir), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers), canLogPath(canLogPath_)
+  VirtualTerminalServer(serverControlFunction), screenCaptureDirArgument(screenCaptureDir), workingSetSelector(*this), dataMaskRenderer(*this), softKeyMaskRenderer(*this), parentCANDrivers(canDrivers), canLog(canLog_)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Info);
@@ -80,9 +80,6 @@ ServerMainComponent::ServerMainComponent(
 	configure_diagnostic_protocol();
 	diagnosticProtocol->initialize();
 
-	isobus::CANHardwareInterface::get_periodic_update_event_dispatcher().add_listener([this]() {
-		diagnosticProtocol->update();
-	});
 	get_on_repaint_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet>) { this->repaint_on_next_update(); });
 	get_on_change_active_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t workingSet, std::uint16_t newMask) { this->on_change_active_mask_callback(affectedWorkingSet, workingSet, newMask); });
 	get_on_change_active_softkey_mask_event_dispatcher().add_listener([this](std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask) { this->on_change_active_softkey_mask_callback(affectedWorkingSet, mask, newSoftKeyMask); });
@@ -129,6 +126,13 @@ ServerMainComponent::ServerMainComponent(
 	if (isNewSerialNumber)
 	{
 		save_settings();
+	}
+
+	// Last, because the CAN threads call into this object as soon as they run
+	if (autostart)
+	{
+		start_can_interface();
+		isobus::CANStackLogger::info("AutoStart enabled. Starting CAN hardware interface.");
 	}
 }
 
@@ -904,8 +908,7 @@ bool ServerMainComponent::perform(const InvocationInfo &info)
 		{
 			auto diagnosticFileBuilder = std::make_unique<ZipFile::Builder>();
 
-			// for the current session add the current CAN log file only
-			auto canLogFileName = File(canLogPath);
+			auto canLogFileName = File(canLog.currentLogFile());
 			diagnosticFileBuilder->addFile(canLogFileName, 9, canLogFileName.getFileName());
 
 			diagnosticFileBuilder->addFile(logger.getLogFile(), 9, logger.getLogFile().getFileName());
@@ -2101,6 +2104,13 @@ void ServerMainComponent::stop_can_interface_with_alert(const String &title)
 void ServerMainComponent::start_can_interface()
 {
 	isobus::CANStackLogger::info("Starting CAN interface");
+
+	// CANHardwareInterface::stop() removes every listener, so they are added again on each start
+	isobus::CANHardwareInterface::get_periodic_update_event_dispatcher().add_listener([this]() {
+		diagnosticProtocol->update();
+	});
+	canLog.register_can_listeners();
+
 	bool started = isobus::CANHardwareInterface::start();
 	dataMaskRenderer.set_has_started(true);
 	hasStartBeenCalled = true;
@@ -2328,12 +2338,6 @@ void ServerMainComponent::check_load_settings(std::shared_ptr<ValueTree> setting
 			if (!child.getProperty("AutoStart").isVoid())
 			{
 				autostart = static_cast<bool>(static_cast<int>(child.getProperty("AutoStart")));
-
-				if (autostart)
-				{
-					start_can_interface();
-					isobus::CANStackLogger::info("AutoStart enabled. Starting CAN hardware interface.");
-				}
 			}
 
 			if (!child.getProperty("AlarmAckKey").isVoid())

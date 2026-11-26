@@ -31,6 +31,10 @@ public:
 
 	std::string currentLogFile() const;
 
+	/// @brief Attaches the logger to the CAN stack's frame events. CANHardwareInterface::stop()
+	/// removes all listeners, so this has to be called before every start.
+	void register_can_listeners();
+
 	/// @brief Turns CAN traffic logging on or off. It is off unless the settings say otherwise,
 	/// because logging every frame costs performance which the transport protocol cannot spare.
 	/// @param[in] shouldLog True to log CAN traffic to the .asc file
@@ -64,8 +68,6 @@ private:
 	CriticalSection queueLock;
 	std::vector<String> pendingLines;
 	std::atomic<bool> hasReportedOverflow{ false };
-	isobus::EventCallbackHandle canFrameReceivedListener;
-	isobus::EventCallbackHandle canFrameSentListener;
 	Time initialTimestamp;
 };
 

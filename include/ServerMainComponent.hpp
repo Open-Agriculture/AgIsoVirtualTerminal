@@ -10,6 +10,7 @@
 #ifndef SERVER_MAIN_COMPONENT_HPP
 #define SERVER_MAIN_COMPONENT_HPP
 
+#include "ASCIILogFile.hpp"
 #include "ConfigureHardwareWindow.hpp"
 #include "DataMaskRenderAreaComponent.hpp"
 #include "DiagnosticsWindow.hpp"
@@ -39,7 +40,7 @@ public:
 	ServerMainComponent(std::shared_ptr<isobus::InternalControlFunction> serverControlFunction,
 	                    std::vector<std::shared_ptr<isobus::CANHardwarePlugin>> &canDrivers,
 	                    std::shared_ptr<ValueTree> settings,
-	                    const std::string &canLogPath_,
+	                    ASCIILogFile &canLog_,
 	                    std::uint8_t vtNumberArg = 0,
 	                    std::string screenCaptureDir = "");
 	~ServerMainComponent() override;
@@ -333,7 +334,7 @@ private:
 	static constexpr juce::int64 UPDATE_CHECK_INTERVAL_MS = 60LL * 60LL * 1000LL;
 	const std::string ISO_DATA_PATH = "iso_data";
 	std::string screenCaptureDirArgument = "";
-	std::string canLogPath;
+	ASCIILogFile &canLog;
 
 	juce::ApplicationCommandManager mCommandManager;
 	UpdateChecker updateChecker;

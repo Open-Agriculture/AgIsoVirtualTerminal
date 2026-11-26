@@ -44,15 +44,6 @@ ASCIILogFile::ASCIILogFile() :
 		RuntimePermissions::request(RuntimePermissions::writeExternalStorage, nullptr);
 	}
 
-	// The listeners are always registered, but they return immediately while logging is off, so
-	// the cost of having them attached is a single atomic read per frame.
-	canFrameReceivedListener = isobus::CANHardwareInterface::get_can_frame_received_event_dispatcher().add_listener([this](const isobus::CANMessageFrame &canFrame) {
-		queue_frame(canFrame, false);
-	});
-	canFrameSentListener = isobus::CANHardwareInterface::get_can_frame_transmitted_event_dispatcher().add_listener([this](const isobus::CANMessageFrame &canFrame) {
-		queue_frame(canFrame, true);
-	});
-
 	startThread(Thread::Priority::low);
 }
 
@@ -202,4 +193,15 @@ void ASCIILogFile::run()
 std::string ASCIILogFile::currentLogFile() const
 {
 	return logFile.getFullPathName().toStdString();
+}
+
+void ASCIILogFile::register_can_listeners()
+{
+	// These return immediately while logging is off, so staying attached costs one atomic read per frame
+	isobus::CANHardwareInterface::get_can_frame_received_event_dispatcher().add_listener([this](const isobus::CANMessageFrame &canFrame) {
+		queue_frame(canFrame, false);
+	});
+	isobus::CANHardwareInterface::get_can_frame_transmitted_event_dispatcher().add_listener([this](const isobus::CANMessageFrame &canFrame) {
+		queue_frame(canFrame, true);
+	});
 }
