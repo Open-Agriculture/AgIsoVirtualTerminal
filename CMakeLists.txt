@@ -122,6 +122,7 @@ set(AGISOVT_SOURCES
     "src/NumberComponent.cpp"
     "src/AlarmMaskAudio.cpp"
     "src/NumericKeypadComponent.cpp"
+    "src/TouchInputListMenu.cpp"
     "src/AppImages.cpp"
     "src/ASCIILogFile.cpp"
     "src/ConfigureHardwareWindow.cpp"
