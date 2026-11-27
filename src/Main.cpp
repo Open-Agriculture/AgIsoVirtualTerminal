@@ -42,7 +42,7 @@ AgISOVirtualTerminalApplication::MainWindow::MainWindow(juce::String name,
 
 	auto &config = isobus::CANNetworkManager::CANNetwork.get_configuration();
 	config.set_max_number_transport_protocol_sessions(256);
-	config.set_number_of_packets_per_dpo_message(255);
+	config.set_number_of_packets_per_etp_cts_message(255);
 	config.set_number_of_packets_per_cts_message(255);
 
 #ifndef JUCE_WINDOWS

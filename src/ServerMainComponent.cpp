@@ -242,7 +242,11 @@ std::uint16_t ServerMainComponent::get_data_mask_area_size_y_pixels() const
 	return dataMaskRenderer.getHeight() != 0 ? dataMaskRenderer.getHeight() : 480;
 }
 
-void ServerMainComponent::suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> /*workingSetWithError*/)
+void ServerMainComponent::suspend_working_set(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> /*workingSet*/,
+                                              std::uint8_t /*errorCodes*/,
+                                              std::uint16_t /*parentIDOfFaultingObject*/,
+                                              std::uint16_t /*faultingObjectID*/,
+                                              std::uint8_t /*objectPoolErrorCodes*/)
 {
 }
 
@@ -478,6 +482,16 @@ void ServerMainComponent::timerCallback()
 	{
 		apply_always_on_top();
 	}
+}
+
+void ServerMainComponent::on_update_needed()
+{
+	juce::MessageManager::callAsync([safeThis = wakeTarget]() {
+		if (nullptr != safeThis)
+		{
+			safeThis->update();
+		}
+	});
 }
 
 void ServerMainComponent::paint(juce::Graphics &g)
@@ -1283,6 +1297,8 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 		activeWorkingSet = ws;
 		update_ack_button_visibility();
 		process_macro(ws->get_working_set_object(), isobus::EventID::OnActivate, isobus::VirtualTerminalObjectType::WorkingSet, ws);
+		// A Change Active Mask in that macro already ran On Hide/On Show, and updates the display later
+		const bool maskChangedByActivate = (activeWorkingSetDataMaskObjectID != workingSetObject->get_active_mask());
 
 		if (send_status_message())
 		{
@@ -1293,7 +1309,7 @@ void ServerMainComponent::change_selected_working_set(std::uint8_t index)
 			statusMessageTimestamp_ms = 0;
 		}
 
-		if (previousActiveMask != activeWorkingSetDataMaskObjectID)
+		if (!maskChangedByActivate && (previousActiveMask != activeWorkingSetDataMaskObjectID))
 		{
 			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::DataMask, ws);
 			process_macro(ws->get_object_by_id(previousActiveMask), isobus::EventID::OnHide, isobus::VirtualTerminalObjectType::AlarmMask, ws);
@@ -1757,23 +1773,17 @@ void ServerMainComponent::update_alarm_sound()
 
 void ServerMainComponent::on_change_active_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t, std::uint16_t newMask)
 {
-	if (juce::MessageManager::existsAndIsCurrentThread())
-	{
-		// A macro's mask change must be finished before the rest of the macro runs
-		change_active_mask(affectedWorkingSet, newMask);
-	}
-	else
-	{
-		// The CAN thread holds stack locks here, and the message thread may be waiting on them or joining this thread
-		juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this), affectedWorkingSet, newMask]() {
-			if (nullptr != safeThis)
-			{
-				safeThis->change_active_mask(affectedWorkingSet, newMask);
-			}
-		});
-	}
+	// Deferred until the command's macros have run, as On Change Active Mask can change the mask again
+	juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this), affectedWorkingSet, newMask]() {
+		if (nullptr != safeThis)
+		{
+			safeThis->change_active_mask(affectedWorkingSet, newMask);
+		}
+	});
 }
 
+// The VT server runs the macros of a Change Active Mask command itself: On Change Active Mask of the Working Set,
+// and On Hide/On Show of the old and new mask and their Soft Key Masks. This only updates the display.
 void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t newMask)
 {
 	// A deferred call can arrive after the working set shut down or deleted its pool
@@ -1813,10 +1823,6 @@ void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerm
 
 	if (!showNewMask)
 	{
-		// Macros run even when the display does not change
-		process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
-		process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, affectedWorkingSet);
-
 		// A macro that changed the mask again was handled by its own callback
 		if (newMask == std::static_pointer_cast<isobus::WorkingSet>(affectedWorkingSet->get_working_set_object())->get_active_mask())
 		{
@@ -1861,18 +1867,12 @@ void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerm
 			{
 				auto alarmMask = std::static_pointer_cast<isobus::AlarmMask>(newActiveMask);
 				activeWorkingSetSoftkeyMaskObjectID = alarmMask->get_soft_key_mask();
-
-				process_macro(newActiveMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
-				process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::AlarmMask, affectedWorkingSet);
 			}
 			else if (isobus::VirtualTerminalObjectType::DataMask == newActiveMask->get_object_type())
 			{
 				auto dataMask = std::static_pointer_cast<isobus::DataMask>(newActiveMask);
 				activeWorkingSetSoftkeyMaskObjectID = dataMask->get_soft_key_mask();
 				lastDataMaskWorkingSet = activeWorkingSet;
-				// Also process macros for the actual datamask (container) show event
-				process_macro(newActiveMask, isobus::EventID::OnShow, isobus::VirtualTerminalObjectType::DataMask, affectedWorkingSet);
-				process_macro(newActiveMask, isobus::EventID::OnChangeActiveMask, isobus::VirtualTerminalObjectType::DataMask, affectedWorkingSet);
 			}
 		}
 	}
@@ -1880,7 +1880,7 @@ void ServerMainComponent::change_active_mask(std::shared_ptr<isobus::VirtualTerm
 
 void ServerMainComponent::on_change_active_softkey_mask_callback(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> affectedWorkingSet, std::uint16_t mask, std::uint16_t newSoftKeyMask)
 {
-	// Called from the CAN thread, so the work is handed to the message thread
+	// Deferred like the mask changes, so both reach the display in command order
 	juce::Component::SafePointer<ServerMainComponent> safeThis(this);
 
 	juce::MessageManager::callAsync([safeThis, affectedWorkingSet, mask, newSoftKeyMask]() {
@@ -1973,19 +1973,7 @@ void ServerMainComponent::object_pool_deleted(std::shared_ptr<isobus::VirtualTer
 
 std::uint16_t ServerMainComponent::abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
-	// CAN thread, under the stack's callback mutex: waiting on the message thread could deadlock, so only closing the dialog is deferred
-	const std::uint16_t abortedObjectID = dataMaskRenderer.abort_input(workingSet);
-
-	if (isobus::NULL_OBJECT_ID != abortedObjectID)
-	{
-		juce::MessageManager::callAsync([safeThis = juce::Component::SafePointer<ServerMainComponent>(this)]() {
-			if (nullptr != safeThis)
-			{
-				safeThis->dataMaskRenderer.close_aborted_input_dialogs();
-			}
-		});
-	}
-	return abortedObjectID;
+	return dataMaskRenderer.abort_input(workingSet);
 }
 
 void ServerMainComponent::handle_unexpected_working_set_shutdown(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet, UnexpectedShutdownReason)
@@ -2649,11 +2637,14 @@ void ServerMainComponent::identify_vt()
 		}
 	}
 
-	juce::MessageManager::callAsync([this] {
-		vtNumberComponent.setVtNumber(vtNumber);
-		vtNumberComponent.setVisible(true);
-		repaint();
-		juce::Timer::callAfterDelay(3000, [this]() { vtNumberComponent.setVisible(false); });
+	vtNumberComponent.setVtNumber(vtNumber);
+	vtNumberComponent.setVisible(true);
+	repaint();
+	juce::Timer::callAfterDelay(3000, [safeThis = juce::Component::SafePointer<ServerMainComponent>(this)]() {
+		if (nullptr != safeThis)
+		{
+			safeThis->vtNumberComponent.setVisible(false);
+		}
 	});
 }
 

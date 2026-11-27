@@ -225,47 +225,25 @@ void DataMaskRenderAreaComponent::on_working_set_disconnect(std::shared_ptr<isob
 std::uint16_t DataMaskRenderAreaComponent::abort_input(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
 	std::uint16_t abortedObjectID = isobus::NULL_OBJECT_ID;
+	if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
 	{
-		const std::lock_guard<std::mutex> lock(openInputMutex);
-		if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
-		{
-			abortedObjectID = openInputObject->get_id();
-			openInputWorkingSet.reset();
-			openInputObject.reset();
-		}
-	}
-
-	if (isobus::NULL_OBJECT_ID != abortedObjectID)
-	{
+		abortedObjectID = openInputObject->get_id();
+		end_open_input();
 		ownerServer.send_select_input_object_message(abortedObjectID, false, false, ownerServer.get_client_control_function_for_working_set(workingSet));
+		close_input_modals();
 	}
 	return abortedObjectID;
 }
 
-void DataMaskRenderAreaComponent::close_aborted_input_dialogs()
-{
-	bool reopened;
-	{
-		const std::lock_guard<std::mutex> lock(openInputMutex);
-		reopened = (nullptr != openInputWorkingSet);
-	}
-
-	// An input opened after abort_input() is not the one the VT closed
-	if (!reopened)
-	{
-		close_input_dialogs();
-	}
-}
-
 void DataMaskRenderAreaComponent::close_input_dialogs()
 {
-	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet;
-	std::uint16_t objectID;
+	const auto workingSet = std::move(openInputWorkingSet);
+	const std::uint16_t objectID = (nullptr != openInputObject) ? openInputObject->get_id() : isobus::NULL_OBJECT_ID;
+	openInputObject.reset();
+
+	if (nullptr != workingSet)
 	{
-		const std::lock_guard<std::mutex> lock(openInputMutex);
-		workingSet = std::move(openInputWorkingSet);
-		objectID = (nullptr != openInputObject) ? openInputObject->get_id() : isobus::NULL_OBJECT_ID;
-		openInputObject.reset();
+		workingSet->set_object_open_for_input(isobus::NULL_OBJECT_ID);
 	}
 
 	// The callbacks will see the input as ended, so the close messages go out here
@@ -276,25 +254,15 @@ void DataMaskRenderAreaComponent::close_input_dialogs()
 		ownerServer.send_select_input_object_message(objectID, false, false, destination);
 	}
 
-	// 0 = Cancel, the same result JUCE gives a window close or Escape
-	for (auto *dialog : { inputListModal.get(), inputNumberModal.get(), inputStringModal.get() })
-	{
-		if (nullptr != dialog)
-		{
-			dialog->exitModalState(0);
-		}
-	}
+	close_input_modals();
 }
 
 void DataMaskRenderAreaComponent::close_replaced_input_dialog(std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
 {
 	std::shared_ptr<isobus::VTObject> openInput;
+	if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
 	{
-		const std::lock_guard<std::mutex> lock(openInputMutex);
-		if ((nullptr != workingSet) && (openInputWorkingSet == workingSet))
-		{
-			openInput = openInputObject;
-		}
+		openInput = openInputObject;
 	}
 
 	// A pool update ends data input only when it replaced the focused object (ISO 11783-6 Table 5)
@@ -306,18 +274,36 @@ void DataMaskRenderAreaComponent::close_replaced_input_dialog(std::shared_ptr<is
 
 void DataMaskRenderAreaComponent::begin_open_input(std::shared_ptr<isobus::VTObject> object)
 {
-	const std::lock_guard<std::mutex> lock(openInputMutex);
 	openInputWorkingSet = parentWorkingSet;
+	if (nullptr != openInputWorkingSet)
+	{
+		openInputWorkingSet->set_object_open_for_input(object->get_id());
+	}
 	openInputObject = std::move(object);
 }
 
 bool DataMaskRenderAreaComponent::end_open_input()
 {
-	const std::lock_guard<std::mutex> lock(openInputMutex);
 	const bool wasOpen = (nullptr != openInputWorkingSet);
+	if (nullptr != openInputWorkingSet)
+	{
+		openInputWorkingSet->set_object_open_for_input(isobus::NULL_OBJECT_ID);
+	}
 	openInputWorkingSet.reset();
 	openInputObject.reset();
 	return wasOpen;
+}
+
+void DataMaskRenderAreaComponent::close_input_modals()
+{
+	// 0 = Cancel, the same result JUCE gives a window close or Escape
+	for (auto *dialog : { inputListModal.get(), inputNumberModal.get(), inputStringModal.get() })
+	{
+		if (nullptr != dialog)
+		{
+			dialog->exitModalState(0);
+		}
+	}
 }
 
 void DataMaskRenderAreaComponent::process_deselection_macro(std::shared_ptr<isobus::VTObject> input, std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> workingSet)
