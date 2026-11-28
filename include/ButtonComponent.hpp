@@ -30,10 +30,14 @@ public:
 
 	void set_pressed(bool isPressed);
 
+	/// @brief Shows the blue highlight of the last button the operator pressed
+	void set_selected(bool isSelected);
+
 private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> parentWorkingSet;
 	std::vector<std::shared_ptr<Component>> childComponents;
 	bool pressed = false;
+	bool selected = false; ///< The last button pressed on this mask
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ButtonComponent)
 };

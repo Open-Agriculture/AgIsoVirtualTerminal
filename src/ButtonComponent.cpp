@@ -98,10 +98,29 @@ void ButtonComponent::paintOverChildren(Graphics &g)
 		g.setColour(borderColour.interpolatedWith(Colours::black, 0.65f));
 		g.drawRoundedRectangle(0.75f, 0.75f, static_cast<float>(get_width()) - 1.5f, static_cast<float>(get_height()) - 1.5f, 3.0f, 1.5f);
 	}
+
+	// The last button the operator pressed gets a blue highlight from the moment it is pressed and keeps it,
+	// so the operator can see which button the last touch went to
+	if (selected)
+	{
+		g.setColour(Colour(0xff3d5cff).withAlpha(0.28f));
+		g.fillRect(getLocalBounds());
+		g.setColour(Colour(0xff3d5cff));
+		g.drawRect(getLocalBounds(), 3);
+	}
 }
 
 void ButtonComponent::paintButton(Graphics &, bool, bool)
 {
+}
+
+void ButtonComponent::set_selected(bool isSelected)
+{
+	if (selected != isSelected)
+	{
+		selected = isSelected;
+		repaint();
+	}
 }
 
 void ButtonComponent::set_pressed(bool isPressed)

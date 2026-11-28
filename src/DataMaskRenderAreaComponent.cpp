@@ -103,6 +103,21 @@ static int detect_designed_mask_size(int medianMaskExtent, int renderAreaSize)
 	return retVal;
 }
 
+// Only the last button pressed carries the selection highlight
+static void show_button_selected(Component &parent, std::uint16_t buttonID)
+{
+	for (auto child : parent.getChildren())
+	{
+		auto button = dynamic_cast<ButtonComponent *>(child);
+
+		if (nullptr != button)
+		{
+			button->set_selected((isobus::NULL_OBJECT_ID != buttonID) && (buttonID == button->get_id()));
+		}
+		show_button_selected(*child, buttonID);
+	}
+}
+
 // A pool can show the same Button more than once
 static void show_button_pressed(Component &parent, std::uint16_t buttonID, bool pressed)
 {
@@ -191,6 +206,7 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 	// Every repaint comes through here, so only a new mask or working set ends the edit
 	if (maskChanged)
 	{
+		selectedButtonID = isobus::NULL_OBJECT_ID;
 		close_input_dialogs();
 	}
 
@@ -206,8 +222,9 @@ void DataMaskRenderAreaComponent::on_change_active_mask(std::shared_ptr<isobus::
 			ownerServer.release_held_buttons();
 		}
 	}
-	// Rebuilt Buttons start unpressed
+	// Rebuilt Buttons start unpressed and unselected
 	show_button_pressed(*this, pressedButtonID, true);
+	show_button_selected(*this, selectedButtonID);
 	repaint();
 }
 
@@ -392,6 +409,8 @@ void DataMaskRenderAreaComponent::mouseDown(const MouseEvent &event)
 							// Set before the macro, which can change the mask and so clear it
 							pressedButtonID = clickedObject->get_id();
 							pressedButtonPoint = { to_pool_coordinate(relativeEvent.mouseDownPosition.x), to_pool_coordinate(relativeEvent.mouseDownPosition.y) };
+							selectedButtonID = clickedObject->get_id();
+							show_button_selected(*this, selectedButtonID);
 						}
 						ownerServer.process_macro(clickedObject, pressed ? isobus::EventID::OnKeyPress : isobus::EventID::OnKeyRelease, isobus::VirtualTerminalObjectType::Button, parentWorkingSet);
 						ownerServer.send_button_activation_message(pressed ? isobus::VirtualTerminalBase::KeyActivationCode::ButtonPressedOrLatched : isobus::VirtualTerminalBase::KeyActivationCode::ButtonUnlatchedOrReleased,
