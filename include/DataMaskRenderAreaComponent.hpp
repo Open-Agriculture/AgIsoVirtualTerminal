@@ -98,6 +98,7 @@ private:
 	int designedMaskSize = 0;
 	std::uint16_t activeMaskID = isobus::NULL_OBJECT_ID;
 	std::uint16_t pressedButtonID = isobus::NULL_OBJECT_ID;
+	std::uint16_t selectedButtonID = isobus::NULL_OBJECT_ID; ///< Last button pressed on the active mask, highlighted
 	juce::Point<int> pressedButtonPoint; ///< Where the press landed, in pool coordinates
 	bool pressCancelled = false; ///< This touch's press was released early, so lifting it does nothing
 	bool needToRepaintActiveArea = false;

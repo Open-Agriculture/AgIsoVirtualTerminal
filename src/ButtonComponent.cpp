@@ -57,20 +57,70 @@ void ButtonComponent::paintOverChildren(Graphics &g)
 	if (false == get_option(Options::NoBorder) && false == get_option(Options::SuppressBorder))
 	{
 		auto vtColour = parentWorkingSet->get_colour(get_border_colour());
-		auto borderColour = Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
-
-		// Buttons without a border show no pressed or latched state
-		if ((true == pressed) || ((true == get_option(Options::Latchable)) && (true == get_option(Options::CurrentButtonStateIfLatchable))))
-		{
-			borderColour = borderColour.contrasting();
-		}
+		const auto borderColour = Colour::fromFloatRGBA(vtColour.r, vtColour.g, vtColour.b, 1.0f);
 		g.setColour(borderColour);
 		g.drawRect(0, 0, get_width(), get_height(), 4);
+
+		// Buttons without a border show no pressed or latched state. While pressed or latched the border is drawn
+		// sunken (dark top and left, light bottom and right), so the button visibly goes down under the finger.
+		if ((true == pressed) || ((true == get_option(Options::Latchable)) && (true == get_option(Options::CurrentButtonStateIfLatchable))))
+		{
+			const float width = static_cast<float>(get_width());
+			const float height = static_cast<float>(get_height());
+			constexpr float BEVEL = 4.0f;
+
+			Path topLeft;
+			topLeft.startNewSubPath(0.0f, 0.0f);
+			topLeft.lineTo(width, 0.0f);
+			topLeft.lineTo(width - BEVEL, BEVEL);
+			topLeft.lineTo(BEVEL, BEVEL);
+			topLeft.lineTo(BEVEL, height - BEVEL);
+			topLeft.lineTo(0.0f, height);
+			topLeft.closeSubPath();
+
+			Path bottomRight;
+			bottomRight.startNewSubPath(width, 0.0f);
+			bottomRight.lineTo(width, height);
+			bottomRight.lineTo(0.0f, height);
+			bottomRight.lineTo(BEVEL, height - BEVEL);
+			bottomRight.lineTo(width - BEVEL, height - BEVEL);
+			bottomRight.lineTo(width - BEVEL, BEVEL);
+			bottomRight.closeSubPath();
+
+			g.setColour(borderColour.interpolatedWith(Colours::black, 0.45f));
+			g.fillPath(topLeft);
+			g.setColour(borderColour.interpolatedWith(Colours::white, 0.55f));
+			g.fillPath(bottomRight);
+		}
+
+		// ISO 11783-6 leaves the border's look to the VT. A pool may give the border the button's own colour,
+		// so a thin dark outline shows that it is a button.
+		g.setColour(borderColour.interpolatedWith(Colours::black, 0.65f));
+		g.drawRoundedRectangle(0.75f, 0.75f, static_cast<float>(get_width()) - 1.5f, static_cast<float>(get_height()) - 1.5f, 3.0f, 1.5f);
+	}
+
+	// The last button the operator pressed gets a blue highlight from the moment it is pressed and keeps it,
+	// so the operator can see which button the last touch went to
+	if (selected)
+	{
+		g.setColour(Colour(0xff3d5cff).withAlpha(0.28f));
+		g.fillRect(getLocalBounds());
+		g.setColour(Colour(0xff3d5cff));
+		g.drawRect(getLocalBounds(), 3);
 	}
 }
 
 void ButtonComponent::paintButton(Graphics &, bool, bool)
 {
+}
+
+void ButtonComponent::set_selected(bool isSelected)
+{
+	if (selected != isSelected)
+	{
+		selected = isSelected;
+		repaint();
+	}
 }
 
 void ButtonComponent::set_pressed(bool isPressed)
