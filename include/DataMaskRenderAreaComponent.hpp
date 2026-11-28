@@ -85,12 +85,11 @@ private:
 	std::shared_ptr<isobus::VirtualTerminalServerManagedWorkingSet> openInputWorkingSet; ///< Cleared when the VT closes the dialog, so its callback sends nothing
 	std::shared_ptr<isobus::VTObject> openInputObject;
 	std::mutex openInputMutex; ///< abort_input() runs on the CAN thread
-	std::unique_ptr<AlertWindow> inputListModal;
+	bool inputListMenuOpen = false; ///< The touch input list drop down is showing
 	std::unique_ptr<AlertWindow> inputNumberModal;
 	std::unique_ptr<AlertWindow> inputStringModal;
 	std::unique_ptr<NumericKeypadComponent> inputNumberKeypad;
 	std::vector<std::shared_ptr<Component>> childComponents;
-	std::vector<std::shared_ptr<Component>> currentModalComponentCache;
 	ServerMainComponent &ownerServer;
 	InputNumberListener inputNumberListener;
 	std::shared_ptr<isobus::WorkingSet> measuredWorkingSetObject;

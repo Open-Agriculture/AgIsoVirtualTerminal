@@ -10,11 +10,13 @@
 #include <limits>
 #include "AppImages.h"
 #include "ButtonComponent.hpp"
+#include "InputListComponent.hpp"
 #include "InputStringFilter.hpp"
 #include "JuceManagedWorkingSetCache.hpp"
 #include "NumberComponent.hpp"
 #include "OutputListComponent.hpp"
 #include "ServerMainComponent.hpp"
+#include "TouchInputListMenu.hpp"
 #include "isobus/isobus/can_stack_logger.hpp"
 
 constexpr int DESIGNED_MASK_SIZES[] = { 200, 240, 480 };
@@ -98,6 +100,27 @@ static int detect_designed_mask_size(int medianMaskExtent, int renderAreaSize)
 				retVal = designedSize;
 				break;
 			}
+		}
+	}
+	return retVal;
+}
+
+// The drop down opens next to the field the operator touched
+static Component *find_input_list_component(Component &parent, std::uint16_t objectID)
+{
+	Component *retVal = nullptr;
+	auto list = dynamic_cast<InputListComponent *>(&parent);
+
+	if ((nullptr != list) && (objectID == list->get_id()))
+	{
+		retVal = list;
+	}
+
+	for (auto child : parent.getChildren())
+	{
+		if (nullptr == retVal)
+		{
+			retVal = find_input_list_component(*child, objectID);
 		}
 	}
 	return retVal;
@@ -276,8 +299,14 @@ void DataMaskRenderAreaComponent::close_input_dialogs()
 		ownerServer.send_select_input_object_message(objectID, false, false, destination);
 	}
 
+	// Dismissing the input list drop down calls its callback with 0, like Cancel
+	if (inputListMenuOpen)
+	{
+		PopupMenu::dismissAllActiveMenus();
+	}
+
 	// 0 = Cancel, the same result JUCE gives a window close or Escape
-	for (auto *dialog : { inputListModal.get(), inputNumberModal.get(), inputStringModal.get() })
+	for (auto *dialog : { inputNumberModal.get(), inputStringModal.get() })
 	{
 		if (nullptr != dialog)
 		{
@@ -458,7 +487,7 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 			                                              to_pool_coordinate(relativeEvent.mouseDownPosition.y));
 
 			// A result callback runs after its dialog stops being modal, and would end an input opened before it ran
-			const bool inputDialogPending = (nullptr != inputListModal) || (nullptr != inputNumberModal) || (nullptr != inputStringModal);
+			const bool inputDialogPending = inputListMenuOpen || (nullptr != inputNumberModal) || (nullptr != inputStringModal);
 
 			if (nullptr != clickedObject)
 			{
@@ -493,15 +522,13 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 						    clickedList->get_option(isobus::InputList::Options::Enabled) &&
 						    (clickedList->get_number_children() > 0))
 						{
-							// Need to display a modal combo selection
-							inputListModal.reset(new AlertWindow("Input List Selection", "Select a List Item, then press OK.", MessageBoxIconType::QuestionIcon));
-							inputListModal->addComboBox("Input List Combo", StringArray());
-							currentModalComponentCache.clear();
-							currentModalComponentCache.reserve(clickedList->get_number_children());
-
-							// In order to handle things that are not strings being allowed in an input list, grab the popup menu itself and shove custom components in there
-							auto combo = inputListModal->getComboBoxComponent("Input List Combo");
-							auto comboPopup = combo->getRootMenu();
+							// A drop down next to the field, applied with one tap. Items keep what the working set drew for them,
+							// which need not be text, at the scale of the field.
+							TouchInputListMenu menu;
+							auto fieldComponent = find_input_list_component(*this, clickedList->get_id());
+							const auto fieldBounds = (nullptr != fieldComponent) ? fieldComponent->getScreenBounds() : Rectangle<int>(event.getScreenX(), event.getScreenY(), static_cast<int>(clickedList->get_width()), static_cast<int>(clickedList->get_height()));
+							const float fieldScale = static_cast<float>(fieldBounds.getWidth()) / static_cast<float>(std::max<std::uint16_t>(1, clickedList->get_width()));
+							const int rowHeight = std::max(TouchInputListItem::MINIMUM_HEIGHT, fieldBounds.getHeight());
 
 							std::uint32_t selectedIndex = std::numeric_limits<std::uint32_t>::max();
 
@@ -528,9 +555,9 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 
 								if (nullptr != child)
 								{
-									currentModalComponentCache.push_back(JuceManagedWorkingSetCache::create_component(parentWorkingSet, child));
+									auto itemComponent = JuceManagedWorkingSetCache::create_component(parentWorkingSet, child);
 
-									if (nullptr != currentModalComponentCache.back())
+									if (nullptr != itemComponent)
 									{
 										auto text = "Object " + std::to_string(clickedList->get_child_id(static_cast<std::uint16_t>(i)));
 										if (child->get_object_type() == isobus::VirtualTerminalObjectType::OutputString)
@@ -538,27 +565,19 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 											text = std::static_pointer_cast<isobus::OutputString>(child)->displayed_value(parentWorkingSet->get_object_tree());
 										}
 
-										comboPopup->addCustomItem(i + 1, *currentModalComponentCache.back().get(), currentModalComponentCache.back()->getWidth(), currentModalComponentCache.back()->getHeight(), true, nullptr, text);
+										menu.add_item(static_cast<int>(i) + 1, std::make_unique<TouchInputListItem>(itemComponent, fieldBounds.getWidth(), rowHeight, fieldScale), text);
 									}
 								}
 							}
 
 							// Item IDs are the list index + 1, so NULL children, which have no item, cannot shift the selection
-							if (selectedIndex < clickedList->get_number_children())
-							{
-								combo->setSelectedId(static_cast<int>(selectedIndex) + 1, dontSendNotification);
-							}
+							const int selectedItemID = (selectedIndex < clickedList->get_number_children()) ? static_cast<int>(selectedIndex) + 1 : 0;
 
-							inputListModal->addButton("OK", 1, KeyPress(KeyPress::returnKey, 0, 0));
-							inputListModal->addButton("Cancel", 0);
-
-							// Only a chosen index (0-254) may be sent, so OK waits for a selection
-							auto okButton = inputListModal->getButton("OK");
-							okButton->setEnabled(0 != combo->getSelectedId());
-							combo->onChange = [okButton, combo]() { okButton->setEnabled(0 != combo->getSelectedId()); };
-							auto resultCallback = [this, clickedList, workingSet = parentWorkingSet](int result) {
+							// The result is the chosen item ID, or 0 when the drop down was dismissed. Only a chosen index (0-254) may be sent.
+							auto resultCallback = [this, clickedList, workingSet = parentWorkingSet](int selectedId) {
+								inputListMenuOpen = false;
 								const bool closedByVT = !end_open_input();
-								const int selectedId = inputListModal->getComboBoxComponent("Input List Combo")->getSelectedId();
+								const int result = (0 != selectedId) ? 1 : 0;
 								std::shared_ptr<isobus::NumberVariable> variable;
 
 								if (isobus::NULL_OBJECT_ID != clickedList->get_variable_reference())
@@ -612,10 +631,15 @@ void DataMaskRenderAreaComponent::mouseUp(const MouseEvent &event)
 								workingSet->set_object_focus(isobus::NULL_OBJECT_ID);
 								ownerServer.repaint_on_next_update();
 								process_deselection_macro(clickedList, workingSet);
-								inputListModal.reset();
 								repaint();
 							};
-							inputListModal->enterModalState(true, ModalCallbackFunction::create(std::move(resultCallback)), false);
+
+							if (0 == menu.get_number_of_items())
+							{
+								break;
+							}
+							inputListMenuOpen = true;
+							menu.show(fieldBounds, this, selectedItemID, std::move(resultCallback));
 							begin_open_input(clickedList);
 							ownerServer.send_select_input_object_message(clickedList->get_id(), true, true, ownerServer.get_client_control_function_for_working_set(parentWorkingSet));
 							if (nullptr != parentWorkingSet)
